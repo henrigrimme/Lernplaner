@@ -399,9 +399,53 @@ Themenbaum-Phase, nicht zur Kapitelerkennung selbst.
   Betrifft nur `vite.config.ts` selbst; alle anderen Dateien (auch die neuen)
   sind sauber (`npx tsc --noEmit 2>&1 | grep -v vite.config.ts` bleibt leer).
 
-**Als Nächstes:** reine Baum-Editierfunktionen (Umbenennen, Verschieben,
-Löschen, `manual_override` setzen) in `src/data/`, danach die React-Ansicht
-in `src/ui/` darüber.
+- **Reine Baum-Editierfunktionen fertig** (`src/data/topicTree.ts`):
+  `buildTree` (flach → verschachtelt, sortiert nach `sort_order`),
+  `renameTopic`, `moveTopic`, `deleteTopic`. Keine DB-Zugriffe, keine UI
+  (ARCHITECTURE.md „ui/ … keine Geschäftslogik"). Jede Änderung setzt
+  `manual_override = 1`. `deleteTopic` kaskadiert wie `ON DELETE CASCADE` in
+  `0001_init.sql`. `moveTopic` verweigert Verschieben in den eigenen
+  Teilbaum (Zyklus) und nummeriert **beide** betroffenen Geschwistergruppen
+  lückenlos neu (alte und neue Elternebene), sonst blieben nach dem
+  Verschieben Lücken in `sort_order`. 11 Tests.
+- **Editierbare React-Ansicht fertig** (`src/ui/TopicTree.tsx`,
+  `TopicTree`-Komponente): zeigt den Baum (`role="tree"`/`treeitem"` für
+  Zugänglichkeit), Umbenennen inline, Löschen mit Ja/Nein-Bestätigung (kein
+  `window.confirm` — in Tauri nicht garantiert verfügbar/testbar), Verschieben
+  über Auf/Ab/Ein-/Ausrücken-Schaltflächen statt Drag & Drop (tastatur-
+  bedienbar, keine neue Laufzeit-Abhängigkeit). Zeigt ein „bearbeitet"-
+  Abzeichen bei `manual_override = 1`. Reine Präsentationskomponente: hält
+  keinen eigenen Datenzustand außer den Edit-/Lösch-Bestätigungsmodi, jede
+  Änderung geht über `topicTree.ts` und wird per `onChange(topics)` nach
+  außen gereicht — Persistieren ist Sache der aufrufenden Stelle (kommt mit
+  dem Tauri-Rahmen). „Ausrücken" verschiebt eine Ebene hoch, direkt hinter
+  das bisherige Elternthema (`Number.MAX_SAFE_INTEGER` als Index, den
+  `moveTopic` selbst auf die tatsächliche Geschwisterzahl klemmt).
+  - **Testinfrastruktur neu:** `jsdom`, `@testing-library/react`,
+    `@testing-library/jest-dom`, `@testing-library/user-event` als
+    devDependencies ergänzt (vorher nur `environment: 'node'`, keine
+    Komponenten testbar). `vite.config.ts` nutzt jetzt
+    `environmentMatchGlobs` (`tests/ui/**` → `jsdom`, alles andere bleibt
+    `node` — schneller, siehe ARCHITECTURE.md „Tests"), `tests/setup.ts` lädt
+    die jest-dom-Matcher. 10 Tests in `tests/ui/TopicTree.test.tsx`
+    (Rendering, Umbenennen inkl. Abbrechen, Verschieben, Ein-/Ausrücken,
+    Lösch-Bestätigung, „bearbeitet"-Abzeichen).
+  - `npm audit` meldet 5 Schwachstellen (esbuild/vite, über eine verschachtelte
+    `vite`-Kopie in `vitest`s eigenem `node_modules`) — vorbestehend, dieselbe
+    Ursache wie der Typecheck-Fehler unten, nicht durch die neuen
+    devDependencies verursacht, nicht behoben (Fix ist ein `vitest`-Major-
+    Update, eigene Entscheidung).
+
+**Themenbaum-Ansicht ist damit fachlich vollständig** (Mapping + Editieren +
+Anzeige + Tests + Plausi-Check). Noch **nicht** angebunden an eine laufende
+App — das braucht den Tauri-Rahmen (Fenster, `tauri-plugin-sql` für echte
+Persistenz statt der reinen In-Memory-Tests). Vorher zurückgestellte Lücke
+weiterhin offen: Re-Import/Update unter Beachtung von `manual_override`.
+
+**Als Nächstes (danach, nicht mehr Teil dieses Schritts):** laut ROADMAP.md
+Phase 1 fehlt jetzt nur noch „Tauri-Projekt, Build, Tests, CI" — der einzige
+verbleibende offene Punkt vor Phase 2. Braucht vorher Rust (`rustup`), siehe
+unten.
 
 **Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
 - PR öffnen/mergen — setzt einen Push nach GitHub voraus

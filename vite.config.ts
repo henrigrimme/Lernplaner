@@ -16,6 +16,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    // ui/-Tests brauchen ein DOM, alle anderen (domain/ingest/data) sind
+    // reine Funktionen und laufen schneller ohne jsdom — siehe
+    // ARCHITECTURE.md "Tests".
+    environmentMatchGlobs: [['tests/ui/**', 'jsdom']],
+    include: ['tests/**/*.test.{ts,tsx}'],
+    setupFiles: ['./tests/setup.ts'],
   },
 })

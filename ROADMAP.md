@@ -15,7 +15,7 @@ Prüfungen im Oktober.
 - [x] PDF-Import mit Textextraktion
 - [x] Animationsschritt-Erkennung, an echtem Material abgestimmt
 - [x] Kapitelerkennung mit Fuzzy-Normalisierung
-- [ ] Themenbaum-Ansicht, bearbeitbar
+- [x] Themenbaum-Ansicht, bearbeitbar
 
 **Ergebnis:** Foliensätze importieren und den Themenbaum prüfen.
 
