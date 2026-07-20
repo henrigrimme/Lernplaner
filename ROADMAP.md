@@ -11,9 +11,9 @@ Prüfungen im Oktober.
 - [x] Extraktion an drei Fächern validiert
 - [x] Repository, `.gitignore`, Sicherheitsdoku
 - [ ] Tauri-Projekt, Build, Tests, CI
-- [ ] SQLite-Schema (vollständig, inkl. später genutzter Tabellen)
-- [ ] PDF-Import mit Textextraktion
-- [ ] Animationsschritt-Erkennung, an echtem Material abgestimmt
+- [x] SQLite-Schema (vollständig, inkl. später genutzter Tabellen)
+- [x] PDF-Import mit Textextraktion
+- [x] Animationsschritt-Erkennung, an echtem Material abgestimmt
 - [ ] Kapitelerkennung mit Fuzzy-Normalisierung
 - [ ] Themenbaum-Ansicht, bearbeitbar
 

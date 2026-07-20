@@ -259,155 +259,79 @@ aussagekräftigen Nachrichten, keine Force-Pushes, Feature-Branches mit PR.
   Foliensätze** (drei Fächer). Das Verfahren (größte Schrift im oberen
   Seitendrittel) funktioniert robust.
 - **Erste Tests geschrieben:** `tests/ingest/slides.test.ts`,
-  `tests/ingest/extract.test.ts` (9 Tests, `npm test`).
-
-### ✅ Animationsschritt-Erkennung — dritter Ansatz, deutlich verbessert
-
-**Neuer Ansatz (Idee 1 aus der vorherigen Session, Positionssignal):** Eine
-Zeile der früheren Seite gilt zusätzlich dann als erhalten, wenn sie auf der
-späteren Seite an (fast) derselben Position wiederkehrt (±3pt y, ±5pt x) —
-auch wenn sich ihr exakter Zeilenumbruch geändert hat. Das ist eine
-**Ergänzung**, kein Ersatz für den Textvergleich: Positionsübereinstimmung
-zählt nur zusammen mit Textähnlichkeit (≥ 50 % gemeinsamer Zeichenanteil,
-`textsOverlap`) — sonst wären titelgleiche Folien mit demselben
-Layout-Template (der Money-&-Banking-Fall) wieder fälschlich zusammengefasst
-worden, weil ihre erste Zeile zufällig an derselben Stelle beginnt.
-Containment-Schwelle von 80 % auf 70 % gesenkt. Implementiert in
-`isBuildStep` / `linePersists` / `textsOverlap`, `src/ingest/slides.ts`.
-
-**Nebenbefund, der die Diagnose stärker verbessert hat als die
-Positionsänderung selbst:** `findRepeatingLines` hatte einen Bug. Fußzeilen
-mit eingebetteter Foliennummer (z. B. `"19March 16, 2026Prof. Dr. Priscilla
-Kraft"` — Nummer ohne Leerzeichen ans nächste Wort angehängt) tauchen nie
-zweimal wortgleich auf, weil jede Seite eine andere Nummer hat. Die
-Sonderbehandlung dafür in `bodyLinesOf` (Abgleich der um die Nummer
-bereinigten Zeile gegen `repeating`) konnte deshalb **nie greifen** —
-`repeating` wurde nur mit Rohzeilen befüllt, nie mit bereinigten. Der Zweig
-war faktisch totes Coding. Effekt: Auf praktisch jeder Seite blieb eine
-nie-wieder-passende Fußzeilen-Restzeile im Inhalt zurück und senkte den
-Containment-Wert jedes Seitenpaars künstlich. Fix: `findRepeatingLines`
-zählt jetzt zusätzlich die um die **eigene** Seitenzahl bereinigte Fassung
-jeder Zeile (`stripOwnPageNumber` — exakter Abgleich mit `page.number`,
-nicht irgendeine Ziffernfolge, sonst wären nummerierte Aufzählungspunkte wie
-„1 Introduction …" fälschlich als Fußzeile behandelt worden; dafür gibt es
-einen eigenen Test).
-
-**Validiert an echtem Material** (die ursprünglichen Testdateien lagen
-inzwischen an anderem Ort, siehe „Fundstellen" unten):
-
-| Datei | PDF-Seiten | Folien | Trenn | Builds |
-|---|---|---|---|---|
-| Consumer Theory 01 | 32 | 32 | 0 | 0 |
-| Producer Theory 01 | 21 | 21 | 0 | 0 |
-| ET Slides Session 1 | 53 | 40 | 12 | 1 |
-| ET Slides Session 2 | 51 | 38 | 7 | 6 |
-| ET Slides Session 3 | 34 | 26 | 7 | 1 |
-| ET Slides Session 4 | 41 | 33 | 5 | 3 |
-| ET Slides Session 5 | 45 | 35 | 5 | 2 |
-
-Stichprobenartig von Hand nachvollzogen (Positions-/Textdaten der
-betroffenen Seiten ausgegeben, nicht nur die Zahlen geglaubt):
-- **S.6–8, Session 2** (dreimal derselbe Titel „Why do established companies
-  often fail…", je andere Zitate/Bullet-Points): korrekt **nicht**
-  zusammengefasst — genau das Money-&-Banking-Muster, jetzt auch hier
-  bestätigt und richtig behandelt.
-- **S.19–20, Session 2**: identische Zeile „New-to-World innovation /
-  New-to-Firm innovation" an exakt derselben Position, S.20 ergänzt nur ein
-  Bild darunter → korrekt als Build erkannt (vorher durch den
-  Fußzeilen-Bug verpasst).
-- **S.39–43, Session 2** (mehrere fast-leere „Examples"-Folien mit
-  wechselndem Titel): bleiben getrennt, weil sie als Trennfolien erkannt
-  werden (0 Zeilen Inhalt) und `groupIntoSlides` nie über eine Trennfolie
-  hinweg zusammenfasst.
-
-**Der gestiegene Trenn-Anteil ist eine Korrektur, kein neues Problem:** Die
-vorher als „Inhalt" gezählten 0-Zeilen-Folien enthielten ausschließlich
-Fußzeilen-Reste (Bug oben) — mit dem Fix zeigen sie korrekt 0 echte
-Textzeilen. Stichprobe von Hand geprüft (Session 1, S.10/S.11, S.15/S.16):
-tatsächlich reine Bild-/Titelfolien ohne Fließtext.
-
-**Nebenbeobachtung, NICHT behoben (außerhalb des Umfangs dieser Session):**
-`isDividerPage` markiert jede fast-textleere Folie als „Trennfolie", auch
-wenn sie inhaltlich kein Kapitelwechsel ist, sondern z. B. eine
-Diskussionsfrage („What do these companies have in common?") oder eine reine
-Bildfolie. Das drückt `slideCount`/`uniqueChars` künstlich, weil solche
-Folien aus `contentSlides` herausfallen. Gehört sachlich zur
-Kapitelerkennung (nächste Phase), nicht zur Animationserkennung — hier nur
-vermerkt, damit es nicht verloren geht.
-
-**Jetzt am Original validiert:** Die ursprünglichen Testdateien „1 Financial
-Systems" (40 S.), „2 Bonds" (64 S.), „4 Financial Institutions" (53 S.) —
-Seitenzahlen exakt identisch mit den in dieser Sektion früher notierten
-Werten, also zweifelsfrei dieselben Dateien — sind wieder aufgetaucht (vom
-Nutzer manuell in `Beispiel pdfs/` gelegt). Der dokumentierte Fehlerfall
-„Types of Financial Intermediaries" (S.20–23 in „4 Financial Institutions")
-wurde am Original nachgeprüft: **korrekt nicht zusammengefasst.**
-Stichprobenartig wurden weitere ~15 Folgen mit wiederkehrendem Titel in
-allen drei Dateien von Hand durchgesehen (z. B. „Measurement of Risk"
-S.28–36 in Financial Systems, „The Term Structure of Interest Rates"
-S.50–61 in Bonds, „Bank Capital and Profitability" S.33–35 in Financial
-Institutions) — durchweg echte Folgen unterschiedlicher Unterpunkte unter
-einer wiederkehrenden Abschnittsüberschrift, korrekt nicht zusammengefasst.
-
-**Überraschender, aber plausibler Befund:** In allen drei Dateien wurden
-**0 echte Animationsschritte** erkannt (`buildGroups: 0`). Die gesamte
-Aufblähung (Faktor 1,12–1,23) kommt ausschließlich aus Trennfolien und
-Unterpunkt-Folgen mit gleichem Titel. Das ist wahrscheinlich korrekt, kein
-Erkennungsfehler — diese drei Foliensätze scheinen schlicht ohne
-PowerPoint-Animationen exportiert zu sein, anders als Entrepreneurial
-Transformation. Ein echter Aufbauschritt (Positionstest greift) wurde in
-„3 Exchange Rates & Financial Instruments" bestätigt (S.4–5, identische
-Bildquellenangabe an exakt gleicher Position, Chart-Bild kommt dazu).
-
-**Fundstellen des Testmaterials:** Der Nutzer hat das komplette Set jetzt
-lokal unter `Beispiel pdfs/` abgelegt (gitignored, siehe SECURITY.md) und
-nach Fach sortiert:
-- `Beispiel pdfs/Microeconomics/` — 01 Introduction, 02 Consumer Theory
-  01+02, 03 Producer Theory 01+02, 04 Market Structures 01, 05 Game
-  Theory 01
-- `Beispiel pdfs/Money Banking and Financial Markets/` — 0 Introduction,
-  1 Financial Systems, 2 Bonds, 3 Exchange Rates & Financial Instruments,
-  4 Financial Institutions, 5 Central Bank, Online Questions 1+2 (je mit
-  `_Solutions`), Problem Set 1+2 (je mit `_Solutions`)
-
-Damit ist die Suche nach Testmaterial für künftige Sessions erledigt, ohne
-erst wieder iCloud/OneDrive durchsuchen zu müssen. Nebenbefund beim Sortieren:
-`Online Questions 2.pdf` enthält inhaltlich bereits die Lösungen (identisch
-mit `Online Questions 2_Solutions.pdf`) — vermutlich ein Bezeichnungsfehler
-beim Bereitstellen der Dateien, nicht durch die Pipeline verursacht; hier nur
-vermerkt, nicht korrigiert.
-
-Debug-Skript für Positions-/Textdaten pro Seite lag während der Untersuchung
-im Scratchpad (nicht im Repo, siehe Konvention unten) und wurde nicht
-übernommen — bei Bedarf neu schreiben: `readPages` laden, `findRepeatingLines`
-+ `bodyLinesOf` pro Seite aufrufen, `x`/`y`/Text ausgeben.
+  `tests/ingest/extract.test.ts` (9 Tests).
+- **Animationsschritt-Erkennung gelöst** (dritter Ansatz: Titel + Positions-
+  **und** Textabgleich statt reinem Textcontainment). Zusätzlich ein
+  Fußzeilen-Bug behoben, der den Containment-Wert systematisch gedrückt
+  hatte (`findRepeatingLines`/`stripOwnPageNumber` in `extract.ts`). Am
+  Original aller vier Fächer validiert, inkl. des ursprünglich
+  dokumentierten Fehlerfalls „Types of Financial Intermediaries" (S.20–23,
+  „4 Financial Institutions.pdf") — korrekt nicht zusammengefasst. Details,
+  Testtabelle und Stichproben: `git log` / Commits
+  `7331815`/`c5015e9` auf `feat/ingest-pipeline`, sowie
+  `src/ingest/slides.ts` (Kommentar am Funktionskopf von `isBuildStep`).
+  Überraschender Befund dabei: Die Money-&-Banking-Foliensätze 1/2/4 nutzen
+  offenbar gar keine PowerPoint-Animationen (`buildGroups: 0`) — die
+  gesamte Seiten-Aufblähung dort kommt aus Trennfolien und
+  Unterpunkt-Folgen mit gleichem Titel, nicht aus echten Builds.
+- **Testmaterial lokal sortiert:** `Beispiel pdfs/Microeconomics/` (7
+  Dateien) und `Beispiel pdfs/Money Banking and Financial Markets/` (14
+  Dateien, inkl. Online Questions/Problem Sets) — gitignored, siehe
+  SECURITY.md. Nebenbefund beim Sortieren: `Online Questions 2.pdf`
+  enthält inhaltlich bereits die Lösungen (identisch mit
+  `..._Solutions.pdf`) — vermutlich ein Bezeichnungsfehler der
+  Quelle, nicht korrigiert.
+- **SQLite-Schema angelegt** (vollständig, alle 19 Tabellen aus
+  DATA_MODEL.md, auch die erst ab Phase 4 befüllten):
+  - `src/data/migrations/0001_init.sql` — DDL, `CHECK`-Constraints für alle
+    Enum-Spalten, Fremdschlüssel mit `ON DELETE CASCADE`/`SET NULL` wo
+    sinnvoll, Indizes auf allen Fremdschlüsseln plus `study_blocks.planned_date`
+    und `reviews.due_at` (Abfragen, die die Heute-Ansicht bzw. Spaced
+    Repetition brauchen werden)
+  - `src/data/schema.ts` — TypeScript-Zeilentypen für alle Tabellen,
+    reine Typen ohne Laufzeitlogik
+  - `tests/data/schema.test.ts` — wendet die Migration gegen eine echte
+    In-Memory-SQLite-Datenbank an (`better-sqlite3`, **nur** Testwerkzeug,
+    nicht die spätere Laufzeit-Anbindung) und prüft: alle 19 Tabellen
+    vorhanden, Fremdschlüssel greifen (inkl. Cascade-Löschung), `CHECK`-
+    und `NOT NULL`-Constraints wirken (u. a. der in DATA_MODEL.md
+    hervorgehobene Fall `questions.source_document_id`/`source_page`)
+  - Migration ist **nicht idempotent** (kein `IF NOT EXISTS`) — bewusst so
+    gelassen, ein Migrationsrunner mit Versionstracking kommt erst mit dem
+    Tauri-Rahmen (`tauri-plugin-sql`, siehe ARCHITECTURE.md); bis dahin ist
+    `0001_init.sql` nur eine vorbereitete SQL-Datei, noch nicht an eine
+    echte App-Laufzeit angeschlossen
 
 ### Nächster Schritt
 
-Kein offener Blocker mehr für die Animationserkennung — am Original von
-allen vier Fächern (Microeconomics, Entrepreneurial Transformation, Money &
-Banking, plus die MBFM-Zusatzmaterialien Online Questions/Problem Sets)
-bestätigt. PR öffnen (siehe Commit-Politik unten), dann weiter mit der
-Roadmap.
+Kapitelerkennung mit Fuzzy-Normalisierung (`src/ingest/` — Kapitelzeile /
+Trennfolie / Dateiname als Signal, siehe ARCHITECTURE.md „ingest/"). Dabei
+mitbedenken, aber nicht zwingend in einem Zug beheben: `isDividerPage`
+markiert aktuell jede fast-textleere Folie als „Trennfolie", auch reine
+Diskussionsfragen oder Bildfolien ohne Kapitelwechsel — drückt
+`slideCount`/`uniqueChars` künstlich.
+
+**Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
+- PR öffnen/mergen — setzt einen Push nach GitHub voraus
+- Tauri-Rahmen — setzt eine Rust-Installation (`rustup`) voraus
 
 ### Sonstiges für den Wiedereinstieg
 
 - **Rust ist auf diesem Mac nicht installiert.** Für den eigentlichen
   Tauri-Rahmen (Fenster, Notifications, SQLite-Plugin) wird es gebraucht,
-  aber noch nicht für die aktuelle Arbeit (`src/ingest/` ist reines
-  TypeScript, läuft mit `tsx`/`vitest` ohne Tauri). Vor Beginn des
+  aber noch nicht für die aktuelle Arbeit (`src/ingest/`, `src/data/` sind
+  reines TypeScript, laufen mit `tsx`/`vitest` ohne Tauri). Vor Beginn des
   Tauri-Rahmens: `xcode-select -p` ist vorhanden, `rustc`/`cargo` fehlen —
   Installation via `rustup` beim Nutzer erfragen (keine globalen
   Abhängigkeiten ohne Rückfrage).
 - **Commit-Politik:** Es wird laufend committet, auch WIP-Stände auf dem
   Feature-Branch (siehe Regel oben und [CONTRIBUTING.md](CONTRIBUTING.md)).
-  PR erst öffnen, wenn die Animationsschritt-Erkennung ein belastbares
-  Ergebnis liefert — dann per Squash-Merge nach `main`.
+  PR erst öffnen, wenn ein größerer Roadmap-Abschnitt ein belastbares
+  Ergebnis liefert — dann per Squash-Merge nach `main`, nach Rückfrage
+  (Push).
 
 ### Danach (unverändert aus der Roadmap)
 
-- SQLite-Schema anlegen (vollständig, inkl. später genutzter Tabellen)
-- Kapitelerkennung mit Fuzzy-Normalisierung
 - Themenbaum-Ansicht, bearbeitbar
 - Tauri-Rahmen (Fenster, Plugins) — Rust-Installation vorher klären
 
