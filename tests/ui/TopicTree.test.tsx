@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { TopicTree } from '../../src/ui/TopicTree'
@@ -149,5 +149,43 @@ describe('TopicTree', () => {
     const changed = screen.getByRole('treeitem', { name: 'Angepasst' })
     expect(within(unchanged).queryByText('bearbeitet')).not.toBeInTheDocument()
     expect(within(changed).getByText('bearbeitet')).toBeInTheDocument()
+  })
+
+  it('setzt das Gewicht eines Blattthemas über den Regler', () => {
+    const topics = [topic({ id: 1, name: 'Preferences', weight: 3 })]
+    const onChange = vi.fn()
+    render(<TopicTree topics={topics} onChange={onChange} />)
+
+    fireEvent.change(screen.getByLabelText('Gewicht von Preferences'), { target: { value: '5' } })
+
+    const updated = onChange.mock.calls[0]![0] as Topic[]
+    expect(updated[0]).toMatchObject({ weight: 5, manual_override: 1 })
+  })
+
+  it('vererbt den Schwierigkeits-Regler eines Kapitels auf alle Unterthemen', () => {
+    const topics = [
+      topic({ id: 1, parent_id: null, name: 'Consumer Theory', difficulty: 3 }),
+      topic({ id: 2, parent_id: 1, name: 'Preferences', difficulty: 3 }),
+    ]
+    const onChange = vi.fn()
+    render(<TopicTree topics={topics} onChange={onChange} />)
+
+    fireEvent.change(screen.getByLabelText('Schwierigkeit von Consumer Theory'), { target: { value: '5' } })
+
+    const updated = onChange.mock.calls[0]![0] as Topic[]
+    expect(updated.every((t) => t.difficulty === 5)).toBe(true)
+  })
+
+  it('kennzeichnet Regler auf einem Kapitel als "ganzer Bereich"', () => {
+    const topics = [
+      topic({ id: 1, parent_id: null, name: 'Consumer Theory' }),
+      topic({ id: 2, parent_id: 1, name: 'Preferences' }),
+    ]
+    render(<TopicTree topics={topics} onChange={vi.fn()} />)
+
+    const chapter = screen.getByRole('treeitem', { name: 'Consumer Theory' })
+    const leaf = screen.getByRole('treeitem', { name: 'Preferences' })
+    expect(within(chapter).getByText(/Gewicht \(ganzer Bereich\)/)).toBeInTheDocument()
+    expect(within(leaf).queryByText(/ganzer Bereich/)).not.toBeInTheDocument()
   })
 })
