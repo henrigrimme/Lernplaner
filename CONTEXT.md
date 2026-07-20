@@ -358,14 +358,58 @@ Themenbaum-Phase, nicht zur Kapitelerkennung selbst.
 
 ### Nächster Schritt
 
-Themenbaum-Ansicht, bearbeitbar (nächster Roadmap-Punkt) — UI-Arbeit, siehe
-ARCHITECTURE.md „Datenfluss beim Import". Erste Gelegenheit, `src/data/`
-tatsächlich zu befüllen (documents/topics/topic_sections aus einem
-`ExtractedDocument`).
+**Themenbaum-Ansicht, bearbeitbar — in Arbeit.**
+
+- **Mapping `ExtractedDocument` → `documents`/`topics`/`topic_sections`
+  fertig** (`src/data/importTopics.ts`, `importExtractedDocument`). Jedes
+  Kapitel wird zu einem Thema (`parent_id NULL` — die Pipeline erkennt aktuell
+  nur Kapitel, keine Unterthemen, das ist eine spätere Erweiterung, kein
+  Rückschritt). Jede Kapitel-Folienmenge wird zu einer `topic_section` mit
+  Seitenbereich (`min`/`max` der Folien-Seitenzahlen) und Zeichenumfang
+  (Summe von `slide.chars` über die Kapitelfolien — bewusst **nicht**
+  identisch mit `document.unique_chars`, das global dedupliziert; die
+  `topic_section`-Summe ist die einfache lokale Summe). `SqlExecutor` als
+  schmale Schnittstelle statt fester `better-sqlite3`-Anbindung, damit später
+  `tauri-plugin-sql` eingesetzt werden kann, ohne das Mapping umzuschreiben.
+  5 Tests gegen eine echte In-Memory-SQLite-Datenbank.
+  - **Bewusst nicht Teil dieses Schritts:** Re-Import/Update bestehender
+    Themen unter Beachtung von `manual_override` (siehe DATA_MODEL.md „Warum
+    `manual_override` existiert") — aktuell nur reines Anlegen (INSERT) beim
+    Erstimport. Muss nachgezogen werden, sobald ein zweiter Import auf
+    denselben Kurs trifft.
+- **Plausibilitätscheck an echtem Material durchgeführt**
+  (`scripts/preview-import.ts`, `npm run preview-import -- <pfad.pdf>` —
+  neues Diagnosewerkzeug analog `analyze-material.ts`, zeigt zusätzlich die
+  tatsächlichen `topics`/`topic_sections`-Zeilen). Gegen alle Microeconomics-
+  und Money-&-Banking-Dateien laufen lassen: Seitenbereiche und
+  Kapitelnamen decken sich mit der bereits validierten Kapitelerkennung,
+  keine Auffälligkeiten gefunden. Bekannte Kosmetik, nicht behoben: Kapitel
+  aus unbenannten Trennfolien heißen „Kapitel 2", „Kapitel 3" — technisch
+  korrekt (siehe `chapters.ts` `detectDividerChapters`), aber kein Name, den
+  ein Nutzer in der Baumansicht so stehen lassen würde; das ist genau der
+  Fall, für den `manual_override` gedacht ist.
+- **Vorbestehender Fehler gefunden, nicht behoben:** `npm run typecheck`
+  schlägt unabhängig von diesem Schritt auf `vite.config.ts:16` fehl
+  (`test`-Feld unbekannt, weil `defineConfig` aus `vite` statt
+  `vitest/config` importiert wird). Der naheliegende Fix
+  (`from 'vitest/config'`) deckt einen Versionskonflikt zwischen zwei
+  `vite`-Kopien im `node_modules`-Baum auf (`vite` direkt vs. die von
+  `vitest` mitgebrachte Version) — das ist eine Abhängigkeits-Aufräumarbeit
+  für sich, nicht Teil der Themenbaum-Arbeit, deshalb zurückgestellt.
+  Betrifft nur `vite.config.ts` selbst; alle anderen Dateien (auch die neuen)
+  sind sauber (`npx tsc --noEmit 2>&1 | grep -v vite.config.ts` bleibt leer).
+
+**Als Nächstes:** reine Baum-Editierfunktionen (Umbenennen, Verschieben,
+Löschen, `manual_override` setzen) in `src/data/`, danach die React-Ansicht
+in `src/ui/` darüber.
 
 **Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
 - PR öffnen/mergen — setzt einen Push nach GitHub voraus
 - Tauri-Rahmen — setzt eine Rust-Installation (`rustup`) voraus
+- Fix für den `vite.config.ts`-Typecheck-Fehler (siehe oben) — der einfache
+  Fix zieht einen `vite`-Versionskonflikt nach sich, der eine bewusste
+  Entscheidung braucht (z. B. `npm dedupe`, Version pinnen), keine
+  Nebenbei-Änderung
 
 ### Sonstiges für den Wiedereinstieg
 
