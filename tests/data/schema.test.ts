@@ -4,13 +4,17 @@ import Database from 'better-sqlite3'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 /**
- * Prüft die Migration gegen eine echte (In-Memory-)SQLite-Datenbank statt
- * die SQL-Datei nur zu lesen. `better-sqlite3` ist reine Testinfrastruktur —
+ * Prüft die Migrationen gegen eine echte (In-Memory-)SQLite-Datenbank statt
+ * die SQL-Dateien nur zu lesen. `better-sqlite3` ist reine Testinfrastruktur —
  * zur Laufzeit läuft die App später über `tauri-plugin-sql` (siehe
- * ARCHITECTURE.md), das dieselbe SQL-Datei ausführt.
+ * ARCHITECTURE.md), das dieselben SQL-Dateien ausführt.
  */
-const MIGRATION_SQL = readFileSync(
+const MIGRATION_0001 = readFileSync(
   resolve(__dirname, '../../src/data/migrations/0001_init.sql'),
+  'utf-8',
+)
+const MIGRATION_0002 = readFileSync(
+  resolve(__dirname, '../../src/data/migrations/0002_ai_usage.sql'),
   'utf-8',
 )
 
@@ -26,6 +30,7 @@ const EXPECTED_TABLES = [
   'study_blocks',
   'calibration',
   'plan_versions',
+  'ai_usage',
   'cards',
   'reviews',
   'quizzes',
@@ -39,7 +44,8 @@ const EXPECTED_TABLES = [
 function freshDb(): Database.Database {
   const db = new Database(':memory:')
   db.pragma('foreign_keys = ON')
-  db.exec(MIGRATION_SQL)
+  db.exec(MIGRATION_0001)
+  db.exec(MIGRATION_0002)
   return db
 }
 
@@ -142,9 +148,55 @@ describe('Migration 0001_init', () => {
   })
 
   it('lässt sich zweimal anwenden nur, wenn die Datenbank vorher leer ist (keine idempotente Wiederanwendung)', () => {
-    // Dokumentiert bewusst das aktuelle Verhalten: 0001_init.sql legt Tabellen
-    // ohne "IF NOT EXISTS" an. Ein Migrationsrunner (kommt mit dem
+    // Dokumentiert bewusst das aktuelle Verhalten: die Migrationen legen
+    // Tabellen ohne "IF NOT EXISTS" an. Ein Migrationsrunner (kommt mit dem
     // Tauri-Rahmen) muss angewendete Migrationen selbst nachhalten.
-    expect(() => db.exec(MIGRATION_SQL)).toThrow(/already exists/)
+    expect(() => db.exec(MIGRATION_0001)).toThrow(/already exists/)
+  })
+})
+
+describe('Migration 0002_ai_usage (ADR-007)', () => {
+  let db: Database.Database
+
+  beforeEach(() => {
+    db = freshDb()
+  })
+
+  it('protokolliert einen KI-Aufruf mit Kosten', () => {
+    db.prepare(
+      `INSERT INTO ai_usage (provider, operation, input_tokens, output_tokens, cost_eur)
+       VALUES ('gemini-flash-lite', 'refine_topics', 1200, 400, 0.0021)`,
+    ).run()
+
+    const row = db.prepare('SELECT * FROM ai_usage').get() as { cost_eur: number }
+    expect(row.cost_eur).toBeCloseTo(0.0021)
+  })
+
+  it('lehnt einen Aufruf ohne Kostenangabe ab (NOT NULL)', () => {
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO ai_usage (provider, operation, input_tokens, output_tokens)
+           VALUES ('gemini-flash-lite', 'refine_topics', 1200, 400)`,
+        )
+        .run(),
+    ).toThrow(/NOT NULL constraint failed/)
+  })
+
+  it('lässt die Monatssumme als abgeleiteten Wert berechnen, statt sie zu speichern', () => {
+    const insert = db.prepare(
+      `INSERT INTO ai_usage (occurred_at, provider, operation, input_tokens, output_tokens, cost_eur)
+       VALUES (?, 'gemini-flash-lite', 'refine_topics', 100, 50, ?)`,
+    )
+    insert.run('2026-08-01T10:00:00.000Z', 2.5)
+    insert.run('2026-08-15T10:00:00.000Z', 3.0)
+    insert.run('2026-09-01T10:00:00.000Z', 1.0) // anderer Monat, zählt nicht mit
+
+    const sum = db
+      .prepare(
+        `SELECT SUM(cost_eur) AS total FROM ai_usage WHERE occurred_at LIKE '2026-08%'`,
+      )
+      .get() as { total: number }
+    expect(sum.total).toBeCloseTo(5.5)
   })
 })

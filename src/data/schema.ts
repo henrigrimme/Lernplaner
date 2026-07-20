@@ -147,6 +147,17 @@ export interface PlanVersion {
   snapshot_json: string
 }
 
+/** Protokoll eines KI-Aufrufs — Grundlage der Budget-Benachrichtigung (ADR-007). */
+export interface AiUsage {
+  id: number
+  occurred_at: string
+  provider: string
+  operation: string
+  input_tokens: number
+  output_tokens: number
+  cost_eur: number
+}
+
 export interface Card {
   id: number
   topic_id: number

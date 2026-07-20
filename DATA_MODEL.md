@@ -95,6 +95,31 @@ schlechter war als der Ausgangszustand.
 
 ---
 
+## KI-Nutzung
+
+```sql
+ai_usage                       -- Protokoll jedes KI-Aufrufs
+  id, occurred_at, provider, operation,
+  input_tokens, output_tokens, cost_eur
+```
+
+Grundlage für die Budget-Benachrichtigung (ADR-007): Jeder Nutzer setzt sein
+eigenes monatliches Limit selbst, in `settings` unter `ai_budget_limit_eur`.
+Beim Überschreiten wird benachrichtigt, nie gesperrt — und zwar erneut bei
+jedem weiteren erreichten Vielfachen des Limits. Damit das nicht bei jedem
+einzelnen Aufruf zwischen zwei Schwellenwerten erneut auslöst, merkt sich
+`settings` zusätzlich, bis wohin schon benachrichtigt wurde:
+`ai_budget_last_notified_month` (z. B. `"2026-08"`),
+`ai_budget_last_notified_multiple` (z. B. `1` = einmal benachrichtigt,
+`2` = zweimal). Bei neuem Monat wird implizit wieder bei 0 angefangen, weil
+`ai_budget_last_notified_month` dann nicht mehr zum aktuellen Monat passt.
+
+Die tatsächliche Monatssumme ist ein abgeleiteter Wert (Summe von `cost_eur`
+aus `ai_usage` für den laufenden Monat) — nicht separat gespeichert, siehe
+„Abgeleitete Werte" unten.
+
+---
+
 ## Später befüllt, jetzt schon angelegt
 
 ```sql
@@ -140,6 +165,7 @@ Nicht gespeichert, sondern berechnet:
 | Vorbereitungsgrad je Prüfung | Σ(mastery × weight) / Σ(weight) |
 | Nächster Schritt | max(weight × (1 − mastery)) |
 | Kapazitätsdeckung | (verfügbar − Puffer) / benötigt |
+| KI-Ausgaben laufender Monat | Σ(`cost_eur`) aus `ai_usage`, Monat = aktueller Monat |
 
 Speichern würde Inkonsistenzen erzeugen, sobald ein Block nachträglich geändert
 wird.

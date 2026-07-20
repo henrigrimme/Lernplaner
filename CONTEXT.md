@@ -337,6 +337,25 @@ Folie als „Trennfolie", auch reine Diskussionsfragen oder Bildfolien ohne
 Kapitelwechsel — drückt `slideCount`/`uniqueChars` künstlich. Gehört zur
 Themenbaum-Phase, nicht zur Kapitelerkennung selbst.
 
+- **KI-Budget-Verhalten festgelegt (ADR-007):** Auf Nutzerwunsch — die App
+  soll bei Erreichen eines Limits **benachrichtigen, nicht sperren**, und
+  jeder Nutzer setzt sein eigenes monatliches Limit selbst (lokal, kein
+  Abgleich zwischen den beiden Nutzern). Benachrichtigung wiederholt sich
+  bei jedem weiteren erreichten Vielfachen des Limits, nicht nur einmalig;
+  setzt sich jeden Kalendermonat zurück. Datenmodell dafür schon angelegt:
+  - `src/data/migrations/0002_ai_usage.sql` — neue Tabelle `ai_usage`
+    protokolliert jeden KI-Aufruf mit Kosten; `settings` trägt das Limit
+    (`ai_budget_limit_eur`) und den Benachrichtigungsstand
+    (`ai_budget_last_notified_month`, `ai_budget_last_notified_multiple`)
+  - `src/data/schema.ts` — `AiUsage`-Zeilentyp ergänzt
+  - 3 neue Tests in `tests/data/schema.test.ts`, inkl. Monatssumme als
+    abgeleiteter Wert (nicht gespeichert, siehe DATA_MODEL.md)
+  - **Noch nicht umgesetzt:** die tatsächliche Prüf-/Benachrichtigungslogik
+    selbst — die braucht `ai/` und `platform/`, die es beide noch nicht
+    gibt. Kommt mit der KI-Anbindung bzw. Phase 3 „Lokale
+    Benachrichtigungen". Diese Runde legt nur Entscheidung + Datenmodell
+    fest, siehe DECISIONS.md ADR-007 und DATA_MODEL.md „KI-Nutzung"
+
 ### Nächster Schritt
 
 Themenbaum-Ansicht, bearbeitbar (nächster Roadmap-Punkt) — UI-Arbeit, siehe
@@ -350,6 +369,19 @@ tatsächlich zu befüllen (documents/topics/topic_sections aus einem
 
 ### Sonstiges für den Wiedereinstieg
 
+- **Arbeitsweise: mit Loops und Plausi-Check.** Auf Nutzerwunsch wird
+  eigenständig weitergearbeitet, entlang der Roadmap, in klar abgegrenzten
+  Schritten (`/loop`, selbstgetaktet statt fest getaktet). Jeder Schritt
+  endet mit einem **Plausibilitätscheck** — nicht nur Tests und Typecheck
+  laufen lassen, sondern das Ergebnis an echtem Material (`Beispiel pdfs/`)
+  stichprobenartig von Hand nachvollziehen, bevor er als erledigt gilt. Das
+  hat in dieser Session zweimal echte Bugs aufgedeckt, die Tests allein
+  nicht gefunden hätten (Fußzeilen-Bug bei der Animationserkennung,
+  Clustering-Bug bei der Kapitelerkennung) — Stichprobe ist kein
+  Nice-to-have, sondern der Teil, der die Fehler tatsächlich findet. Danach
+  CONTEXT.md aktualisieren, committen (`wip:`-Präfix), nächster Schritt.
+  Harte Grenzen dabei unverändert: kein Rust-Install, kein Force-Push, kein
+  PR-Merge, kein Push nach GitHub ohne Rückfrage beim Nutzer.
 - **Rust ist auf diesem Mac nicht installiert.** Für den eigentlichen
   Tauri-Rahmen (Fenster, Notifications, SQLite-Plugin) wird es gebraucht,
   aber noch nicht für die aktuelle Arbeit (`src/ingest/`, `src/data/` sind
