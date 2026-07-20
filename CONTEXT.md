@@ -782,6 +782,76 @@ liegen jetzt schon bereit, siehe ROADMAP.md.
   (siehe `PlanView.tsx`-Vereinfachung oben), braucht eine echte
   Zuordnungs-UI, falls das gebraucht wird
 
+### Recherche: Spaced Repetition (für Phase 4)
+
+Für ROADMAP.md Phase 4 „Spaced Repetition (FSRS)" — damit die Recherche
+beim Erreichen dieser Phase nicht nochmal gemacht werden muss.
+
+**Kernaussage: FSRS verwenden, nicht SM-2.**
+
+- **SM-2** (SuperMemo, Wożniak 1987) ist der klassische Algorithmus: jede
+  Karte hat einen „Ease Factor" (Start 2,5), der bei richtiger Antwort das
+  nächste Intervall verlängert, bei falscher verkürzt. Typische erste
+  Intervalle: 1 Tag, dann 6 Tage, danach wachsend.
+  ([Anki FAQ](https://faqs.ankiweb.net/what-spaced-repetition-algorithm))
+- **FSRS** ist der moderne Nachfolger und lernt aus dem tatsächlichen
+  Vergessensverhalten pro Karte statt einer festen Formel. **Anki selbst
+  hat SM-2 im November 2023 (Version 23.10) durch FSRS als Standard
+  ersetzt**, weil es bei gleicher Behaltensrate 20–30 % weniger
+  Wiederholungen braucht.
+  ([Anki FAQ](https://faqs.ankiweb.net/what-spaced-repetition-algorithm),
+  [Migaku](https://migaku.com/blog/language-fun/spaced-repetition-in-2026-how-it-actually-works))
+- SM-2 nachzubauen wäre reine Zeitverschwendung, wenn selbst Anki es
+  aufgegeben hat — direkt FSRS implementieren oder eine bestehende
+  Implementierung einbinden.
+
+**Wichtige Abgrenzung, damit es nicht mit `scheduling.ts` verwechselt
+wird:** Echtes Spaced Repetition (SM-2/FSRS) arbeitet auf **einzelnen
+Karteikarten mit Erinnerungs-Feedback pro Karte** (typisch vier Stufen:
+„nochmal" / „schwer" / „gut" / „leicht" oder ähnlich) — nicht auf ganzen
+Themen. Das gehört zu den `cards`/`reviews`-Tabellen (siehe DATA_MODEL.md
+„Später befüllt, jetzt schon angelegt"), die erst mit Phase 4 („Markieren
+im Dokument → Karteikarten") entstehen. Der bereits gebaute einzelne
+Wiederholungsblock in `scheduling.ts` (`reviewFraction`, `minReviewGapDays`,
+siehe oben) ist **kein** Spaced-Repetition-Ersatz und sollte es auch nicht
+werden — er ist ein grober Themen-Auffrischer vor der Prüfung, FSRS
+arbeitet auf der viel feineren Karteikarten-Ebene. Beides bleibt getrennt.
+
+### Recherche: Pomodoro/Session-Timing (für Phase 3)
+
+Für ROADMAP.md Phase 3 „Heute-Ansicht mit Timer" — damit die Recherche
+beim Erreichen dieser Phase nicht nochmal gemacht werden muss.
+
+**Kernaussage: kein fester Standardwert ist für alle optimal — Presets
+anbieten, dazu freie Einstellung (vom Nutzer ausdrücklich gewünscht:
+„dass man sich die Timer selbst im Voraus einstellen kann").**
+
+- Klassisch: 25 Min. Arbeit / 5 Min. Pause, nach 4 Durchgängen eine längere
+  Pause (15–30 Min.).
+- Eine aktuelle Studie zu medizinischem Lernstoff (Anatomie) empfiehlt eher
+  **35 Min. Arbeit / 10 Min. Pause**.
+  ([BMC Medical Education, Scoping Review
+  2026](https://link.springer.com/article/10.1186/s12909-025-08001-0))
+- Für tiefe Konzentrationsarbeit werden auch **50/10**-Zyklen verwendet.
+- Kernbefund über mehrere Quellen: strukturierte Zeitblöcke mit Pausen
+  schlagen unstrukturiertes Lernen zuverlässig, aber die starre 25-Minuten-
+  Grenze kann bei komplexer/vertiefter Arbeit den Flow-Zustand stören — es
+  gibt keine einzelne „richtige" Zahl.
+  ([PomoDial](https://www.pomodial.com/blog/does-the-pomodoro-technique-actually-work),
+  [Brown Daily
+  Herald](https://www.browndailyherald.com/article/2026/03/fact-check-is-the-pomodoro-technique-actually-effective-for-studying))
+- **Alternative: „Flowtime"** — Pause erst, wenn man selbst merkt, dass die
+  Konzentration nachlässt, statt nach fester Zeit. In einer Vergleichsstudie
+  zwischen Pomodoro, Flowtime und freier Selbststeuerung untersucht, könnte
+  als drittes Preset oder Modus infrage kommen.
+  ([PMC-Studie](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12292963/))
+
+**Empfehlung für die Umsetzung:** Presets **25/5** (klassisch, lange Pause
+nach 4 Zyklen), **35/10**, **50/10** (Deep Work) zur Auswahl anbieten, plus
+freie Eingabe eigener Werte — kein einzelner Default, der für alle passt.
+Ein optionaler „Flowtime"-Modus (manuelles Pausieren statt festem Timer)
+wäre eine sinnvolle Erweiterung, aber kein Muss für die erste Version.
+
 ### Sonstiges für den Wiedereinstieg
 
 - **Arbeitsweise: mit Loops und Plausi-Check.** Auf Nutzerwunsch wird

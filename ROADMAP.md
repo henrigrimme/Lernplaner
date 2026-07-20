@@ -35,7 +35,7 @@ Prüfungen im Oktober.
 
 ## Phase 3 — Alltag · 17.08 – 30.08
 
-- [ ] Heute-Ansicht mit Timer und Schwierigkeits-Feedback
+- [ ] Heute-Ansicht mit Timer und Schwierigkeits-Feedback — Recherche zu Session-Timing bereits gemacht, siehe CONTEXT.md Abschnitt 8 „Recherche: Pomodoro/Session-Timing (für Phase 3)"
 - [ ] Neuberechnung mit Diff-Ansicht
 - [ ] Fortschrittsanzeige
 - [ ] Lokale Benachrichtigungen
@@ -60,7 +60,7 @@ Nach Dringlichkeit aus echter Nutzung, grobe Reihenfolge:
 
 - [ ] Nachschärfen aus dem Alltag
 - [ ] Markieren im Dokument → Karteikarten
-- [ ] Spaced Repetition (FSRS)
+- [ ] Spaced Repetition (FSRS) — Recherche bereits gemacht, siehe CONTEXT.md Abschnitt 8 „Recherche: Spaced Repetition (für Phase 4)"
 - [ ] Formelextraktion sauber
 - [ ] Quiz-Generierung
 - [ ] Probeklausur-Simulation
