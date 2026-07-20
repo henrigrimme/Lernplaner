@@ -36,6 +36,7 @@ export interface BodyLine {
   text: string
   x: number
   y: number
+  size: number
 }
 
 /** Eine einzelne PDF-Seite nach der Textextraktion. */

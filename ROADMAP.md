@@ -14,7 +14,7 @@ Prüfungen im Oktober.
 - [x] SQLite-Schema (vollständig, inkl. später genutzter Tabellen)
 - [x] PDF-Import mit Textextraktion
 - [x] Animationsschritt-Erkennung, an echtem Material abgestimmt
-- [ ] Kapitelerkennung mit Fuzzy-Normalisierung
+- [x] Kapitelerkennung mit Fuzzy-Normalisierung
 - [ ] Themenbaum-Ansicht, bearbeitbar
 
 **Ergebnis:** Foliensätze importieren und den Themenbaum prüfen.

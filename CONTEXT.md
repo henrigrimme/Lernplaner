@@ -302,14 +302,47 @@ aussagekräftigen Nachrichten, keine Force-Pushes, Feature-Branches mit PR.
     `0001_init.sql` nur eine vorbereitete SQL-Datei, noch nicht an eine
     echte App-Laufzeit angeschlossen
 
+- **Kapitelerkennung mit Fuzzy-Normalisierung** (`src/ingest/chapters.ts`,
+  neu). Drei Signale, in dieser Reihenfolge versucht (siehe
+  ARCHITECTURE.md „ingest/"):
+  1. **Untertitelzeile** (Microeconomics) — eine feste (Position,
+     Schriftgröße) unter dem Titel, deren Text wechselt, aber immer
+     wiederkehrt. Erkannt über den höchsten *Wiederholungsfaktor* (wenige
+     Namen, oft wiederholt) unter allen Kandidatenpositionen — **nicht**
+     über die größte Seitenzahl, das griff anfangs die falsche Position
+     (die erste Fließtext-Zeile kam auf mehr Seiten vor als die echte
+     Untertitelzeile, aber mit Wiederholungsfaktor 1 statt > 2). Schwelle
+     für die Mindestabdeckung bewusst bei 0,35 statt 0,5: Bei Consumer
+     Theory 02 / Producer Theory 02 fehlt die Zeile auf den ersten Folien
+     (vermutlich unbenutzte Vorlage), der Rest des Dokuments zeigt aber ein
+     eindeutiges Signal.
+  2. **Trennfolien** (Money & Banking) — eine nummerierte Trennfolie ("1",
+     "2", …) ohne eigenen Namen übernimmt den Namen der nächsten
+     *unmittelbar folgenden* benannten Trennfolie; steht sie **ohne**
+     folgende Benennung allein (kommt an echtem Material vor, „1 Financial
+     Systems.pdf": „2" und „3" ohne eigenen Titel), markiert sie trotzdem
+     eine neue Abschnittsgrenze („Kapitel 2") — sonst würde der Name des
+     vorigen Abschnitts fälschlich über die Grenze hinweg weiterlaufen.
+  3. **Dateiname** (Entrepreneurial Transformation) — weder Untertitel
+     noch benannte Trennfolie gefunden, die ganze Datei ist ein Kapitel.
+  Fuzzy-Zusammenführung ähnlicher Namen über Levenshtein-Distanz (≤ 2 **und**
+  ≤ 10 % der Namenslänge — reine Präfixregeln fangen nur Endungen ab, nicht
+  mittige Einfügungen wie „Market Structure" vs. „Market Structures").
+  An 13 echten Dateien beider Fächer validiert (`npm run analyze --
+  --detail` zeigt jetzt auch die erkannten Kapitel), 8 Tests in
+  `tests/ingest/chapters.test.ts`.
+
+**Bewusst nicht behoben:** `isDividerPage` markiert jede fast-textleere
+Folie als „Trennfolie", auch reine Diskussionsfragen oder Bildfolien ohne
+Kapitelwechsel — drückt `slideCount`/`uniqueChars` künstlich. Gehört zur
+Themenbaum-Phase, nicht zur Kapitelerkennung selbst.
+
 ### Nächster Schritt
 
-Kapitelerkennung mit Fuzzy-Normalisierung (`src/ingest/` — Kapitelzeile /
-Trennfolie / Dateiname als Signal, siehe ARCHITECTURE.md „ingest/"). Dabei
-mitbedenken, aber nicht zwingend in einem Zug beheben: `isDividerPage`
-markiert aktuell jede fast-textleere Folie als „Trennfolie", auch reine
-Diskussionsfragen oder Bildfolien ohne Kapitelwechsel — drückt
-`slideCount`/`uniqueChars` künstlich.
+Themenbaum-Ansicht, bearbeitbar (nächster Roadmap-Punkt) — UI-Arbeit, siehe
+ARCHITECTURE.md „Datenfluss beim Import". Erste Gelegenheit, `src/data/`
+tatsächlich zu befüllen (documents/topics/topic_sections aus einem
+`ExtractedDocument`).
 
 **Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
 - PR öffnen/mergen — setzt einen Push nach GitHub voraus

@@ -3,7 +3,7 @@ import { groupIntoSlides, isBuildStep } from '../../src/ingest/slides'
 import type { BodyLine, Page } from '../../src/ingest/types'
 
 function line(text: string, x: number, y: number): BodyLine {
-  return { text, x, y }
+  return { text, x, y, size: 18 }
 }
 
 describe('isBuildStep', () => {

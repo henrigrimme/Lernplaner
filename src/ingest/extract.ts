@@ -173,5 +173,5 @@ export function bodyLinesOf(page: Page, repeating: Set<string>): BodyLine[] {
       if (strippedKey !== key && repeating.has(strippedKey)) return false
       return true
     })
-    .map((line) => ({ text: line.text, x: line.x, y: line.y }))
+    .map((line) => ({ text: line.text, x: line.x, y: line.y, size: line.size }))
 }

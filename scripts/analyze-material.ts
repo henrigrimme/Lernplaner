@@ -27,8 +27,9 @@ if (!detail) {
     'Datei'.padEnd(38),
     pad('PDF', 5), pad('Folien', 7), pad('Trenn', 6),
     pad('Builds', 7), pad('Faktor', 7), pad('Titel', 6), pad('UniqZ', 8),
+    '  Kapitel',
   )
-  console.log('-'.repeat(93))
+  console.log('-'.repeat(93 + 20))
 }
 
 for (const file of files) {
@@ -44,6 +45,12 @@ for (const file of files) {
       `${doc.pdfPages} Seiten → ${doc.slideCount} Folien ` +
       `(Faktor ${d.inflation.toFixed(2)}), ${doc.uniqueChars} eindeutige Zeichen\n`,
     )
+    const chapterSource = doc.chapters[0]?.source ?? '—'
+    console.log(`${doc.chapters.length} Kapitel erkannt (Quelle: ${chapterSource}):`)
+    for (const chapter of doc.chapters) {
+      console.log(`  · ${chapter.title} (${chapter.slides.length} Folien)`)
+    }
+    console.log()
     for (const slide of doc.slides) {
       const pages = slide.pageNumbers.length > 1
         ? `S.${slide.pageNumbers[0]}–${slide.pageNumbers.at(-1)}`
@@ -63,6 +70,7 @@ for (const file of files) {
       pad(d.inflation.toFixed(2), 7),
       pad(`${Math.round(d.titleCoverage * 100)}%`, 6),
       pad(doc.uniqueChars, 8),
+      `  ${doc.chapters.length} (${doc.chapters[0]?.source ?? '—'})`,
     )
   }
 }

@@ -1,4 +1,5 @@
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs'
+import { detectChapters } from './chapters'
 import {
   bodyLinesOf,
   detectTitle,
@@ -63,6 +64,7 @@ export async function extractDocument(
 
   const slides = groupIntoSlides(pages, bodyLinesByPage)
   const contentSlides = slides.filter((s) => !s.isDivider)
+  const chapters = detectChapters(pages, bodyLinesByPage, slides, filename)
 
   const diagnostics: Diagnostics = {
     titleCoverage:
@@ -83,7 +85,7 @@ export async function extractDocument(
     pdfPages: pages.length,
     slideCount: contentSlides.length,
     uniqueChars: uniqueCharCount(contentSlides),
-    chapters: [],
+    chapters,
     slides,
     diagnostics,
   }
