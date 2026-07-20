@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 abgeschlossen, Phase 2 begonnen: domain/estimation.ts)
+**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 abgeschlossen, Phase 2: estimation.ts + capacity.ts fertig)
 
 ---
 
@@ -541,21 +541,60 @@ Neuer Branch `feat/estimation` (von `feat/ingest-pipeline` abgezweigt, da PR
 Phase 2 „Planung" (03.08–16.08) begonnen — `estimation.ts` ist der erste
 Baustein in `domain/` (vorher leer, siehe ARCHITECTURE.md).
 
-**Als Nächstes:** `domain/capacity.ts` (verfügbare vs. benötigte Zeit,
-Defiziterkennung) baut auf `estimateMinutes` auf und ist laut
-ARCHITECTURE.md der nächste Baustein. Danach fehlt für eine erste
-Kapazitätsrechnung noch das Erfassen von Fächern/Prüfungen/Verfügbarkeit
-(`courses`, `assessments`, `availability_pattern`/`availability_exception`
-sind im Schema angelegt, aber nirgends befüllbar — dafür braucht es
-UI/Setup-Formulare, kein `domain/`-Code).
+**PR #2 und PR #3 gemergt** (Squash, nach Rückfrage/Freigabe). `main` enthält
+jetzt das gesamte Fundament plus `estimation.ts`. Beide Feature-Branches
+(`feat/ingest-pipeline`, `feat/estimation`) danach gelöscht (lokal + remote,
+nach Rückfrage) — Verlauf steht in den PR-Beschreibungen/Commit-Messages,
+nicht in den Branches.
+
+**`domain/capacity.ts` fertig** (neuer Branch `feat/capacity`): verfügbare
+vs. benötigte Zeit, Defiziterkennung, baut auf `estimateMinutes` auf.
+
+- `availableMinutesForDay`: `availability_exception` **ersetzt** den
+  Wochenmuster-Wert für dieses Datum vollständig (kein Zuschlag, siehe
+  DATA_MODEL.md). `blockers` werden uhrzeit-genau abgezogen, ein Termin über
+  Mitternacht wird korrekt auf beide Tage aufgeteilt. Nie negativ.
+- **Wochentag-Konvention nicht in DATA_MODEL.md beziffert** — als
+  `AvailabilityPattern.weekday` wird JS' `Date#getUTCDay()`-Zählung
+  angenommen (0 = Sonntag), im Code dokumentiert. Falls die spätere
+  Setup-UI etwas anderes erwartet (z. B. ISO-Wochentag, 0 = Montag), muss
+  das hier angepasst werden.
+- **Puffer bewusst ohne Standardwert außer 0** — DATA_MODEL.md nennt „(verfügbar
+  − Puffer) / benötigt" als Formel, beziffert aber keinen Prozentsatz.
+  `bufferMinutes` ist ein expliziter Parameter, kein erfundener Default.
+- **Parallele Prüfungen korrekt behandelt:** `checkCapacity` berechnet den
+  verfügbaren Zeitraum **einmal** über den gemeinsamen Horizont, der Bedarf
+  wird über alle Prüfungen summiert übergeben — sich überschneidende Tage
+  werden dadurch nicht mehrfach gezählt. Ausführlich im Modul-Kommentar und
+  in einem eigenen Test dokumentiert (naiver Ansatz pro Prüfung einzeln
+  würde die Kapazität überschätzen).
+- **11 Tests**, decken 3 der 4 in CONTRIBUTING.md genannten Pflichtfälle für
+  `domain/`-Änderungen ab: fünf parallele Prüfungen (s. o.), weniger Zeit als
+  Stoff, verschobener Prüfungstermin (trivial: neues `to` übergeben, keine
+  eigene Funktion nötig). **„Rückstand mitten in der Phase" bewusst nicht
+  hier getestet** — braucht `study_blocks.actual_minutes`/`completed_at`,
+  also echte Nutzungsdaten und Neuberechnung; gehört zu `replanning.ts`
+  (noch nicht gebaut), nicht zu dieser reinen Zeitraum-Rechnung.
+- **Plausibilitätscheck:** kein PDF-Material beteiligt (reine Datums-
+  arithmetik), deshalb ein von Hand durchgerechnetes realistisches Szenario
+  statt `preview-import.ts`: 4 Wochen, 5 Fächer, 150 Min./Wochentag + 240
+  Min. Samstag, 40h Gesamtbedarf, 5h Puffer → 152 % Deckung, keine
+  Ausreißer, korrekte Vorzeichen bei Über-/Unterdeckung.
+
+**Als Nächstes:** Setup-UI für Fächer/Prüfungen/Verfügbarkeit (`courses`,
+`assessments`, `availability_pattern`/`availability_exception` sind im
+Schema angelegt, aber nirgends befüllbar) — ohne die liefert weder
+`estimation.ts` noch `capacity.ts` echte Zahlen, nur synthetische Tests.
+Danach `scheduling.ts` (Terminierung, braucht beide vorherigen Module).
 
 **Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
-- PR #2 mergen — Squash-Merge nach `main` nach CONTRIBUTING.md
 - DMG-Bundling-Fix (Automation-Rechte / `tauri.conf.json`-Änderung) — nicht
   dringend, siehe oben
 - `EXAM_FORMAT_MULTIPLIER`-Werte in `estimation.ts` mit dem Nutzer
   abstimmen, bevor sie für einen echten Lernplan verwendet werden (siehe
   oben — reine Annahme, nicht validiert)
+- Wochentag-Konvention in `capacity.ts` bestätigen (siehe oben), bevor die
+  Setup-UI dafür gebaut wird
 
 ### Sonstiges für den Wiedereinstieg
 
