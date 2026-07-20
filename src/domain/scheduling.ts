@@ -32,13 +32,32 @@ import type { AvailabilityException, AvailabilityPattern, Blocker, StudyBlockKin
  * Neuplanung verlangt.
  */
 
-/** Eine Sitzung dauert höchstens so lange — größere Themen verteilen sich über mehrere Tage/Sitzungen. */
+/**
+ * Eine Sitzung dauert höchstens so lange — größere Themen verteilen sich
+ * über mehrere Tage/Sitzungen. Final entschieden (Session vom 20.07.2026,
+ * auf Nutzerwunsch): 45 Min. liegt mittig im Bereich, den die Pomodoro-
+ * Recherche für Lernstoff nahelegt (35–50 Min., siehe CONTEXT.md
+ * „Recherche: Pomodoro/Session-Timing") — kein exakt validierter Wert,
+ * aber kein Blindschuss mehr. Über `ScheduleOptions.sessionChunkMinutes`
+ * weiterhin überschreibbar, z. B. sobald Phase 3 einstellbare Presets
+ * liefert.
+ */
 const DEFAULT_SESSION_CHUNK_MINUTES = 45
 
-/** Anteil der Erstdurchgang-Zeit, der als einzelner Wiederholungsblock eingeplant wird. Unvalidierte Annahme. */
+/**
+ * Anteil der Erstdurchgang-Zeit, der als einzelner Wiederholungsblock
+ * eingeplant wird. Final entschieden (siehe oben) — kein Bezug zu SM-2/FSRS
+ * (die gelten für Karteikarten, siehe CONTEXT.md „Recherche: Spaced
+ * Repetition"), sondern ein pragmatischer Auffrischer vor der Prüfung.
+ * Über `ScheduleOptions.reviewFraction` überschreibbar.
+ */
 const DEFAULT_REVIEW_FRACTION = 0.3
 
-/** Mindestabstand zwischen Erstdurchgang-Ende und Wiederholung. Unvalidierte Annahme. */
+/**
+ * Mindestabstand zwischen Erstdurchgang-Ende und Wiederholung. Final
+ * entschieden (siehe oben). Über `ScheduleOptions.minReviewGapDays`
+ * überschreibbar.
+ */
 const DEFAULT_MIN_REVIEW_GAP_DAYS = 3
 
 export interface SchedulingTopic {

@@ -770,14 +770,33 @@ vorigen Plan zeigen und darf nichts ohne Bestätigung übernehmen.
 Recherche-Notizen für die Pomodoro-Timer- und FSRS-Bausteine aus Phase 3/4
 liegen jetzt schon bereit, siehe ROADMAP.md.
 
-**Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
-- DMG-Bundling-Fix (Automation-Rechte / `tauri.conf.json`-Änderung) — nicht
-  dringend, siehe oben
-- `EXAM_FORMAT_MULTIPLIER`-Werte in `estimation.ts` — durch die neuen
-  Regler weniger dringend (Nutzer kann pro Thema direkt korrigieren), aber
-  weiterhin eine unvalidierte Annahme
-- `sessionChunkMinutes`/`reviewFraction`/`minReviewGapDays` in
-  `scheduling.ts` ebenso abstimmen (siehe oben)
+### Drei zurückgestellte Punkte final entschieden (auf Nutzerwunsch: „mach das selbst")
+
+- **DMG-Bundling-Fix — behoben.** `src-tauri/tauri.conf.json`:
+  `bundle.targets` von `"all"` auf `["app"]` geändert. Grund: das
+  DMG-Bundling scheitert an einem macOS-Finder-Automatisierungsrecht, das
+  sich nicht per Config lösen lässt (braucht eine interaktive GUI-
+  Freigabe, die in dieser Umgebung nicht möglich ist) — und wird aktuell
+  auch nicht gebraucht (kein Produkt, keine Veröffentlichung, siehe
+  Abschnitt 1). `npx tauri build --debug` läuft jetzt vollständig durch,
+  `lernplaner.app` wird korrekt gebaut, verifiziert. Ein DMG lässt sich bei
+  echtem Bedarf später weiterhin gezielt mit `tauri build --bundles dmg`
+  erzeugen (dann muss jemand die Finder-Berechtigung interaktiv erteilen).
+- **`EXAM_FORMAT_MULTIPLIER` — final entschieden, Werte unverändert
+  gelassen** (0,7–1,2 je Prüfungsformat, siehe `estimation.ts`). Begründung
+  im Code-Kommentar ergänzt: seit den Themen-Reglern
+  (`setTopicWeight`/`setTopicDifficulty`, siehe oben) ist das nur noch ein
+  grober Startwert, keine Zahl, die exakt stimmen muss — der Nutzer
+  korrigiert direkt pro Thema.
+- **`sessionChunkMinutes`/`reviewFraction`/`minReviewGapDays` in
+  `scheduling.ts` — final entschieden, Werte unverändert gelassen** (45
+  Min. / 0,3 / 3 Tage). `sessionChunkMinutes = 45` liegt mittig im Bereich,
+  den die Pomodoro-Recherche für Lernstoff nahelegt (35–50 Min., siehe
+  „Recherche: Pomodoro/Session-Timing" oben) — kein Blindschuss mehr,
+  wenn auch nicht exakt validiert. Beide bleiben über `ScheduleOptions`
+  weiterhin überschreibbar.
+
+**Weiterhin offen, aber kein Blocker:**
 - „Thema für spätere Prüfung desselben Fachs" — aktuell nicht abbildbar
   (siehe `PlanView.tsx`-Vereinfachung oben), braucht eine echte
   Zuordnungs-UI, falls das gebraucht wird
