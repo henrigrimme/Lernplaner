@@ -64,11 +64,15 @@ Kurse. Beide auf MacBooks mit Apple Silicon.
 
 ### Offen
 
-- GitHub-Username des zweiten Nutzers (wird nachgereicht)
 - Konkrete Prüfungstermine im Oktober
 - Ob es im Oktober Paper-Abgaben gibt
-- Ob E-Mail-Benachrichtigungen über einen Dienst laufen sollen oder über das
-  lokale Mail-Konto (siehe offene Fragen unten)
+- Ob E-Mail-Benachrichtigungen zusätzlich zum Kalender-Export nötig sind
+  (siehe offene Fragen unten)
+
+### Zugriff
+
+Zweiter Nutzer: `theodorklink` auf GitHub — wird als Collaborator mit
+Schreibrechten eingetragen, sobald das Repository angelegt ist.
 
 ---
 
@@ -230,11 +234,14 @@ Siehe [ROADMAP.md](ROADMAP.md).
 
 ## 10. Offene Fragen
 
-1. **E-Mail-Benachrichtigungen** sind gewünscht. Eine lokale App kann keine
-   E-Mails verschicken, ohne entweder einen externen Dienst einzubinden
-   (Zugangsdaten, laufende Kosten) oder das lokale Mail-Programm zu steuern
-   (funktioniert nur, wenn der Rechner läuft). Beide Wege haben spürbare
-   Nachteile — noch zu klären, welcher passt.
-2. GitHub-Username des zweiten Nutzers
-3. Prüfungstermine Oktober
-4. Ob Paper-Abgaben im Oktober anstehen
+1. **E-Mail-Benachrichtigungen** waren gewünscht. Eine lokale App kann keine
+   E-Mails verschicken, ohne einen externen Dienst einzubinden oder das lokale
+   Mail-Programm zu steuern — und beides funktioniert nur bei laufendem Mac,
+   also genau dann, wenn ohnehin die lokale Benachrichtigung erscheint.
+
+   **Vorgeschlagene Alternative:** der ohnehin geplante Kalender-Export. Über
+   iCloud landen die Lernblöcke samt Erinnerungen auf dem iPhone und erreichen
+   die Nutzer auch unterwegs — ohne Zugangsdaten und ohne externen Dienst.
+   Zu prüfen, ob das im September ausreicht.
+2. Prüfungstermine Oktober
+3. Ob Paper-Abgaben im Oktober anstehen
