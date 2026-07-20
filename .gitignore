@@ -1,0 +1,77 @@
+# ─────────────────────────────────────────────────────────────
+#  NIEMALS committen — Geheimnisse
+# ─────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.json
+
+# ─────────────────────────────────────────────────────────────
+#  NIEMALS committen — persönliche Lerndaten
+#  (liegen normalerweise unter ~/Library/Application Support/,
+#   diese Regeln sind die zweite Verteidigungslinie)
+# ─────────────────────────────────────────────────────────────
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+/data/
+/library/
+/userdata/
+
+# ─────────────────────────────────────────────────────────────
+#  NIEMALS committen — urheberrechtlich geschütztes Material
+#  Vorlesungsunterlagen, Altklausuren, Musterlösungen
+# ─────────────────────────────────────────────────────────────
+*.pdf
+*.pptx
+*.ppt
+*.docx
+*.doc
+*.xlsx
+*.xls
+/materialien/
+/slides/
+/altklausuren/
+# Ausnahme: bewusst freigegebene Testdaten ohne fremde Inhalte
+!/tests/fixtures/**/*.pdf
+
+# ─────────────────────────────────────────────────────────────
+#  Build & Abhängigkeiten
+# ─────────────────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+target/
+src-tauri/target/
+src-tauri/gen/
+*.tsbuildinfo
+coverage/
+.vite/
+
+# ─────────────────────────────────────────────────────────────
+#  Betriebssystem & Editor
+# ─────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
+
+# ─────────────────────────────────────────────────────────────
+#  Werkzeuge
+# ─────────────────────────────────────────────────────────────
+.claude-flow/
+.swarm/
+*.log
+npm-debug.log*
