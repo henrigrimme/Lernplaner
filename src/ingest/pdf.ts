@@ -9,6 +9,22 @@ import {
 import { groupIntoSlides, uniqueCharCount } from './slides'
 import type { BodyLine, Diagnostics, ExtractedDocument, Page, TextItem } from './types'
 
+/**
+ * Im Browser braucht pdf.js einen expliziten Worker (`GlobalWorkerOptions.
+ * workerSrc`), sonst wirft `getDocument` „No GlobalWorkerOptions.workerSrc
+ * specified." — im echten Browser gefunden (Playwright-Check gegen
+ * `npm run dev`, siehe CONTEXT.md), nicht durch Tests, weil pdf.js unter
+ * Node automatisch auf einen „Fake Worker" zurückfällt. Nur im Browser
+ * setzen (`typeof window`-Guard), damit Vitest/`tsx`-Skripte unter Node
+ * unverändert funktionieren.
+ */
+if (typeof window !== 'undefined') {
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/legacy/build/pdf.worker.mjs',
+    import.meta.url,
+  ).href
+}
+
 /** Unterhalb dieser Zeichenzahl gilt eine Seite als (fast) grafisch. */
 const SPARSE_PAGE_CHARS = 80
 

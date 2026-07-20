@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 abgeschlossen, Phase 2: alle domain/-Bausteine fertig, Planansicht fehlt noch)
+**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 + Phase 2 „Ergebnis" erreicht: Planansicht fertig, kompletter Fluss bis Lernplan durchspielbar)
 
 ---
 
@@ -670,10 +670,61 @@ eine Planansicht in `ui/`, die `scheduleStudyBlocks` tatsächlich aufruft
 und die `study_blocks` anzeigt — aktuell nur über Skripte/Tests geprüft,
 nicht in der App sichtbar.
 
-**Als Nächstes:** Planansicht (`ui/`, Woche/Monat, ROADMAP.md Phase 2)
-verdrahtet Setup-UI + `estimation.ts`/`capacity.ts`/`scheduling.ts`
-tatsächlich zusammen. Danach `replanning.ts` (Neuberechnung + Diff, ADR-005)
-für Phase 3.
+### Planansicht — fertig, ROADMAP.md Phase 2 „Ergebnis" erreicht
+
+Neuer Branch `feat/plan-view`.
+
+- **`src/ui/PlanView.tsx`**: ruft `estimateMinutes` + `scheduleStudyBlocks`
+  auf und zeigt das Ergebnis als Wochen-/Tagesübersicht. Reine Präsentation,
+  keine eigene Planungslogik.
+  - **Vereinfachung, nicht im Schema abgebildet:** `topics` haben kein
+    eigenes `assessment_id` (Zuordnung passiert laut DATA_MODEL.md erst in
+    `study_blocks`). Diese Ansicht wählt für jedes Thema die **nächste
+    bevorstehende Prüfung seines Fachs** — ein Thema für eine spätere
+    Prüfung desselben Fachs vorzubereiten, geht damit noch nicht. Themen
+    ohne bevorstehende Prüfung werden sichtbar separat aufgeführt, nicht
+    stillschweigend weggelassen.
+  - Themen mit 0 geschätzten Minuten (keine `topic_sections`) erscheinen
+    aktuell in keiner Liste — bewusst so gelassen (keine sinnvolle
+    Fehlermeldung für „noch nichts importiert"), aber nicht extra geprüft.
+- **PDF-Import jetzt im Browser verdrahtet** (`App.tsx`, Datei-Input →
+  `extractDocument` → neue Funktion `topicsFromExtractedDocument` in
+  `src/data/importTopics.ts`): Array-Variante von `importExtractedDocument`
+  ohne Datenbank (`better-sqlite3` ist reine Node-Testinfrastruktur, im
+  Frontend-Bundle nicht nutzbar) — gleiche Kapitel-→-Thema-Zuordnung,
+  `nextId`-Vergabe wie bei `courses.ts`/`topicTree.ts`. `documentId` wird
+  vom Aufrufer durchgezählt, kein eigener `documents`-Zustand in der App
+  (noch keine Dokumentenliste in der UI).
+- **Echter Bug im Browser gefunden, jsdom hätte ihn nicht gefunden:**
+  pdf.js braucht im Browser einen expliziten
+  `GlobalWorkerOptions.workerSrc` — ohne den wirft `getDocument` „No
+  GlobalWorkerOptions.workerSrc specified." Unter Node (Tests, `tsx`-
+  Skripte) fällt pdf.js automatisch auf einen „Fake Worker" zurück, daher
+  ist das nie aufgefallen. Behoben in `src/ingest/pdf.ts`, nur im Browser
+  gesetzt (`typeof window`-Guard), Node-Pfad unverändert. Erneut bestätigt:
+  Browser-Check ist kein Pro-forma-Schritt.
+- **12 neue Tests** (3 für `topicsFromExtractedDocument`, 5 für `PlanView`,
+  Rest unverändert), **122 insgesamt**. `npm run build` läuft durch (Worker-
+  Datei wird korrekt mitgebündelt, ~2,3 MB als eigener Chunk — Vite warnt
+  wegen Chunkgröße, nicht behoben, unkritisch für eine lokale App).
+- **Kompletter Fluss im echten Browser durchgespielt** (Playwright gegen
+  `npm run dev`): Fach anlegen → auswählen → Prüfung anlegen →
+  Verfügbarkeit setzen → PDF importieren (Consumer Theory 01) → Themenbaum
+  zeigt Kapitel → Lernplan zeigt Erstdurchgang- und Wiederholungsblöcke.
+  Zahlen identisch mit der früheren Handrechnung (1–22 Min. Erstdurchgang
+  je Kapitel, Wiederholung nach 3 Tagen). Einziger verbliebener
+  Konsolen-Befund: das bekannte, kosmetische `favicon.ico`-404.
+
+**Damit ist ROADMAP.md Phase 2 „Ergebnis" (erster echter Lernplan für
+Oktober) tatsächlich erreicht** — durchspielbar von Fach-Setup bis
+Lernplan, nicht nur in Einzelmodulen getestet.
+
+**Als Nächstes:** `replanning.ts` (Neuberechnung + Diff, ADR-005 „nie
+automatisch anwenden") für Phase 3 „Alltag" — oder, falls sich das
+sinnvoller anfühlt, zuerst Phase 3s andere Bausteine (Heute-Ansicht,
+Fortschrittsanzeige). ADR-005 ist der Grund, warum `replanning.ts` mehr
+ist als nochmal `scheduleStudyBlocks` aufrufen: es muss den Unterschied zum
+vorigen Plan zeigen und darf nichts ohne Bestätigung übernehmen.
 
 **Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
 - DMG-Bundling-Fix (Automation-Rechte / `tauri.conf.json`-Änderung) — nicht
@@ -686,6 +737,9 @@ für Phase 3.
 - Wochentag-Konvention in `capacity.ts`/`AvailabilitySetup.tsx` bestätigen
   (0 = Sonntag angenommen, nirgends in DATA_MODEL.md beziffert)
 - Fehlendes `favicon.ico` (kosmetisch, siehe oben)
+- „Thema für spätere Prüfung desselben Fachs" — aktuell nicht abbildbar
+  (siehe `PlanView.tsx`-Vereinfachung oben), braucht eine echte
+  Zuordnungs-UI, falls das gebraucht wird
 
 ### Sonstiges für den Wiedereinstieg
 

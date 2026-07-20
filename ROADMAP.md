@@ -23,11 +23,11 @@ Prüfungen im Oktober.
 
 ## Phase 2 — Planung · 03.08 – 16.08
 
-- [ ] Fächer, Prüfungen, Verfügbarkeit erfassen
-- [ ] Aufwandsschätzung nach ADR-004 mit Kalibrierung
-- [ ] Kapazitätsrechnung mit Defizitwarnung
-- [ ] Terminierung inkl. mehrerer paralleler Prüfungen
-- [ ] Planansicht (Woche/Monat)
+- [x] Fächer, Prüfungen, Verfügbarkeit erfassen
+- [x] Aufwandsschätzung nach ADR-004 mit Kalibrierung
+- [x] Kapazitätsrechnung mit Defizitwarnung
+- [x] Terminierung inkl. mehrerer paralleler Prüfungen
+- [x] Planansicht (Woche/Monat)
 
 **Ergebnis:** erster echter Lernplan für Oktober.
 

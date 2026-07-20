@@ -3,25 +3,66 @@ import { TopicTree } from './ui/TopicTree'
 import { CourseSetup } from './ui/CourseSetup'
 import { AssessmentSetup } from './ui/AssessmentSetup'
 import { AvailabilitySetup } from './ui/AvailabilitySetup'
-import type { Assessment, AvailabilityException, AvailabilityPattern, Course, Topic } from './data/schema'
+import { PlanView } from './ui/PlanView'
+import { extractDocument } from './ingest/pdf'
+import { topicsFromExtractedDocument } from './data/importTopics'
+import type {
+  Assessment,
+  AvailabilityException,
+  AvailabilityPattern,
+  Blocker,
+  Course,
+  Topic,
+  TopicSection,
+} from './data/schema'
 
 /**
  * Provisorischer App-Rahmen — beweist, dass Tauri-Fenster, Vite-Build und
  * die `ui/`-Schicht zusammenspielen (ROADMAP.md Phase 1 „Tauri-Projekt,
- * Build, Tests, CI"). Noch **keine** echte Funktionalität: kein PDF-Import,
- * keine `tauri-plugin-sql`-Anbindung — aller Zustand ist lokaler
- * React-State statt aus der Datenbank geladen. Das kommt mit der
- * eigentlichen Datenanbindung, siehe CONTEXT.md Abschnitt 8.
+ * Build, Tests, CI") und dass der komplette Fluss bis zum Lernplan
+ * durchspielbar ist (Phase 2 „Ergebnis"). Noch **keine** echte
+ * Datenbankanbindung — kein `tauri-plugin-sql` — aller Zustand ist
+ * lokaler React-State statt aus der Datenbank geladen, geht beim
+ * Neuladen verloren. Das kommt mit der eigentlichen Datenanbindung,
+ * siehe CONTEXT.md Abschnitt 8.
+ *
+ * PDF-Import läuft hier direkt im Browser über `topicsFromExtractedDocument`
+ * (Array-Variante ohne Datenbank, siehe `data/importTopics.ts`) statt der
+ * `SqlExecutor`-Variante, die für den echten Tauri-Rahmen gedacht ist.
  */
 export function App() {
   const [topics, setTopics] = useState<Topic[]>([])
+  const [topicSections, setTopicSections] = useState<TopicSection[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [assessments, setAssessments] = useState<Assessment[]>([])
   const [pattern, setPattern] = useState<AvailabilityPattern[]>([])
   const [exceptions, setExceptions] = useState<AvailabilityException[]>([])
+  const [blockers] = useState<Blocker[]>([])
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
+  const [nextDocumentId, setNextDocumentId] = useState(1)
+  const [today] = useState(() => new Date().toISOString().slice(0, 10))
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
+
+  const importPdfs = async (files: FileList) => {
+    if (selectedCourseId === null) return
+    let currentTopics = topics
+    let currentSections = topicSections
+    let documentId = nextDocumentId
+
+    for (const file of Array.from(files)) {
+      const data = new Uint8Array(await file.arrayBuffer())
+      const extracted = await extractDocument(data, file.name)
+      const result = topicsFromExtractedDocument(extracted, selectedCourseId, documentId, currentTopics, currentSections)
+      currentTopics = result.topics
+      currentSections = result.topicSections
+      documentId += 1
+    }
+
+    setTopics(currentTopics)
+    setTopicSections(currentSections)
+    setNextDocumentId(documentId)
+  }
 
   return (
     <main>
@@ -56,7 +97,30 @@ export function App() {
         onChangeExceptions={setExceptions}
       />
 
+      {selectedCourse && (
+        <label>
+          PDFs für {selectedCourse.name} importieren
+          <input
+            type="file"
+            accept="application/pdf"
+            multiple
+            onChange={(e) => e.target.files && importPdfs(e.target.files)}
+          />
+        </label>
+      )}
+
       <TopicTree topics={topics} onChange={setTopics} />
+
+      <PlanView
+        topics={topics}
+        topicSections={topicSections}
+        assessments={assessments}
+        courses={courses}
+        pattern={pattern}
+        exceptions={exceptions}
+        blockers={blockers}
+        from={today}
+      />
     </main>
   )
 }
