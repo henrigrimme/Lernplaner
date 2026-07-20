@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 abgeschlossen, Phase 2: estimation.ts + capacity.ts fertig)
+**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 abgeschlossen, Phase 2: estimation.ts + capacity.ts + Setup-UI fertig)
 
 ---
 
@@ -581,11 +581,49 @@ vs. benötigte Zeit, Defiziterkennung, baut auf `estimateMinutes` auf.
   Min. Samstag, 40h Gesamtbedarf, 5h Puffer → 152 % Deckung, keine
   Ausreißer, korrekte Vorzeichen bei Über-/Unterdeckung.
 
-**Als Nächstes:** Setup-UI für Fächer/Prüfungen/Verfügbarkeit (`courses`,
-`assessments`, `availability_pattern`/`availability_exception` sind im
-Schema angelegt, aber nirgends befüllbar) — ohne die liefert weder
-`estimation.ts` noch `capacity.ts` echte Zahlen, nur synthetische Tests.
-Danach `scheduling.ts` (Terminierung, braucht beide vorherigen Module).
+**PR #4 gemergt** (`capacity.ts`, Squash, nach Rückfrage/Freigabe). Branch
+`feat/capacity` danach gelöscht (lokal + remote, nach Rückfrage).
+
+### Setup-UI: Fächer, Prüfungen, Verfügbarkeit — fertig
+
+Neuer Branch `feat/setup-ui`. Schließt die Lücke, die vorher offen war:
+`courses`, `assessments`, `availability_pattern`/`availability_exception`
+waren im Schema angelegt, aber nirgends befüllbar — `estimation.ts` und
+`capacity.ts` liefen bisher nur mit synthetischen Testdaten.
+
+- **Datenschicht** (`src/data/courses.ts`, `assessments.ts`,
+  `availability.ts`): reine Editierfunktionen nach dem `topicTree.ts`-Muster
+  (kein DB-Zugriff, keine Systemuhr — `createdAt` bei `addCourse` kommt
+  explizit vom Aufrufer). `setAvailabilityPattern`/`setAvailabilityException`
+  sind Upserts, kein Append: `weekday` bzw. `date` sind in `0001_init.sql`
+  der Primärschlüssel, ein Append hätte doppelte Zeilen für denselben Tag
+  erzeugt. 14 Tests.
+- **UI-Komponenten** (`src/ui/CourseSetup.tsx`, `AssessmentSetup.tsx`,
+  `AvailabilitySetup.tsx`): reine Präsentation wie `TopicTree`, ein
+  wiederverwendetes Formular für Neu-Anlage und Bearbeiten (Umschalten über
+  `editingId`). `CourseSetup` blendet archivierte Fächer standardmäßig aus
+  (Checkbox zum Einblenden). 17 Komponententests.
+- **In `App.tsx` verdrahtet**, weiterhin lokaler React-State ohne
+  `tauri-plugin-sql` (siehe Kommentar dort) — Fach auswählen zeigt die
+  zugehörigen Prüfungen.
+- **Im echten Browser getestet** (Playwright gegen `npm run dev`, nicht nur
+  jsdom): Fach anlegen → im Dropdown auswählen → Prüfung anlegen →
+  Verfügbarkeit setzen, Ende-zu-Ende durchgeklickt. Dabei einen echten Bug
+  gefunden, den die jsdom-Tests **nicht** gefunden hätten: `AssessmentSetup`
+  und `AvailabilitySetup` hatten beide ein Feld mit Label „Datum" — auf
+  derselben Seite nicht eindeutig unterscheidbar (auch nicht für
+  Screenreader-Nutzer, die linear navigieren). Behoben:
+  `AssessmentSetup`s Feld heißt jetzt „Prüfungsdatum". Einziger
+  verbliebener Konsolen-Befund: fehlendes `favicon.ico` (404) — kosmetisch,
+  keine echte Funktionsstörung, nicht behoben.
+- **129 Tests insgesamt**, `npm run build` läuft durch.
+
+**Als Nächstes:** `domain/scheduling.ts` (Terminierung) kann jetzt mit
+echten Eingaben gefüttert werden — `estimation.ts` (Bedarf je Thema),
+`capacity.ts` (Verfügbarkeit) und die Setup-UI (Fächer/Prüfungen/
+Verfügbarkeit) liegen alle vor. `scheduling.ts` ist laut ARCHITECTURE.md
+der letzte Baustein, der für einen ersten „echten Lernplan" fehlt
+(ROADMAP.md Phase 2 „Ergebnis").
 
 **Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
 - DMG-Bundling-Fix (Automation-Rechte / `tauri.conf.json`-Änderung) — nicht
@@ -593,8 +631,9 @@ Danach `scheduling.ts` (Terminierung, braucht beide vorherigen Module).
 - `EXAM_FORMAT_MULTIPLIER`-Werte in `estimation.ts` mit dem Nutzer
   abstimmen, bevor sie für einen echten Lernplan verwendet werden (siehe
   oben — reine Annahme, nicht validiert)
-- Wochentag-Konvention in `capacity.ts` bestätigen (siehe oben), bevor die
-  Setup-UI dafür gebaut wird
+- Wochentag-Konvention in `capacity.ts`/`AvailabilitySetup.tsx` bestätigen
+  (0 = Sonntag angenommen, nirgends in DATA_MODEL.md beziffert)
+- Fehlendes `favicon.ico` (kosmetisch, siehe oben)
 
 ### Sonstiges für den Wiedereinstieg
 
