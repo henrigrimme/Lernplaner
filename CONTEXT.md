@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1)
+**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 abgeschlossen, Phase 2 steht an)
 
 ---
 
@@ -225,8 +225,9 @@ aussagekräftigen Nachrichten, keine Force-Pushes, Feature-Branches mit PR.
 
 ## 8. Stand
 
-**Phase 1 — Fundament, begonnen 20.07.2026. Aktiver Branch:
-`feat/ingest-pipeline`.**
+**Phase 1 — Fundament, begonnen 20.07.2026, inhaltlich abgeschlossen (siehe
+unten). Aktiver Branch `feat/ingest-pipeline`, als [PR #2](https://github.com/henrigrimme/Lernplaner/pull/2)
+gepusht, noch nicht gemerged.**
 
 ### Erledigt
 
@@ -388,16 +389,16 @@ Themenbaum-Phase, nicht zur Kapitelerkennung selbst.
   korrekt (siehe `chapters.ts` `detectDividerChapters`), aber kein Name, den
   ein Nutzer in der Baumansicht so stehen lassen würde; das ist genau der
   Fall, für den `manual_override` gedacht ist.
-- **Vorbestehender Fehler gefunden, nicht behoben:** `npm run typecheck`
-  schlägt unabhängig von diesem Schritt auf `vite.config.ts:16` fehl
-  (`test`-Feld unbekannt, weil `defineConfig` aus `vite` statt
-  `vitest/config` importiert wird). Der naheliegende Fix
-  (`from 'vitest/config'`) deckt einen Versionskonflikt zwischen zwei
-  `vite`-Kopien im `node_modules`-Baum auf (`vite` direkt vs. die von
-  `vitest` mitgebrachte Version) — das ist eine Abhängigkeits-Aufräumarbeit
-  für sich, nicht Teil der Themenbaum-Arbeit, deshalb zurückgestellt.
-  Betrifft nur `vite.config.ts` selbst; alle anderen Dateien (auch die neuen)
-  sind sauber (`npx tsc --noEmit 2>&1 | grep -v vite.config.ts` bleibt leer).
+- **Vorbestehender `vite.config.ts`-Typecheck-Fehler inzwischen behoben** —
+  nicht durch den ursprünglich verworfenen `vitest/config`-Import (der zog
+  den `vite`-Versionskonflikt nach sich), sondern durch Trennung:
+  `vitest.config.ts` ist jetzt eine eigene Datei (`defineConfig` aus
+  `vitest/config`, ohne `@vitejs/plugin-react`), `vite.config.ts` bleibt bei
+  `defineConfig` aus `vite` und trägt kein `test`-Feld mehr. Kein
+  Versionskonflikt mehr, weil die beiden `vite`-Typversionen nie in derselben
+  Datei aufeinandertreffen. `npx tsc --noEmit` ist seitdem vollständig
+  fehlerfrei — nötig geworden, weil der Tauri-Build (`npm run build` läuft
+  vorher `tsc --noEmit`) sonst am selben Fehler gescheitert wäre.
 
 - **Reine Baum-Editierfunktionen fertig** (`src/data/topicTree.ts`):
   `buildTree` (flach → verschachtelt, sortiert nach `sort_order`),
@@ -436,24 +437,71 @@ Themenbaum-Phase, nicht zur Kapitelerkennung selbst.
     devDependencies verursacht, nicht behoben (Fix ist ein `vitest`-Major-
     Update, eigene Entscheidung).
 
-**Themenbaum-Ansicht ist damit fachlich vollständig** (Mapping + Editieren +
-Anzeige + Tests + Plausi-Check). Noch **nicht** angebunden an eine laufende
-App — das braucht den Tauri-Rahmen (Fenster, `tauri-plugin-sql` für echte
-Persistenz statt der reinen In-Memory-Tests). Vorher zurückgestellte Lücke
-weiterhin offen: Re-Import/Update unter Beachtung von `manual_override`.
+**Themenbaum-Ansicht fachlich vollständig** (Mapping + Editieren + Anzeige +
+Tests + Plausi-Check). Weiterhin offene Lücke: Re-Import/Update unter
+Beachtung von `manual_override`.
 
-**Als Nächstes (danach, nicht mehr Teil dieses Schritts):** laut ROADMAP.md
-Phase 1 fehlt jetzt nur noch „Tauri-Projekt, Build, Tests, CI" — der einzige
-verbleibende offene Punkt vor Phase 2. Braucht vorher Rust (`rustup`), siehe
-unten.
+**PR geöffnet** (nach Rückfrage/Freigabe durch den Nutzer):
+[#2](https://github.com/henrigrimme/Lernplaner/pull/2), Branch
+`feat/ingest-pipeline` nach GitHub gepusht. **Noch nicht gemerged** — bewusst
+offen gelassen zur Durchsicht, kein automatischer Merge ohne erneute
+Rückfrage.
+
+**Tauri-Projekt, Build, Tests, CI — nach Rückfrage/Freigabe erledigt:**
+
+- **Rust installiert** über das offizielle `rustup`-Skript (nicht Homebrew —
+  verwaltet Toolchains/Targets besser für Tauri). `rustc 1.97.1`,
+  `cargo 1.97.1`. `. "$HOME/.cargo/env"` muss in einer neuen Shell einmal
+  geladen werden (oder neue Shell öffnen), bis das gegebenenfalls noch ins
+  Profil eingetragen wird.
+- **Tauri 2 ins Projekt eingerichtet** (`npx tauri init --ci`, dann
+  `identifier` auf `com.henrigrimme.lernplaner` und Paket-Metadaten in
+  `src-tauri/Cargo.toml` korrigiert, die Platzhalter waren). `frontendDist`
+  `../dist`, `devUrl` `http://localhost:1420` (passt zu `vite.config.ts`s
+  festem Port), `beforeDevCommand`/`beforeBuildCommand` auf `npm run
+  dev`/`npm run build`.
+- **Minimaler App-Rahmen ergänzt** (`index.html`, `src/main.tsx`,
+  `src/App.tsx`) — vorher gab es nur Bibliothekscode (`ingest/`, `data/`,
+  `ui/TopicTree.tsx`), aber keinen tatsächlichen Einstiegspunkt, den Tauri
+  laden könnte. `App.tsx` zeigt `TopicTree` über lokalem React-`useState`
+  (kein `tauri-plugin-sql`, keine echte Persistenz) — **ausdrücklich nur ein
+  Rahmen, keine echte Funktionalität**, siehe Kommentar im Code.
+- **`npm run build` und `npx tauri build --debug` laufen durch.** Die
+  `lernplaner.app` wird korrekt gebaut (`src-tauri/target/debug/bundle/macos/`).
+  **DMG-Bundling schlägt fehl** (`bundle_dmg.sh`, AppleScript/Finder-
+  Automation) — bekanntes, nicht code-bezogenes macOS-Problem (fehlende
+  Automation-Rechte für Finder-Steuerung in dieser Umgebung), nicht behoben.
+  Betrifft nur die Erstellung eines Installer-Images, nicht `tauri dev` oder
+  die `.app` selbst — für die aktuelle Phase (kein Produkt, keine
+  Veröffentlichung, siehe Abschnitt 1) irrelevant. Bei Bedarf später:
+  Automation-Rechte für Terminal/Finder in Systemeinstellungen prüfen, oder
+  `bundle > macOS > dmg` in `tauri.conf.json` vorerst deaktivieren.
+- **`.gitignore` deckte `src-tauri/target/` und `src-tauri/gen/` schon ab**
+  (vorausschauend beim Projektaufbau angelegt) — nichts nachzubessern.
+  `src-tauri/Cargo.lock` **wird committet** (Tauri-App ist ein Binary, kein
+  Library-Crate — reproduzierbare Builds brauchen das gepinnte Lockfile).
+- **CI-Workflow neu** (`.github/workflows/ci.yml`, GitHub Actions, läuft auf
+  `macos-latest` wegen Tauri): Job `test` (Node, `npm ci`, `npm run
+  typecheck`, `npm test`) auf jeden Push/PR; Job `tauri` (Rust-Toolchain,
+  `npm run build`, dann `cargo check --locked` in `src-tauri/`) prüft, dass
+  die Rust-Seite kompiliert, **ohne** die volle Bundle-Erstellung anzustoßen
+  (umgeht damit das DMG-Problem oben und spart CI-Minuten). Noch nicht
+  gegen einen echten CI-Lauf verifiziert (der erste Lauf passiert automatisch
+  mit PR #2).
+
+**Damit ist Phase 1 (Fundament) laut ROADMAP.md vollständig abgehakt.**
+
+**Als Nächstes:** Phase 2 „Planung" (03.08–16.08) — Fächer/Prüfungen/
+Verfügbarkeit erfassen, Aufwandsschätzung nach ADR-004 kalibrieren,
+Kapazitätsrechnung, Terminierung, Planansicht. Das ist der erste Schritt,
+der `domain/` tatsächlich braucht (siehe ARCHITECTURE.md) — bisher leer.
+Sinnvoller Einstieg: `domain/estimation.ts` (Aufwand aus `topic_sections`-
+Umfangsmaßen), weil er auf dem bereits vorhandenen Themenbaum aufsetzt.
 
 **Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
-- PR öffnen/mergen — setzt einen Push nach GitHub voraus
-- Tauri-Rahmen — setzt eine Rust-Installation (`rustup`) voraus
-- Fix für den `vite.config.ts`-Typecheck-Fehler (siehe oben) — der einfache
-  Fix zieht einen `vite`-Versionskonflikt nach sich, der eine bewusste
-  Entscheidung braucht (z. B. `npm dedupe`, Version pinnen), keine
-  Nebenbei-Änderung
+- PR #2 mergen — Squash-Merge nach `main` nach CONTRIBUTING.md
+- DMG-Bundling-Fix (Automation-Rechte / `tauri.conf.json`-Änderung) — nicht
+  dringend, siehe oben
 
 ### Sonstiges für den Wiedereinstieg
 
@@ -468,15 +516,11 @@ unten.
   Clustering-Bug bei der Kapitelerkennung) — Stichprobe ist kein
   Nice-to-have, sondern der Teil, der die Fehler tatsächlich findet. Danach
   CONTEXT.md aktualisieren, committen (`wip:`-Präfix), nächster Schritt.
-  Harte Grenzen dabei unverändert: kein Rust-Install, kein Force-Push, kein
-  PR-Merge, kein Push nach GitHub ohne Rückfrage beim Nutzer.
-- **Rust ist auf diesem Mac nicht installiert.** Für den eigentlichen
-  Tauri-Rahmen (Fenster, Notifications, SQLite-Plugin) wird es gebraucht,
-  aber noch nicht für die aktuelle Arbeit (`src/ingest/`, `src/data/` sind
-  reines TypeScript, laufen mit `tsx`/`vitest` ohne Tauri). Vor Beginn des
-  Tauri-Rahmens: `xcode-select -p` ist vorhanden, `rustc`/`cargo` fehlen —
-  Installation via `rustup` beim Nutzer erfragen (keine globalen
-  Abhängigkeiten ohne Rückfrage).
+  Harte Grenzen dabei unverändert: kein Force-Push, kein PR-Merge, keine
+  weiteren globalen Abhängigkeiten ohne Rückfrage beim Nutzer.
+- **Rust ist installiert** (`rustup`, `rustc 1.97.1`/`cargo 1.97.1`, siehe
+  oben). Neue Shell ggf. `. "$HOME/.cargo/env"` laden, falls `cargo`/`rustc`
+  nicht im PATH sind.
 - **Commit-Politik:** Es wird laufend committet, auch WIP-Stände auf dem
   Feature-Branch (siehe Regel oben und [CONTRIBUTING.md](CONTRIBUTING.md)).
   PR erst öffnen, wenn ein größerer Roadmap-Abschnitt ein belastbares
@@ -485,8 +529,7 @@ unten.
 
 ### Danach (unverändert aus der Roadmap)
 
-- Themenbaum-Ansicht, bearbeitbar
-- Tauri-Rahmen (Fenster, Plugins) — Rust-Installation vorher klären
+Phase 1 ist komplett. Phase 2 „Planung" (siehe oben, „Als Nächstes").
 
 Siehe [ROADMAP.md](ROADMAP.md) für die vollständige Phasenplanung.
 
