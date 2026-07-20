@@ -53,12 +53,18 @@ function scaleMultiplier(rating: 1 | 2 | 3 | 4 | 5): number {
  * Multiplikator je Prüfungsformat: wie viel zusätzliche aktive Übung ein
  * Format über das reine Durcharbeiten des Stoffs hinaus braucht.
  *
- * **Platzhalter-Werte, nicht in ADR-004 spezifiziert und nicht an echten
- * Daten validiert** — geschätzt aus der Überlegung heraus, dass Open-Book
- * und Multiple-Choice weniger freies Reproduzieren brauchen als Freitext/
- * Essay/Fallstudie/Rechnen. Vor dem ersten echten Einsatz mit dem Nutzer
- * abstimmen, dann hier anpassen — bewusst als benannte, leicht auffindbare
- * Konstante statt verstreuter Magic Numbers.
+ * **Bewusst festgelegter Startwert, nicht in ADR-004 spezifiziert und nicht
+ * an echten Daten validiert** — geschätzt aus der Überlegung heraus, dass
+ * Open-Book und Multiple-Choice weniger freies Reproduzieren brauchen als
+ * Freitext/Essay/Fallstudie/Rechnen. Ursprünglich als offene Rückfrage an
+ * den Nutzer markiert; auf dessen Wunsch final entschieden (Session vom
+ * 20.07.2026), weil die Themen-Regler in `TopicTree.tsx`
+ * (`setTopicWeight`/`setTopicDifficulty`) den eigentlichen, direkten
+ * Korrekturhebel liefern — dieser Multiplikator ist nur noch ein grober
+ * Startwert, keine Zahl, die exakt stimmen muss. Bewusst als benannte,
+ * leicht auffindbare Konstante statt verstreuter Magic Numbers, falls sich
+ * mit echten Nutzungsdaten (`ai_usage`-artige Kalibrierung) doch noch eine
+ * bessere Zahl ergibt.
  */
 export const EXAM_FORMAT_MULTIPLIER: Record<AssessmentFormat, number> = {
   mc: 0.8,
