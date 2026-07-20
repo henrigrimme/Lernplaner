@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildTree, deleteTopic, moveTopic, renameTopic } from '../../src/data/topicTree'
+import {
+  buildTree,
+  deleteTopic,
+  moveTopic,
+  renameTopic,
+  setTopicDifficulty,
+  setTopicWeight,
+} from '../../src/data/topicTree'
 import type { Topic } from '../../src/data/schema'
 
 function topic(overrides: Partial<Topic> & { id: number }): Topic {
@@ -129,5 +136,47 @@ describe('moveTopic', () => {
   it('wirft bei unbekanntem neuen Elternthema', () => {
     const topics = [topic({ id: 1 })]
     expect(() => moveTopic(topics, 1, 999, 0)).toThrow(/nicht gefunden/)
+  })
+})
+
+describe('setTopicWeight', () => {
+  it('setzt das Gewicht bei einem Blattthema, ohne andere Themen zu verändern', () => {
+    const topics = [topic({ id: 1, weight: 3 }), topic({ id: 2, weight: 3 })]
+    const result = setTopicWeight(topics, 1, 5)
+    expect(result.find((t) => t.id === 1)).toMatchObject({ weight: 5, manual_override: 1 })
+    expect(result.find((t) => t.id === 2)).toMatchObject({ weight: 3, manual_override: 0 })
+  })
+
+  it('vererbt sich von einem Kapitel (Elternthema) auf alle Unterthemen', () => {
+    const topics = [
+      topic({ id: 1, parent_id: null, weight: 3 }), // Kapitel
+      topic({ id: 2, parent_id: 1, weight: 3 }),
+      topic({ id: 3, parent_id: 2, weight: 3 }), // Enkel — auch betroffen
+      topic({ id: 4, parent_id: null, weight: 3 }), // anderes Kapitel, unbetroffen
+    ]
+    const result = setTopicWeight(topics, 1, 5)
+    expect(result.filter((t) => [1, 2, 3].includes(t.id)).every((t) => t.weight === 5)).toBe(true)
+    expect(result.find((t) => t.id === 4)!.weight).toBe(3)
+  })
+
+  it('wirft bei unbekannter id', () => {
+    expect(() => setTopicWeight([], 1, 5)).toThrow(/nicht gefunden/)
+  })
+})
+
+describe('setTopicDifficulty', () => {
+  it('setzt die Schwierigkeit bei einem Blattthema', () => {
+    const topics = [topic({ id: 1, difficulty: 3 })]
+    const result = setTopicDifficulty(topics, 1, 1)
+    expect(result[0]).toMatchObject({ difficulty: 1, manual_override: 1 })
+  })
+
+  it('vererbt sich von einem Kapitel auf alle Unterthemen', () => {
+    const topics = [
+      topic({ id: 1, parent_id: null, difficulty: 3 }),
+      topic({ id: 2, parent_id: 1, difficulty: 3 }),
+    ]
+    const result = setTopicDifficulty(topics, 1, 5)
+    expect(result.every((t) => t.difficulty === 5)).toBe(true)
   })
 })

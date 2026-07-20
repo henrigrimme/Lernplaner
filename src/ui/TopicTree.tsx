@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { buildTree, deleteTopic, moveTopic, renameTopic, type TopicTreeNode } from '../data/topicTree'
+import {
+  buildTree,
+  deleteTopic,
+  moveTopic,
+  renameTopic,
+  setTopicDifficulty,
+  setTopicWeight,
+  type TopicTreeNode,
+} from '../data/topicTree'
 import type { Topic } from '../data/schema'
 
 /**
@@ -16,6 +24,15 @@ import type { Topic } from '../data/schema'
  * Bewegen bewusst über Auf/Ab/Ein-/Ausrücken-Schaltflächen statt
  * Drag & Drop: tastaturbedienbar, ohne zusätzliche Abhängigkeit, und An-
  * spruchsniveau passend zu zwei Nutzern statt einem breiten Publikum.
+ *
+ * **Gewicht/Schwierigkeit-Regler:** wirken auf einem Kapitel (Elternknoten)
+ * verschoben auf den ganzen Themenbereich — vererben sich auf alle
+ * Unterthemen (siehe `setTopicWeight`/`setTopicDifficulty` in
+ * `topicTree.ts`). Auf einem Blattthema betreffen sie nur dieses eine
+ * Thema. Beide Werte fließen direkt in `estimateMinutes` ein
+ * (`domain/estimation.ts`) — der Regler ist der eigentliche Hebel, mit dem
+ * die Zeitschätzung an das eigene Gefühl angepasst wird, nicht ein
+ * geschätzter Prüfungsformat-Multiplikator allein.
  */
 
 export interface TopicTreeProps {
@@ -43,6 +60,10 @@ export function TopicTree({ topics, onChange }: TopicTreeProps) {
     onChange(deleteTopic(topics, id))
   }
 
+  const changeWeight = (id: number, weight: Topic['weight']) => onChange(setTopicWeight(topics, id, weight))
+  const changeDifficulty = (id: number, difficulty: Topic['difficulty']) =>
+    onChange(setTopicDifficulty(topics, id, difficulty))
+
   if (tree.length === 0) {
     return <p className="topic-tree-empty">Noch kein Themenbaum importiert.</p>
   }
@@ -63,6 +84,8 @@ export function TopicTree({ topics, onChange }: TopicTreeProps) {
           onRequestDelete={setPendingDeleteId}
           onConfirmDelete={remove}
           onCancelDelete={() => setPendingDeleteId(null)}
+          onChangeWeight={changeWeight}
+          onChangeDifficulty={changeDifficulty}
         />
       ))}
     </ul>
@@ -82,6 +105,8 @@ interface TopicNodeProps {
   onRequestDelete: (id: number) => void
   onConfirmDelete: (id: number) => void
   onCancelDelete: () => void
+  onChangeWeight: (id: number, weight: Topic['weight']) => void
+  onChangeDifficulty: (id: number, difficulty: Topic['difficulty']) => void
 }
 
 function TopicNode({
@@ -96,12 +121,15 @@ function TopicNode({
   onRequestDelete,
   onConfirmDelete,
   onCancelDelete,
+  onChangeWeight,
+  onChangeDifficulty,
 }: TopicNodeProps) {
   const [draft, setDraft] = useState(node.name)
   const index = siblings.findIndex((s) => s.id === node.id)
   const isFirst = index <= 0
   const isLast = index === siblings.length - 1
   const previousSibling = index > 0 ? siblings[index - 1] : undefined
+  const isChapter = node.children.length > 0
 
   return (
     <li role="treeitem" aria-label={node.name} data-topic-id={node.id}>
@@ -132,6 +160,30 @@ function TopicNode({
                 bearbeitet
               </span>
             )}
+            <label>
+              Gewicht{isChapter ? ' (ganzer Bereich)' : ''}
+              <input
+                type="range"
+                min={1}
+                max={5}
+                value={node.weight}
+                aria-label={`Gewicht von ${node.name}`}
+                onChange={(e) => onChangeWeight(node.id, Number(e.target.value) as Topic['weight'])}
+              />
+              {node.weight}
+            </label>
+            <label>
+              Schwierigkeit{isChapter ? ' (ganzer Bereich)' : ''}
+              <input
+                type="range"
+                min={1}
+                max={5}
+                value={node.difficulty}
+                aria-label={`Schwierigkeit von ${node.name}`}
+                onChange={(e) => onChangeDifficulty(node.id, Number(e.target.value) as Topic['difficulty'])}
+              />
+              {node.difficulty}
+            </label>
             <button type="button" onClick={() => { setDraft(node.name); onStartEdit(node.id) }}>
               Umbenennen
             </button>
@@ -197,6 +249,8 @@ function TopicNode({
               onRequestDelete={onRequestDelete}
               onConfirmDelete={onConfirmDelete}
               onCancelDelete={onCancelDelete}
+              onChangeWeight={onChangeWeight}
+              onChangeDifficulty={onChangeDifficulty}
             />
           ))}
         </ul>

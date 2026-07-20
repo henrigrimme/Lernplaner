@@ -719,27 +719,138 @@ Neuer Branch `feat/plan-view`.
 Oktober) tatsächlich erreicht** — durchspielbar von Fach-Setup bis
 Lernplan, nicht nur in Einzelmodulen getestet.
 
+### Gewicht-/Schwierigkeit-Regler mit Kapitel-Vererbung — fertig
+
+Neuer Branch `feat/topic-weight-difficulty`, ausgehend von der Rückfrage zu
+`EXAM_FORMAT_MULTIPLIER`: statt (nur) den Prüfungsformat-Multiplikator
+genau zu treffen, kann der Nutzer die Zeitschätzung jetzt direkt pro Thema
+korrigieren — der eigentlich gewünschte Hebel.
+
+- **`setTopicWeight`/`setTopicDifficulty` in `topicTree.ts`**: setzen
+  `weight`/`difficulty` für ein Thema **und alle Unterthemen** (nutzen
+  `descendantIds`, das `id` selbst schon mit einschließt — ein Blattthema
+  ohne Kinder ist dadurch automatisch der einfache Einzelfall, keine
+  Sonderbehandlung nötig). Setzen `manual_override` wie
+  `renameTopic`/`moveTopic`. 6 neue Tests in `topicTree.test.ts`.
+- **Regler in `TopicTree.tsx`**: `<input type="range" min=1 max=5>` für
+  Gewicht und Schwierigkeit, immer sichtbar (nicht hinter einem Editier-
+  Modus versteckt), mit Beschriftung „(ganzer Bereich)" auf Kapiteln
+  (Knoten mit Kindern) zur Unterscheidung von Blattthemen. 3 neue Tests.
+- **Echte Erkenntnis beim Browser-Plausi-Check:** Kapitel aus dem PDF-Import
+  sind aktuell **flach** — `detectChapters`/`topicsFromExtractedDocument`
+  erzeugen keine Eltern-Kind-Hierarchie, jedes erkannte Kapitel ist ein
+  eigenständiges Wurzelthema (`parent_id: null`). Die „Vererbung auf
+  Unterthemen" lässt sich mit echt importiertem Material also nur zeigen,
+  nachdem ein Thema manuell per „→" (Einrücken) unter ein anderes verschoben
+  wurde — was aber genau der vorgesehene Weg ist, überhaupt eine Hierarchie
+  zu bekommen (die Pipeline erkennt keine Unterthemen, siehe `estimation.ts`-
+  Kommentar „Bewusst nicht Teil dieses Schritts"). Im Browser bestätigt:
+  Kind erbt `weight`/`difficulty` korrekt vom neuen Elternthema nach dem
+  Einrücken.
+- **Favicon behoben, vollständig** (nicht nur der `<link>`-Tag in
+  `index.html` von vorher): Chrome fragt zusätzlich **immer** `/favicon.ico`
+  direkt ab, unabhängig vom `<link rel="icon">` — bekannte Eigenheit,
+  `<link>` allein reicht nicht gegen den Konsolen-404. `public/favicon.ico`
+  neu angelegt (minimales, selbst erzeugtes 16×16-ICO, einfarbig Indigo
+  `#4f46e5`, kein Text — Vite bedient `public/` automatisch am Root).
+  Bestätigt: kompletter Seiten-Reload ohne jeden Konsolenfehler/404 mehr.
+- **Wochentag-Konvention vom Nutzer bestätigt** (0 = Sonntag, wie
+  `Date#getUTCDay()`, wie es technisch am einfachsten ist) — war zuvor eine
+  offene Rückfrage, jetzt final. Keine Code-Änderung nötig, war schon so
+  umgesetzt.
+- **130 Tests insgesamt** (12 neu: 6 `topicTree.ts`, 3 `TopicTree.tsx`, 3
+  Browser-Plausi-Check statt neuer automatisierter Tests für Favicon).
+
 **Als Nächstes:** `replanning.ts` (Neuberechnung + Diff, ADR-005 „nie
 automatisch anwenden") für Phase 3 „Alltag" — oder, falls sich das
 sinnvoller anfühlt, zuerst Phase 3s andere Bausteine (Heute-Ansicht,
 Fortschrittsanzeige). ADR-005 ist der Grund, warum `replanning.ts` mehr
 ist als nochmal `scheduleStudyBlocks` aufrufen: es muss den Unterschied zum
 vorigen Plan zeigen und darf nichts ohne Bestätigung übernehmen.
+Recherche-Notizen für die Pomodoro-Timer- und FSRS-Bausteine aus Phase 3/4
+liegen jetzt schon bereit, siehe ROADMAP.md.
 
 **Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
 - DMG-Bundling-Fix (Automation-Rechte / `tauri.conf.json`-Änderung) — nicht
   dringend, siehe oben
-- `EXAM_FORMAT_MULTIPLIER`-Werte in `estimation.ts` mit dem Nutzer
-  abstimmen, bevor sie für einen echten Lernplan verwendet werden (siehe
-  oben — reine Annahme, nicht validiert)
+- `EXAM_FORMAT_MULTIPLIER`-Werte in `estimation.ts` — durch die neuen
+  Regler weniger dringend (Nutzer kann pro Thema direkt korrigieren), aber
+  weiterhin eine unvalidierte Annahme
 - `sessionChunkMinutes`/`reviewFraction`/`minReviewGapDays` in
   `scheduling.ts` ebenso abstimmen (siehe oben)
-- Wochentag-Konvention in `capacity.ts`/`AvailabilitySetup.tsx` bestätigen
-  (0 = Sonntag angenommen, nirgends in DATA_MODEL.md beziffert)
-- Fehlendes `favicon.ico` (kosmetisch, siehe oben)
 - „Thema für spätere Prüfung desselben Fachs" — aktuell nicht abbildbar
   (siehe `PlanView.tsx`-Vereinfachung oben), braucht eine echte
   Zuordnungs-UI, falls das gebraucht wird
+
+### Recherche: Spaced Repetition (für Phase 4)
+
+Für ROADMAP.md Phase 4 „Spaced Repetition (FSRS)" — damit die Recherche
+beim Erreichen dieser Phase nicht nochmal gemacht werden muss.
+
+**Kernaussage: FSRS verwenden, nicht SM-2.**
+
+- **SM-2** (SuperMemo, Wożniak 1987) ist der klassische Algorithmus: jede
+  Karte hat einen „Ease Factor" (Start 2,5), der bei richtiger Antwort das
+  nächste Intervall verlängert, bei falscher verkürzt. Typische erste
+  Intervalle: 1 Tag, dann 6 Tage, danach wachsend.
+  ([Anki FAQ](https://faqs.ankiweb.net/what-spaced-repetition-algorithm))
+- **FSRS** ist der moderne Nachfolger und lernt aus dem tatsächlichen
+  Vergessensverhalten pro Karte statt einer festen Formel. **Anki selbst
+  hat SM-2 im November 2023 (Version 23.10) durch FSRS als Standard
+  ersetzt**, weil es bei gleicher Behaltensrate 20–30 % weniger
+  Wiederholungen braucht.
+  ([Anki FAQ](https://faqs.ankiweb.net/what-spaced-repetition-algorithm),
+  [Migaku](https://migaku.com/blog/language-fun/spaced-repetition-in-2026-how-it-actually-works))
+- SM-2 nachzubauen wäre reine Zeitverschwendung, wenn selbst Anki es
+  aufgegeben hat — direkt FSRS implementieren oder eine bestehende
+  Implementierung einbinden.
+
+**Wichtige Abgrenzung, damit es nicht mit `scheduling.ts` verwechselt
+wird:** Echtes Spaced Repetition (SM-2/FSRS) arbeitet auf **einzelnen
+Karteikarten mit Erinnerungs-Feedback pro Karte** (typisch vier Stufen:
+„nochmal" / „schwer" / „gut" / „leicht" oder ähnlich) — nicht auf ganzen
+Themen. Das gehört zu den `cards`/`reviews`-Tabellen (siehe DATA_MODEL.md
+„Später befüllt, jetzt schon angelegt"), die erst mit Phase 4 („Markieren
+im Dokument → Karteikarten") entstehen. Der bereits gebaute einzelne
+Wiederholungsblock in `scheduling.ts` (`reviewFraction`, `minReviewGapDays`,
+siehe oben) ist **kein** Spaced-Repetition-Ersatz und sollte es auch nicht
+werden — er ist ein grober Themen-Auffrischer vor der Prüfung, FSRS
+arbeitet auf der viel feineren Karteikarten-Ebene. Beides bleibt getrennt.
+
+### Recherche: Pomodoro/Session-Timing (für Phase 3)
+
+Für ROADMAP.md Phase 3 „Heute-Ansicht mit Timer" — damit die Recherche
+beim Erreichen dieser Phase nicht nochmal gemacht werden muss.
+
+**Kernaussage: kein fester Standardwert ist für alle optimal — Presets
+anbieten, dazu freie Einstellung (vom Nutzer ausdrücklich gewünscht:
+„dass man sich die Timer selbst im Voraus einstellen kann").**
+
+- Klassisch: 25 Min. Arbeit / 5 Min. Pause, nach 4 Durchgängen eine längere
+  Pause (15–30 Min.).
+- Eine aktuelle Studie zu medizinischem Lernstoff (Anatomie) empfiehlt eher
+  **35 Min. Arbeit / 10 Min. Pause**.
+  ([BMC Medical Education, Scoping Review
+  2026](https://link.springer.com/article/10.1186/s12909-025-08001-0))
+- Für tiefe Konzentrationsarbeit werden auch **50/10**-Zyklen verwendet.
+- Kernbefund über mehrere Quellen: strukturierte Zeitblöcke mit Pausen
+  schlagen unstrukturiertes Lernen zuverlässig, aber die starre 25-Minuten-
+  Grenze kann bei komplexer/vertiefter Arbeit den Flow-Zustand stören — es
+  gibt keine einzelne „richtige" Zahl.
+  ([PomoDial](https://www.pomodial.com/blog/does-the-pomodoro-technique-actually-work),
+  [Brown Daily
+  Herald](https://www.browndailyherald.com/article/2026/03/fact-check-is-the-pomodoro-technique-actually-effective-for-studying))
+- **Alternative: „Flowtime"** — Pause erst, wenn man selbst merkt, dass die
+  Konzentration nachlässt, statt nach fester Zeit. In einer Vergleichsstudie
+  zwischen Pomodoro, Flowtime und freier Selbststeuerung untersucht, könnte
+  als drittes Preset oder Modus infrage kommen.
+  ([PMC-Studie](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12292963/))
+
+**Empfehlung für die Umsetzung:** Presets **25/5** (klassisch, lange Pause
+nach 4 Zyklen), **35/10**, **50/10** (Deep Work) zur Auswahl anbieten, plus
+freie Eingabe eigener Werte — kein einzelner Default, der für alle passt.
+Ein optionaler „Flowtime"-Modus (manuelles Pausieren statt festem Timer)
+wäre eine sinnvolle Erweiterung, aber kein Muss für die erste Version.
 
 ### Sonstiges für den Wiedereinstieg
 

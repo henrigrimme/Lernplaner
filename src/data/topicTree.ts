@@ -141,3 +141,25 @@ export function deleteTopic(topics: Topic[], id: number): Topic[] {
   const toRemove = descendantIds(topics, id)
   return topics.filter((t) => !toRemove.has(t.id))
 }
+
+/**
+ * Setzt `weight` (Wichtigkeit) für ein Thema **und alle seine Unterthemen**
+ * — auf einem Kapitel (Elternknoten) verschoben, wirkt der Regler auf den
+ * ganzen Themenbereich, nicht nur das Kapitel selbst. `descendantIds`
+ * enthält `id` bereits mit (siehe oben), ein Blattthema ohne Kinder ist
+ * dadurch automatisch der einfache Einzelfall, keine Sonderbehandlung
+ * nötig. Setzt `manual_override` wie `renameTopic`/`moveTopic` — ein
+ * späterer Re-Import darf das nie zurücksetzen.
+ */
+export function setTopicWeight(topics: Topic[], id: number, weight: Topic['weight']): Topic[] {
+  findTopic(topics, id)
+  const affected = descendantIds(topics, id)
+  return topics.map((t) => (affected.has(t.id) ? { ...t, weight, manual_override: 1 } : t))
+}
+
+/** Setzt `difficulty` (persönlich empfundene Schwierigkeit) — sonst wie `setTopicWeight`. */
+export function setTopicDifficulty(topics: Topic[], id: number, difficulty: Topic['difficulty']): Topic[] {
+  findTopic(topics, id)
+  const affected = descendantIds(topics, id)
+  return topics.map((t) => (affected.has(t.id) ? { ...t, difficulty, manual_override: 1 } : t))
+}
