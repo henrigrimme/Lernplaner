@@ -58,8 +58,12 @@ export function availableMinutesForDay(
   return Math.max(0, baseMinutes - blockedMinutes)
 }
 
-/** Alle Kalendertage von `from` (inklusiv) bis `to` (exklusiv) als ISO-Datumsstrings. */
-function datesInRange(from: string, to: string): string[] {
+/**
+ * Alle Kalendertage von `from` (inklusiv) bis `to` (exklusiv) als
+ * ISO-Datumsstrings. Exportiert, weil `scheduling.ts` dieselbe
+ * Tagesiteration braucht — nicht duplizieren.
+ */
+export function datesInRange(from: string, to: string): string[] {
   const dates: string[] = []
   let cursor = new Date(`${from}T00:00:00.000Z`)
   const end = new Date(`${to}T00:00:00.000Z`)
