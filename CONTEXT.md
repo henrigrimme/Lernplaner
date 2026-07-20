@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 abgeschlossen, Phase 2: estimation.ts + capacity.ts + Setup-UI fertig)
+**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 abgeschlossen, Phase 2: alle domain/-Bausteine fertig, Planansicht fehlt noch)
 
 ---
 
@@ -621,12 +621,59 @@ waren im Schema angelegt, aber nirgends befüllbar — `estimation.ts` und
   Commit nicht gegen den tatsächlichen Testlauf geprüft. Nicht mehr sauber
   korrigierbar, ohne Historie auf `main` umzuschreiben; hier richtiggestellt.)
 
-**Als Nächstes:** `domain/scheduling.ts` (Terminierung) kann jetzt mit
-echten Eingaben gefüttert werden — `estimation.ts` (Bedarf je Thema),
-`capacity.ts` (Verfügbarkeit) und die Setup-UI (Fächer/Prüfungen/
-Verfügbarkeit) liegen alle vor. `scheduling.ts` ist laut ARCHITECTURE.md
-der letzte Baustein, der für einen ersten „echten Lernplan" fehlt
-(ROADMAP.md Phase 2 „Ergebnis").
+### `domain/scheduling.ts` — Terminierung fertig
+
+Neuer Branch `feat/scheduling`. Letzter Baustein für einen ersten „echten
+Lernplan" (ROADMAP.md Phase 2 „Ergebnis") — weist Themen aus `estimation.ts`
+konkrete Tage zu, unter Berücksichtigung von `capacity.ts`.
+
+- **Verschränkung:** Themen mehrerer Fächer werden im Round-Robin auf einen
+  Tag verteilt (Sitzungen à `sessionChunkMinutes`, Standard 45 Min.), statt
+  ein Fach komplett vor dem nächsten abzuarbeiten — passt zu „bis zu 5
+  Klausuren parallel" (CONTEXT.md „Nutzer") und ist der in der
+  Lernforschung empfohlene Ansatz (Interleaving).
+- **EDF-Priorität:** Innerhalb eines Tages haben Themen mit näherem
+  Prüfungstermin Vorrang in der Rotation — bekommen ihre Zeit auch dann
+  noch, wenn die Tageskapazität mittendrin ausgeht.
+- **Ein Wiederholungsblock je Thema**, mit Mindestabstand nach dem
+  Erstdurchgang (`minReviewGapDays`, Standard 3 Tage) — **kein**
+  Spaced-Repetition-Algorithmus (FSRS kommt laut ROADMAP.md erst in Phase 4,
+  für Karteikarten/`reviews`, eine andere Tabelle). Wird eine Wiederholung
+  nicht mehr untergebracht, zählt das **nicht** als Defizit — sie war ein
+  Zusatzangebot, kein zugesicherter Bedarf wie der Erstdurchgang.
+- **Drei Konstanten unvalidiert**, benannt und mit Default versehen statt
+  versteckt: `sessionChunkMinutes` (45), `reviewFraction` (0,3),
+  `minReviewGapDays` (3) — alle als `ScheduleOptions` überschreibbar.
+- **Bewusst nicht Teil dieses Moduls:** Rückstand *mit bereits erledigten
+  Blöcken* neu einplanen und als Diff anzeigen (ADR-005 „nie automatisch
+  anwenden") — das ist `replanning.ts`, noch nicht gebaut. Die Funktion
+  unterstützt aber „ab heute mit dem Restbedarf neu rechnen" (späteres
+  `from`, reduzierte `neededMinutes`), nur ohne Diff-Anzeige/Bestätigung.
+- **11 Tests**, decken alle 5 in ARCHITECTURE.md/CONTRIBUTING.md genannten
+  Pflichtfälle ab (fünf parallele Prüfungen, weniger Zeit als Stoff →
+  Streichvorschlag über `unscheduled`, verschobener Prüfungstermin, neues
+  Material nachträglich importiert, Rückstand — im oben beschriebenen,
+  eingeschränkten Sinn). Kernverhalten (EDF-Priorität, Verschränkung,
+  Wiederholungsabstand) von Hand nachgerechnet, nicht nur den grünen Test
+  vertraut.
+- **Plausibilitätscheck an echtem Material:** Consumer Theory 01, alle
+  6 erkannten Kapitel über `estimateMinutes` geschätzt (1–22 Min. je
+  Kapitel) und mit realistischem Verfügbarkeitsmuster (120 Min./Wochentag,
+  180 Samstag) durch `scheduleStudyBlocks` laufen lassen: 70 Min.
+  Erstdurchgang + 21 Min. Wiederholung (30 % nach 3 Tagen Abstand) — Summe
+  und Zeitpunkte stimmen exakt mit der Handrechnung überein, keine
+  Ausreißer.
+
+**Damit sind alle für ROADMAP.md Phase 2 „Ergebnis" (erster echter
+Lernplan für Oktober) nötigen `domain/`-Bausteine vorhanden.** Fehlt noch:
+eine Planansicht in `ui/`, die `scheduleStudyBlocks` tatsächlich aufruft
+und die `study_blocks` anzeigt — aktuell nur über Skripte/Tests geprüft,
+nicht in der App sichtbar.
+
+**Als Nächstes:** Planansicht (`ui/`, Woche/Monat, ROADMAP.md Phase 2)
+verdrahtet Setup-UI + `estimation.ts`/`capacity.ts`/`scheduling.ts`
+tatsächlich zusammen. Danach `replanning.ts` (Neuberechnung + Diff, ADR-005)
+für Phase 3.
 
 **Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
 - DMG-Bundling-Fix (Automation-Rechte / `tauri.conf.json`-Änderung) — nicht
@@ -634,6 +681,8 @@ der letzte Baustein, der für einen ersten „echten Lernplan" fehlt
 - `EXAM_FORMAT_MULTIPLIER`-Werte in `estimation.ts` mit dem Nutzer
   abstimmen, bevor sie für einen echten Lernplan verwendet werden (siehe
   oben — reine Annahme, nicht validiert)
+- `sessionChunkMinutes`/`reviewFraction`/`minReviewGapDays` in
+  `scheduling.ts` ebenso abstimmen (siehe oben)
 - Wochentag-Konvention in `capacity.ts`/`AvailabilitySetup.tsx` bestätigen
   (0 = Sonntag angenommen, nirgends in DATA_MODEL.md beziffert)
 - Fehlendes `favicon.ico` (kosmetisch, siehe oben)
