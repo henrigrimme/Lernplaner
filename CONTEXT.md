@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 abgeschlossen, Phase 2 steht an)
+**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 abgeschlossen, Phase 2 begonnen: domain/estimation.ts)
 
 ---
 
@@ -485,23 +485,77 @@ Rückfrage.
   typecheck`, `npm test`) auf jeden Push/PR; Job `tauri` (Rust-Toolchain,
   `npm run build`, dann `cargo check --locked` in `src-tauri/`) prüft, dass
   die Rust-Seite kompiliert, **ohne** die volle Bundle-Erstellung anzustoßen
-  (umgeht damit das DMG-Problem oben und spart CI-Minuten). Noch nicht
-  gegen einen echten CI-Lauf verifiziert (der erste Lauf passiert automatisch
-  mit PR #2).
+  (umgeht damit das DMG-Problem oben und spart CI-Minuten). **Verifiziert:**
+  erster echter CI-Lauf auf PR #2 grün (beide Jobs, nach einem leeren
+  Anstoß-Commit — GitHub hat den Workflow beim allerersten Push auf einen
+  neuen Branch nicht sofort registriert, zweiter Push hat funktioniert).
 
-**Damit ist Phase 1 (Fundament) laut ROADMAP.md vollständig abgehakt.**
+**PR #2 noch nicht gemerged** — Merge ist eine der Aktionen, die laut den
+harten Grenzen dieser Session eine explizite Rückfrage/Freigabe brauchen; ein
+Versuch ohne diese Freigabe wurde vom Auto-Mode-Classifier blockiert. Bleibt
+offen, bis der Nutzer das ausdrücklich anstößt.
 
-**Als Nächstes:** Phase 2 „Planung" (03.08–16.08) — Fächer/Prüfungen/
-Verfügbarkeit erfassen, Aufwandsschätzung nach ADR-004 kalibrieren,
-Kapazitätsrechnung, Terminierung, Planansicht. Das ist der erste Schritt,
-der `domain/` tatsächlich braucht (siehe ARCHITECTURE.md) — bisher leer.
-Sinnvoller Einstieg: `domain/estimation.ts` (Aufwand aus `topic_sections`-
-Umfangsmaßen), weil er auf dem bereits vorhandenen Themenbaum aufsetzt.
+### Phase 2 — Planung, begonnen
+
+Neuer Branch `feat/estimation` (von `feat/ingest-pipeline` abgezweigt, da PR
+#2 noch offen ist). Erster Baustein: `domain/estimation.ts`
+(`estimateMinutes`) nach ADR-004 — erste Datei überhaupt in `src/domain/`.
+
+- **Formel wörtlich aus ADR-004 übernommen**, mit einer Lese-Entscheidung,
+  die im Code dokumentiert ist: `calibration.minutes_per_1k_chars` **ersetzt**
+  die 4,5er-Ausgangskonstante im Zeichen-Term, statt als zusätzlicher
+  Multiplikator über die gesamte Summe zu wirken — ADR-004 listet
+  „kalibrierung" zwar als eigenen Faktor am Formelende, aber der Feldname
+  „Minuten pro 1000 Zeichen" (DATA_MODEL.md) beschreibt eindeutig einen
+  Ersatz für die 4,5-Konstante, nicht einen zusätzlichen Multiplikator —
+  sonst flösse derselbe Kalibrierungseffekt doppelt ein. Kalibrierung greift
+  erst ab `sample_count >= 10` (siehe Abschnitt 9 „Bekannte
+  Einschränkungen"), vorher bleibt es bei der ADR-004-Konstante.
+- **Zwei Stellen bewusst als Platzhalter markiert, nicht validiert:**
+  - `scaleMultiplier` (linear um den Mittelwert 3 für `course.difficulty`
+    und `topic.weight`) — ADR-004 nennt diese Formelglieder, legt aber keine
+    Skala fest. Linear mit „3 = neutral" ist die naheliegendste Wahl, aber
+    erfunden.
+  - `EXAM_FORMAT_MULTIPLIER` (0,7–1,2 je nach `assessment.format`) — nirgends
+    dokumentiert, aus der Überlegung geschätzt, dass Open-Book/MC weniger
+    aktive Übung brauchen als Freitext/Essay/Fallstudie/Rechnen. **Sollte vor
+    dem ersten echten Einsatz mit dem Nutzer abgestimmt werden** — bewusst
+    als benannte, leicht auffindbare Konstante exportiert statt versteckt.
+  - Beide sind über den bereits bestehenden Kalibrierungsmechanismus
+    (`calibration`-Tabelle, ADR-004) grundsätzlich korrigierbar, decken aber
+    nur den Zeichen-Koeffizienten ab, nicht die beiden Multiplikatoren oben —
+    die bleiben vorerst reine Annahmen.
+- **8 Tests** (`tests/domain/estimation.test.ts`): Basisformel bei neutralen
+  Werten, Summierung über mehrere `topic_sections`, leere Sections,
+  Skalierung mit Schwierigkeit/Gewicht, Prüfungsart-Unterschiede,
+  Kalibrierung unter/ab Mindest-Stichprobengröße.
+- **Plausibilitätscheck an echtem Material:** `scripts/preview-import.ts`
+  zeigt jetzt zusätzlich die geschätzte Minutenzahl je Thema (neutrale
+  Annahmen: Schwierigkeit/Gewicht 3, Format „mixed", keine Kalibrierung).
+  Gegen Consumer Theory 01 und 4 Financial Institutions laufen lassen:
+  Werte steigen monoton mit Zeichen-/Folienzahl (1–47 Minuten je Kapitel),
+  keine Ausreißer, keine Null-/Negativwerte — sinnvoll für einen einzelnen
+  Durchgang, spätere Wiederholungen kommen erst mit `scheduling.ts`.
+
+**Damit ist Phase 1 (Fundament) laut ROADMAP.md vollständig abgehakt**, und
+Phase 2 „Planung" (03.08–16.08) begonnen — `estimation.ts` ist der erste
+Baustein in `domain/` (vorher leer, siehe ARCHITECTURE.md).
+
+**Als Nächstes:** `domain/capacity.ts` (verfügbare vs. benötigte Zeit,
+Defiziterkennung) baut auf `estimateMinutes` auf und ist laut
+ARCHITECTURE.md der nächste Baustein. Danach fehlt für eine erste
+Kapazitätsrechnung noch das Erfassen von Fächern/Prüfungen/Verfügbarkeit
+(`courses`, `assessments`, `availability_pattern`/`availability_exception`
+sind im Schema angelegt, aber nirgends befüllbar — dafür braucht es
+UI/Setup-Formulare, kein `domain/`-Code).
 
 **Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
 - PR #2 mergen — Squash-Merge nach `main` nach CONTRIBUTING.md
 - DMG-Bundling-Fix (Automation-Rechte / `tauri.conf.json`-Änderung) — nicht
   dringend, siehe oben
+- `EXAM_FORMAT_MULTIPLIER`-Werte in `estimation.ts` mit dem Nutzer
+  abstimmen, bevor sie für einen echten Lernplan verwendet werden (siehe
+  oben — reine Annahme, nicht validiert)
 
 ### Sonstiges für den Wiedereinstieg
 

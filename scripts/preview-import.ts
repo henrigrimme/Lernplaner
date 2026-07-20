@@ -16,6 +16,7 @@ import { basename } from 'node:path'
 import Database from 'better-sqlite3'
 import { extractDocument } from '../src/ingest/pdf'
 import { importExtractedDocument, type SqlExecutor } from '../src/data/importTopics'
+import { estimateMinutes } from '../src/domain/estimation'
 
 const MIGRATION = readFileSync(
   new URL('../src/data/migrations/0001_init.sql', import.meta.url),
@@ -68,9 +69,20 @@ for (const file of files) {
       console.log(`  [${topic.sort_order}] "${topic.name}" — keine Folien`)
       continue
     }
+
+    // Neutrale Annahmen (Schwierigkeit/Gewicht 3, Format "mixed") — hier
+    // gibt es noch kein echtes Fach-/Prüfungssetup, siehe estimation.ts.
+    const estimate = estimateMinutes({
+      topic: { weight: 3 },
+      sections: [section],
+      course: { difficulty: 3 },
+      assessmentFormat: 'mixed',
+      calibration: null,
+    })
+
     console.log(
       `  [${topic.sort_order}] "${topic.name}" — Seiten ${section.page_start}-${section.page_end}, ` +
-        `${section.slide_count} Folien, ${section.unique_chars} Zeichen`,
+        `${section.slide_count} Folien, ${section.unique_chars} Zeichen, ~${estimate.minutes} Min. (neutral geschätzt)`,
     )
   }
 }
