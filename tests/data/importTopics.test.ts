@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import Database from 'better-sqlite3'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { importExtractedDocument, type SqlExecutor } from '../../src/data/importTopics'
+import {
+  importExtractedDocument,
+  topicsFromExtractedDocument,
+  type SqlExecutor,
+} from '../../src/data/importTopics'
 import type { Chapter, ExtractedDocument, Slide } from '../../src/ingest/types'
 
 /**
@@ -185,5 +189,41 @@ describe('importExtractedDocument', () => {
     expect(result.topicIds).toEqual([])
     const count = db.prepare('SELECT COUNT(*) AS n FROM topics').get() as { n: number }
     expect(count.n).toBe(0)
+  })
+})
+
+describe('topicsFromExtractedDocument', () => {
+  it('erzeugt dieselben Kapitel-Themen wie importExtractedDocument, ohne Datenbank', () => {
+    const extracted = extractedFixture()
+    const { topics, topicSections } = topicsFromExtractedDocument(extracted, 1, 1, [], [])
+
+    expect(topics.map((t) => t.name)).toEqual(['Consumer Theory', 'Producer Theory'])
+    expect(topics.every((t) => t.course_id === 1 && t.parent_id === null && t.manual_override === 0)).toBe(true)
+    expect(topicSections).toHaveLength(2)
+    expect(topicSections[0]).toMatchObject({ topic_id: topics[0]!.id, document_id: 1, page_start: 1, page_end: 3 })
+  })
+
+  it('vergibt fortlaufende IDs über mehrere Importe hinweg', () => {
+    const extracted = extractedFixture()
+    const first = topicsFromExtractedDocument(extracted, 1, 1, [], [])
+    const second = topicsFromExtractedDocument(extracted, 1, 2, first.topics, first.topicSections)
+
+    expect(second.topics.map((t) => t.id)).toEqual([1, 2, 3, 4])
+    expect(second.topicSections.map((s) => s.id)).toEqual([1, 2, 3, 4])
+  })
+
+  it('legt kein topic_section für ein kapitel ohne folien an', () => {
+    const extracted: ExtractedDocument = {
+      filename: 'leer.pdf',
+      pdfPages: 0,
+      slideCount: 0,
+      uniqueChars: 0,
+      chapters: [chapter('Leeres Kapitel', [])],
+      slides: [],
+      diagnostics: { titleCoverage: 0, buildGroups: 0, inflation: 0, dividers: 0, sparsePages: 0 },
+    }
+    const { topics, topicSections } = topicsFromExtractedDocument(extracted, 1, 1, [], [])
+    expect(topics).toHaveLength(1)
+    expect(topicSections).toEqual([])
   })
 })

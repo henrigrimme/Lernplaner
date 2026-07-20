@@ -1,5 +1,5 @@
 import type { Chapter, ExtractedDocument } from '../ingest/types'
-import type { DocumentType } from './schema'
+import type { DocumentType, Topic, TopicSection } from './schema'
 
 /**
  * Verbindet `ingest/` (liefert `ExtractedDocument`) mit `data/` (SQLite-Schema,
@@ -107,4 +107,60 @@ async function importChapterAsTopic(
   }
 
   return topicId
+}
+
+/**
+ * Array-Variante von `importExtractedDocument`, für den Import direkt im
+ * Browser vor dem Tauri-Rahmen (kein `tauri-plugin-sql`, `better-sqlite3`
+ * ist reine Node-Testinfrastruktur und im Frontend-Bundle nicht nutzbar).
+ * Dieselbe Kapitel-→-Thema-Zuordnung wie `importExtractedDocument`, aber
+ * gegen lokale Arrays statt `SqlExecutor`, nach dem Muster von
+ * `courses.ts`/`topicTree.ts` (`nextId` statt `AUTOINCREMENT`).
+ *
+ * `documentId` wird vom Aufrufer vergeben (kein `documents`-Zustand nötig,
+ * solange die UI keine echte Dokumentenliste zeigt) — muss nur unter den
+ * `topicSections` eindeutig sein.
+ */
+export function topicsFromExtractedDocument(
+  extracted: ExtractedDocument,
+  courseId: number,
+  documentId: number,
+  topics: Topic[],
+  topicSections: TopicSection[],
+): { topics: Topic[]; topicSections: TopicSection[] } {
+  let nextTopicId = topics.reduce((max, t) => Math.max(max, t.id), 0) + 1
+  let nextSectionId = topicSections.reduce((max, s) => Math.max(max, s.id), 0) + 1
+
+  const newTopics: Topic[] = []
+  const newSections: TopicSection[] = []
+
+  extracted.chapters.forEach((chapter, index) => {
+    const topicId = nextTopicId++
+    newTopics.push({
+      id: topicId,
+      course_id: courseId,
+      parent_id: null,
+      name: chapter.title,
+      normalized_name: chapter.normalized,
+      weight: DEFAULT_WEIGHT,
+      difficulty: DEFAULT_DIFFICULTY,
+      sort_order: index,
+      status: 'offen',
+      manual_override: 0,
+    })
+
+    if (chapter.slides.length === 0) return
+    const pageNumbers = chapter.slides.flatMap((slide) => slide.pageNumbers)
+    newSections.push({
+      id: nextSectionId++,
+      topic_id: topicId,
+      document_id: documentId,
+      page_start: Math.min(...pageNumbers),
+      page_end: Math.max(...pageNumbers),
+      unique_chars: chapter.slides.reduce((sum, slide) => sum + slide.chars, 0),
+      slide_count: chapter.slides.length,
+    })
+  })
+
+  return { topics: [...topics, ...newTopics], topicSections: [...topicSections, ...newSections] }
 }
