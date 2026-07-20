@@ -616,7 +616,10 @@ waren im Schema angelegt, aber nirgends befüllbar — `estimation.ts` und
   `AssessmentSetup`s Feld heißt jetzt „Prüfungsdatum". Einziger
   verbliebener Konsolen-Befund: fehlendes `favicon.ico` (404) — kosmetisch,
   keine echte Funktionsstörung, nicht behoben.
-- **129 Tests insgesamt**, `npm run build` läuft durch.
+- **103 Tests insgesamt**, `npm run build` läuft durch. (Korrektur: in der
+  gemergten Commit-Message von PR #5 steht fälschlich „129" — Zahl vor dem
+  Commit nicht gegen den tatsächlichen Testlauf geprüft. Nicht mehr sauber
+  korrigierbar, ohne Historie auf `main` umzuschreiben; hier richtiggestellt.)
 
 **Als Nächstes:** `domain/scheduling.ts` (Terminierung) kann jetzt mit
 echten Eingaben gefüttert werden — `estimation.ts` (Bedarf je Thema),
