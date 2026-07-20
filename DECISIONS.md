@@ -140,3 +140,47 @@ Rückkanal.
 **Begründung:** Zwei-Wege-Synchronisierung mit Kalendern ist eine bekannte
 Fehlerquelle (Duplikate, Löschkonflikte, Zeitzonen) und bringt hier wenig — die
 App bleibt die Wahrheit über den Plan.
+
+---
+
+## ADR-007 — KI-Budget: Benachrichtigung statt Sperre, nutzerdefiniertes Limit
+**2026-07-20 · angenommen**
+
+**Kontext:** ADR-002 geht von Kosten unter 1 €/Monat aus, das bestätigte
+Budget liegt bei 10–15 €/Monat. Trotzdem soll die App den Nutzer nicht
+unbemerkt Kosten verursachen lassen — aber auch nicht mitten in der
+Prüfungsvorbereitung blockieren, nur weil ein selbstgesetztes Limit
+erreicht ist.
+
+**Entscheidung:** Jeder Nutzer legt sein eigenes monatliches KI-Budget in
+den Einstellungen fest (lokal, kein Abgleich zwischen den beiden Nutzern —
+passt zu ADR-003). Beim Überschreiten wird **benachrichtigt, nicht
+gesperrt**: Die App zeigt eine Meldung („Du hast diesen Monat 5 € für
+KI-Anfragen ausgegeben"), lässt aber weitere Anfragen zu. Die
+Benachrichtigung wiederholt sich bei jedem weiteren erreichten Vielfachen
+des Limits (5 €, 10 €, 15 €, …) — nicht nur einmalig — und setzt sich mit
+jedem neuen Kalendermonat zurück.
+
+**Begründung:**
+- Ein hartes Limit würde die App mitten in der Prüfungsvorbereitung
+  funktionsunfähig machen — derselbe bevormundende Mechanismus, den
+  ADR-005 für die Umplanung schon ausschließt
+- Bei tatsächlichen Kosten unter 1 €/Monat (ADR-002) ist eine Sperre
+  ohnehin unverhältnismäßig; eine Benachrichtigung reicht als Kontrolle
+- Zwei Nutzer mit unterschiedlichem Kostenbewusstsein — ein festes,
+  zentral vorgegebenes Limit würde nicht für beide passen
+
+**Folge für das Datenmodell:** Neue Tabelle `ai_usage` protokolliert jeden
+KI-Aufruf mit Kosten (Migration `0002_ai_usage.sql`, siehe DATA_MODEL.md).
+Das Limit selbst liegt in `settings` (`ai_budget_limit_eur`), ebenso der
+zuletzt benachrichtigte Monat/das zuletzt benachrichtigte Vielfache
+(`ai_budget_last_notified_month`, `ai_budget_last_notified_multiple`) —
+verhindert wiederholtes Benachrichtigen bei jedem einzelnen Aufruf zwischen
+zwei Schwellenwerten. Die Monatssumme wird aus `ai_usage` berechnet, nicht
+separat gespeichert (siehe DATA_MODEL.md „Abgeleitete Werte").
+
+**Noch nicht umgesetzt:** Die tatsächliche Benachrichtigung braucht die
+`ai/`- und `platform/`-Schicht, die es beide noch nicht gibt (kommt mit der
+KI-Anbindung bzw. Phase 3 „Lokale Benachrichtigungen"). Diese Entscheidung
+legt nur Verhalten und Datenmodell vorab fest, damit später nichts
+nachträglich umgebaut werden muss.

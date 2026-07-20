@@ -1,10 +1,30 @@
 # CONTEXT
 
-Dauerhafte Wissensbasis des Projekts. Wird bei jeder wesentlichen Änderung
-fortgeschrieben. Wer neu einsteigt (oder nach Wochen zurückkommt), liest diese
-Datei zuerst.
+Dauerhafte Wissensbasis des Projekts. Wer neu einsteigt (oder in einem neuen
+Chat weitermacht), liest **zuerst Abschnitt 8 „Stand"** — dort steht exakt,
+wo die Arbeit steht und was der nächste Schritt ist.
 
-**Letzte Aktualisierung:** 20. Juli 2026
+> ## ⚠️ Regel: Diese Datei wird nach JEDEM Arbeitsschritt aktualisiert
+>
+> Nicht nur bei Phasenwechseln. Nach jeder Datei, jedem Test, jedem Befund —
+> bevor zur nächsten Aufgabe übergegangen wird, wird Abschnitt 8 („Stand")
+> nachgeführt: was fertig ist, was gerade untersucht wird, was der exakte
+> nächste Schritt ist, und alle Zwischenergebnisse, die sonst verloren gingen.
+>
+> Grund: Der Nutzer möchte jederzeit in einem **neuen Chat** weiterarbeiten
+> können, ohne Kontext zu verlieren. Diese Datei ist die einzige Brücke
+> zwischen Chats — was hier nicht steht, ist beim nächsten Neustart weg.
+> Lieber zu oft aktualisieren als zu selten.
+>
+> **Zusätzlich:** Änderungen werden automatisch committet, nach jedem
+> abgeschlossenen Schritt — auch Zwischenstände (`wip:`-Präfix), auf dem
+> jeweiligen Feature-Branch. Das ist ein Sicherheitsnetz gegen Datenverlust,
+> nicht der Mechanismus fürs Fortsetzen in neuen Chats — dafür ist diese
+> Datei da, unabhängig vom Commit-Stand. Beim Merge nach `main` wird
+> gesquasht, damit die Hauptlinie sauber bleibt. Details in
+> [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
+
+**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 abgeschlossen, Phase 2 steht an)
 
 ---
 
@@ -62,10 +82,15 @@ Kurse. Beide auf MacBooks mit Apple Silicon.
 | Benachrichtigungen | Tagesübersicht + Fälligkeiten; **E-Mail gewünscht** |
 | Übungsblätter | grobe Ebene („Blatt 4, ~90 min"), keine Aufgabenzerlegung |
 
+Im Oktober stehen **sowohl Klausuren als auch Paper-Abgaben** an (bestätigt).
+Das Datenmodell bildet beides über `assessments.type` ab; der Planer muss
+Paper-Teilschritte (`paper_steps`) von Anfang an mitdenken, auch wenn der
+Paper-Workflow erst in Phase 4 ausgebaut wird.
+
 ### Offen
 
-- Konkrete Prüfungstermine im Oktober
-- Ob es im Oktober Paper-Abgaben gibt
+- Konkrete Prüfungstermine im Oktober (Anzahl noch unklar)
+- Anzahl und Fristen der Paper-Abgaben im Oktober (Existenz bestätigt, Details offen)
 - Ob E-Mail-Benachrichtigungen zusätzlich zum Kalender-Export nötig sind
   (siehe offene Fragen unten)
 
@@ -200,23 +225,313 @@ aussagekräftigen Nachrichten, keine Force-Pushes, Feature-Branches mit PR.
 
 ## 8. Stand
 
-**Phase 1 — Fundament, begonnen 20.07.2026**
+**Phase 1 — Fundament, begonnen 20.07.2026, inhaltlich abgeschlossen (siehe
+unten). Aktiver Branch `feat/ingest-pipeline`, als [PR #2](https://github.com/henrigrimme/Lernplaner/pull/2)
+gepusht, noch nicht gemerged.**
 
-Erledigt:
-- Anforderungen geklärt, Recherche abgeschlossen
-- Extraktion an drei Fächern validiert
-- Aufwandsformel korrigiert (ADR-004)
-- Konzept freigegeben
-- Repository-Grundgerüst, `.gitignore`, `.env.example`, Sicherheitsdoku
+### Erledigt
 
-Als Nächstes:
-- Tauri-Projekt aufsetzen
-- SQLite-Schema anlegen (vollständig, inkl. später genutzter Tabellen)
-- PDF-Import mit Animationsschritt-Erkennung
-- Kapitelerkennung mit Fuzzy-Normalisierung
-- Themenbaum-Ansicht, bearbeitbar
+- Anforderungen geklärt, Recherche abgeschlossen, Konzept freigegeben
+- Extraktion an drei Fächern validiert (Microeconomics, Entrepreneurial
+  Transformation, Money & Banking — 355 PDF-Seiten)
+- Aufwandsformel korrigiert (ADR-004: eindeutige Zeichen statt Seitenzahl)
+- Repository angelegt, privat, `henrigrimme/Lernplaner` auf GitHub
+- `theodorklink` als Collaborator (Schreibrechte) eingetragen
+- Projektgrundlage gemerged auf `main` (PR #1): `.gitignore`, `.env.example`,
+  `CONTEXT.md`, `ARCHITECTURE.md`, `DATA_MODEL.md`, `DECISIONS.md`,
+  `ROADMAP.md`, `SECURITY.md`, `CONTRIBUTING.md`
+- Node-Projekt aufgesetzt: `package.json`, `tsconfig.json` (strict),
+  `vite.config.ts`, Abhängigkeiten installiert (`pdfjs-dist`, React, Vitest,
+  tsx u. a.)
+- Import-Pipeline in TypeScript geschrieben:
+  - `src/ingest/types.ts` — Typen (`Page`, `Slide`, `Chapter`,
+    `ExtractedDocument`, `BodyLine` — neu, trägt Position …)
+  - `src/ingest/extract.ts` — Zeilenbildung aus pdf.js-Fragmenten (jetzt
+    inkl. `x`-Position), Titelerkennung (oberes Drittel, größte Schrift),
+    Normalisierung, Erkennung wiederkehrender Kopf-/Fußzeilen (Fix siehe
+    unten), Behebung der PowerPoint-Doppelzeichen bei Formeln (`𝑢𝑢` → `𝑢`)
+  - `src/ingest/slides.ts` — Zusammenfassen von Animationsschritten zu
+    Folien (Positions- + Textabgleich, siehe unten), eindeutiger
+    Zeichenumfang
+  - `src/ingest/pdf.ts` — Gesamtpipeline PDF → `ExtractedDocument`
+  - `scripts/analyze-material.ts` — Kommandozeilen-Diagnosewerkzeug,
+    `npm run analyze -- [--detail] <pfad.pdf>`
+- **Titelerkennung bestätigt: 95–98 % über alle sieben getesteten
+  Foliensätze** (drei Fächer). Das Verfahren (größte Schrift im oberen
+  Seitendrittel) funktioniert robust.
+- **Erste Tests geschrieben:** `tests/ingest/slides.test.ts`,
+  `tests/ingest/extract.test.ts` (9 Tests).
+- **Animationsschritt-Erkennung gelöst** (dritter Ansatz: Titel + Positions-
+  **und** Textabgleich statt reinem Textcontainment). Zusätzlich ein
+  Fußzeilen-Bug behoben, der den Containment-Wert systematisch gedrückt
+  hatte (`findRepeatingLines`/`stripOwnPageNumber` in `extract.ts`). Am
+  Original aller vier Fächer validiert, inkl. des ursprünglich
+  dokumentierten Fehlerfalls „Types of Financial Intermediaries" (S.20–23,
+  „4 Financial Institutions.pdf") — korrekt nicht zusammengefasst. Details,
+  Testtabelle und Stichproben: `git log` / Commits
+  `7331815`/`c5015e9` auf `feat/ingest-pipeline`, sowie
+  `src/ingest/slides.ts` (Kommentar am Funktionskopf von `isBuildStep`).
+  Überraschender Befund dabei: Die Money-&-Banking-Foliensätze 1/2/4 nutzen
+  offenbar gar keine PowerPoint-Animationen (`buildGroups: 0`) — die
+  gesamte Seiten-Aufblähung dort kommt aus Trennfolien und
+  Unterpunkt-Folgen mit gleichem Titel, nicht aus echten Builds.
+- **Testmaterial lokal sortiert:** `Beispiel pdfs/Microeconomics/` (7
+  Dateien) und `Beispiel pdfs/Money Banking and Financial Markets/` (14
+  Dateien, inkl. Online Questions/Problem Sets) — gitignored, siehe
+  SECURITY.md. Nebenbefund beim Sortieren: `Online Questions 2.pdf`
+  enthält inhaltlich bereits die Lösungen (identisch mit
+  `..._Solutions.pdf`) — vermutlich ein Bezeichnungsfehler der
+  Quelle, nicht korrigiert.
+- **SQLite-Schema angelegt** (vollständig, alle 19 Tabellen aus
+  DATA_MODEL.md, auch die erst ab Phase 4 befüllten):
+  - `src/data/migrations/0001_init.sql` — DDL, `CHECK`-Constraints für alle
+    Enum-Spalten, Fremdschlüssel mit `ON DELETE CASCADE`/`SET NULL` wo
+    sinnvoll, Indizes auf allen Fremdschlüsseln plus `study_blocks.planned_date`
+    und `reviews.due_at` (Abfragen, die die Heute-Ansicht bzw. Spaced
+    Repetition brauchen werden)
+  - `src/data/schema.ts` — TypeScript-Zeilentypen für alle Tabellen,
+    reine Typen ohne Laufzeitlogik
+  - `tests/data/schema.test.ts` — wendet die Migration gegen eine echte
+    In-Memory-SQLite-Datenbank an (`better-sqlite3`, **nur** Testwerkzeug,
+    nicht die spätere Laufzeit-Anbindung) und prüft: alle 19 Tabellen
+    vorhanden, Fremdschlüssel greifen (inkl. Cascade-Löschung), `CHECK`-
+    und `NOT NULL`-Constraints wirken (u. a. der in DATA_MODEL.md
+    hervorgehobene Fall `questions.source_document_id`/`source_page`)
+  - Migration ist **nicht idempotent** (kein `IF NOT EXISTS`) — bewusst so
+    gelassen, ein Migrationsrunner mit Versionstracking kommt erst mit dem
+    Tauri-Rahmen (`tauri-plugin-sql`, siehe ARCHITECTURE.md); bis dahin ist
+    `0001_init.sql` nur eine vorbereitete SQL-Datei, noch nicht an eine
+    echte App-Laufzeit angeschlossen
 
-Siehe [ROADMAP.md](ROADMAP.md).
+- **Kapitelerkennung mit Fuzzy-Normalisierung** (`src/ingest/chapters.ts`,
+  neu). Drei Signale, in dieser Reihenfolge versucht (siehe
+  ARCHITECTURE.md „ingest/"):
+  1. **Untertitelzeile** (Microeconomics) — eine feste (Position,
+     Schriftgröße) unter dem Titel, deren Text wechselt, aber immer
+     wiederkehrt. Erkannt über den höchsten *Wiederholungsfaktor* (wenige
+     Namen, oft wiederholt) unter allen Kandidatenpositionen — **nicht**
+     über die größte Seitenzahl, das griff anfangs die falsche Position
+     (die erste Fließtext-Zeile kam auf mehr Seiten vor als die echte
+     Untertitelzeile, aber mit Wiederholungsfaktor 1 statt > 2). Schwelle
+     für die Mindestabdeckung bewusst bei 0,35 statt 0,5: Bei Consumer
+     Theory 02 / Producer Theory 02 fehlt die Zeile auf den ersten Folien
+     (vermutlich unbenutzte Vorlage), der Rest des Dokuments zeigt aber ein
+     eindeutiges Signal.
+  2. **Trennfolien** (Money & Banking) — eine nummerierte Trennfolie ("1",
+     "2", …) ohne eigenen Namen übernimmt den Namen der nächsten
+     *unmittelbar folgenden* benannten Trennfolie; steht sie **ohne**
+     folgende Benennung allein (kommt an echtem Material vor, „1 Financial
+     Systems.pdf": „2" und „3" ohne eigenen Titel), markiert sie trotzdem
+     eine neue Abschnittsgrenze („Kapitel 2") — sonst würde der Name des
+     vorigen Abschnitts fälschlich über die Grenze hinweg weiterlaufen.
+  3. **Dateiname** (Entrepreneurial Transformation) — weder Untertitel
+     noch benannte Trennfolie gefunden, die ganze Datei ist ein Kapitel.
+  Fuzzy-Zusammenführung ähnlicher Namen über Levenshtein-Distanz (≤ 2 **und**
+  ≤ 10 % der Namenslänge — reine Präfixregeln fangen nur Endungen ab, nicht
+  mittige Einfügungen wie „Market Structure" vs. „Market Structures").
+  An 13 echten Dateien beider Fächer validiert (`npm run analyze --
+  --detail` zeigt jetzt auch die erkannten Kapitel), 8 Tests in
+  `tests/ingest/chapters.test.ts`.
+
+**Bewusst nicht behoben:** `isDividerPage` markiert jede fast-textleere
+Folie als „Trennfolie", auch reine Diskussionsfragen oder Bildfolien ohne
+Kapitelwechsel — drückt `slideCount`/`uniqueChars` künstlich. Gehört zur
+Themenbaum-Phase, nicht zur Kapitelerkennung selbst.
+
+- **KI-Budget-Verhalten festgelegt (ADR-007):** Auf Nutzerwunsch — die App
+  soll bei Erreichen eines Limits **benachrichtigen, nicht sperren**, und
+  jeder Nutzer setzt sein eigenes monatliches Limit selbst (lokal, kein
+  Abgleich zwischen den beiden Nutzern). Benachrichtigung wiederholt sich
+  bei jedem weiteren erreichten Vielfachen des Limits, nicht nur einmalig;
+  setzt sich jeden Kalendermonat zurück. Datenmodell dafür schon angelegt:
+  - `src/data/migrations/0002_ai_usage.sql` — neue Tabelle `ai_usage`
+    protokolliert jeden KI-Aufruf mit Kosten; `settings` trägt das Limit
+    (`ai_budget_limit_eur`) und den Benachrichtigungsstand
+    (`ai_budget_last_notified_month`, `ai_budget_last_notified_multiple`)
+  - `src/data/schema.ts` — `AiUsage`-Zeilentyp ergänzt
+  - 3 neue Tests in `tests/data/schema.test.ts`, inkl. Monatssumme als
+    abgeleiteter Wert (nicht gespeichert, siehe DATA_MODEL.md)
+  - **Noch nicht umgesetzt:** die tatsächliche Prüf-/Benachrichtigungslogik
+    selbst — die braucht `ai/` und `platform/`, die es beide noch nicht
+    gibt. Kommt mit der KI-Anbindung bzw. Phase 3 „Lokale
+    Benachrichtigungen". Diese Runde legt nur Entscheidung + Datenmodell
+    fest, siehe DECISIONS.md ADR-007 und DATA_MODEL.md „KI-Nutzung"
+
+### Nächster Schritt
+
+**Themenbaum-Ansicht, bearbeitbar — in Arbeit.**
+
+- **Mapping `ExtractedDocument` → `documents`/`topics`/`topic_sections`
+  fertig** (`src/data/importTopics.ts`, `importExtractedDocument`). Jedes
+  Kapitel wird zu einem Thema (`parent_id NULL` — die Pipeline erkennt aktuell
+  nur Kapitel, keine Unterthemen, das ist eine spätere Erweiterung, kein
+  Rückschritt). Jede Kapitel-Folienmenge wird zu einer `topic_section` mit
+  Seitenbereich (`min`/`max` der Folien-Seitenzahlen) und Zeichenumfang
+  (Summe von `slide.chars` über die Kapitelfolien — bewusst **nicht**
+  identisch mit `document.unique_chars`, das global dedupliziert; die
+  `topic_section`-Summe ist die einfache lokale Summe). `SqlExecutor` als
+  schmale Schnittstelle statt fester `better-sqlite3`-Anbindung, damit später
+  `tauri-plugin-sql` eingesetzt werden kann, ohne das Mapping umzuschreiben.
+  5 Tests gegen eine echte In-Memory-SQLite-Datenbank.
+  - **Bewusst nicht Teil dieses Schritts:** Re-Import/Update bestehender
+    Themen unter Beachtung von `manual_override` (siehe DATA_MODEL.md „Warum
+    `manual_override` existiert") — aktuell nur reines Anlegen (INSERT) beim
+    Erstimport. Muss nachgezogen werden, sobald ein zweiter Import auf
+    denselben Kurs trifft.
+- **Plausibilitätscheck an echtem Material durchgeführt**
+  (`scripts/preview-import.ts`, `npm run preview-import -- <pfad.pdf>` —
+  neues Diagnosewerkzeug analog `analyze-material.ts`, zeigt zusätzlich die
+  tatsächlichen `topics`/`topic_sections`-Zeilen). Gegen alle Microeconomics-
+  und Money-&-Banking-Dateien laufen lassen: Seitenbereiche und
+  Kapitelnamen decken sich mit der bereits validierten Kapitelerkennung,
+  keine Auffälligkeiten gefunden. Bekannte Kosmetik, nicht behoben: Kapitel
+  aus unbenannten Trennfolien heißen „Kapitel 2", „Kapitel 3" — technisch
+  korrekt (siehe `chapters.ts` `detectDividerChapters`), aber kein Name, den
+  ein Nutzer in der Baumansicht so stehen lassen würde; das ist genau der
+  Fall, für den `manual_override` gedacht ist.
+- **Vorbestehender `vite.config.ts`-Typecheck-Fehler inzwischen behoben** —
+  nicht durch den ursprünglich verworfenen `vitest/config`-Import (der zog
+  den `vite`-Versionskonflikt nach sich), sondern durch Trennung:
+  `vitest.config.ts` ist jetzt eine eigene Datei (`defineConfig` aus
+  `vitest/config`, ohne `@vitejs/plugin-react`), `vite.config.ts` bleibt bei
+  `defineConfig` aus `vite` und trägt kein `test`-Feld mehr. Kein
+  Versionskonflikt mehr, weil die beiden `vite`-Typversionen nie in derselben
+  Datei aufeinandertreffen. `npx tsc --noEmit` ist seitdem vollständig
+  fehlerfrei — nötig geworden, weil der Tauri-Build (`npm run build` läuft
+  vorher `tsc --noEmit`) sonst am selben Fehler gescheitert wäre.
+
+- **Reine Baum-Editierfunktionen fertig** (`src/data/topicTree.ts`):
+  `buildTree` (flach → verschachtelt, sortiert nach `sort_order`),
+  `renameTopic`, `moveTopic`, `deleteTopic`. Keine DB-Zugriffe, keine UI
+  (ARCHITECTURE.md „ui/ … keine Geschäftslogik"). Jede Änderung setzt
+  `manual_override = 1`. `deleteTopic` kaskadiert wie `ON DELETE CASCADE` in
+  `0001_init.sql`. `moveTopic` verweigert Verschieben in den eigenen
+  Teilbaum (Zyklus) und nummeriert **beide** betroffenen Geschwistergruppen
+  lückenlos neu (alte und neue Elternebene), sonst blieben nach dem
+  Verschieben Lücken in `sort_order`. 11 Tests.
+- **Editierbare React-Ansicht fertig** (`src/ui/TopicTree.tsx`,
+  `TopicTree`-Komponente): zeigt den Baum (`role="tree"`/`treeitem"` für
+  Zugänglichkeit), Umbenennen inline, Löschen mit Ja/Nein-Bestätigung (kein
+  `window.confirm` — in Tauri nicht garantiert verfügbar/testbar), Verschieben
+  über Auf/Ab/Ein-/Ausrücken-Schaltflächen statt Drag & Drop (tastatur-
+  bedienbar, keine neue Laufzeit-Abhängigkeit). Zeigt ein „bearbeitet"-
+  Abzeichen bei `manual_override = 1`. Reine Präsentationskomponente: hält
+  keinen eigenen Datenzustand außer den Edit-/Lösch-Bestätigungsmodi, jede
+  Änderung geht über `topicTree.ts` und wird per `onChange(topics)` nach
+  außen gereicht — Persistieren ist Sache der aufrufenden Stelle (kommt mit
+  dem Tauri-Rahmen). „Ausrücken" verschiebt eine Ebene hoch, direkt hinter
+  das bisherige Elternthema (`Number.MAX_SAFE_INTEGER` als Index, den
+  `moveTopic` selbst auf die tatsächliche Geschwisterzahl klemmt).
+  - **Testinfrastruktur neu:** `jsdom`, `@testing-library/react`,
+    `@testing-library/jest-dom`, `@testing-library/user-event` als
+    devDependencies ergänzt (vorher nur `environment: 'node'`, keine
+    Komponenten testbar). `vite.config.ts` nutzt jetzt
+    `environmentMatchGlobs` (`tests/ui/**` → `jsdom`, alles andere bleibt
+    `node` — schneller, siehe ARCHITECTURE.md „Tests"), `tests/setup.ts` lädt
+    die jest-dom-Matcher. 10 Tests in `tests/ui/TopicTree.test.tsx`
+    (Rendering, Umbenennen inkl. Abbrechen, Verschieben, Ein-/Ausrücken,
+    Lösch-Bestätigung, „bearbeitet"-Abzeichen).
+  - `npm audit` meldet 5 Schwachstellen (esbuild/vite, über eine verschachtelte
+    `vite`-Kopie in `vitest`s eigenem `node_modules`) — vorbestehend, dieselbe
+    Ursache wie der Typecheck-Fehler unten, nicht durch die neuen
+    devDependencies verursacht, nicht behoben (Fix ist ein `vitest`-Major-
+    Update, eigene Entscheidung).
+
+**Themenbaum-Ansicht fachlich vollständig** (Mapping + Editieren + Anzeige +
+Tests + Plausi-Check). Weiterhin offene Lücke: Re-Import/Update unter
+Beachtung von `manual_override`.
+
+**PR geöffnet** (nach Rückfrage/Freigabe durch den Nutzer):
+[#2](https://github.com/henrigrimme/Lernplaner/pull/2), Branch
+`feat/ingest-pipeline` nach GitHub gepusht. **Noch nicht gemerged** — bewusst
+offen gelassen zur Durchsicht, kein automatischer Merge ohne erneute
+Rückfrage.
+
+**Tauri-Projekt, Build, Tests, CI — nach Rückfrage/Freigabe erledigt:**
+
+- **Rust installiert** über das offizielle `rustup`-Skript (nicht Homebrew —
+  verwaltet Toolchains/Targets besser für Tauri). `rustc 1.97.1`,
+  `cargo 1.97.1`. `. "$HOME/.cargo/env"` muss in einer neuen Shell einmal
+  geladen werden (oder neue Shell öffnen), bis das gegebenenfalls noch ins
+  Profil eingetragen wird.
+- **Tauri 2 ins Projekt eingerichtet** (`npx tauri init --ci`, dann
+  `identifier` auf `com.henrigrimme.lernplaner` und Paket-Metadaten in
+  `src-tauri/Cargo.toml` korrigiert, die Platzhalter waren). `frontendDist`
+  `../dist`, `devUrl` `http://localhost:1420` (passt zu `vite.config.ts`s
+  festem Port), `beforeDevCommand`/`beforeBuildCommand` auf `npm run
+  dev`/`npm run build`.
+- **Minimaler App-Rahmen ergänzt** (`index.html`, `src/main.tsx`,
+  `src/App.tsx`) — vorher gab es nur Bibliothekscode (`ingest/`, `data/`,
+  `ui/TopicTree.tsx`), aber keinen tatsächlichen Einstiegspunkt, den Tauri
+  laden könnte. `App.tsx` zeigt `TopicTree` über lokalem React-`useState`
+  (kein `tauri-plugin-sql`, keine echte Persistenz) — **ausdrücklich nur ein
+  Rahmen, keine echte Funktionalität**, siehe Kommentar im Code.
+- **`npm run build` und `npx tauri build --debug` laufen durch.** Die
+  `lernplaner.app` wird korrekt gebaut (`src-tauri/target/debug/bundle/macos/`).
+  **DMG-Bundling schlägt fehl** (`bundle_dmg.sh`, AppleScript/Finder-
+  Automation) — bekanntes, nicht code-bezogenes macOS-Problem (fehlende
+  Automation-Rechte für Finder-Steuerung in dieser Umgebung), nicht behoben.
+  Betrifft nur die Erstellung eines Installer-Images, nicht `tauri dev` oder
+  die `.app` selbst — für die aktuelle Phase (kein Produkt, keine
+  Veröffentlichung, siehe Abschnitt 1) irrelevant. Bei Bedarf später:
+  Automation-Rechte für Terminal/Finder in Systemeinstellungen prüfen, oder
+  `bundle > macOS > dmg` in `tauri.conf.json` vorerst deaktivieren.
+- **`.gitignore` deckte `src-tauri/target/` und `src-tauri/gen/` schon ab**
+  (vorausschauend beim Projektaufbau angelegt) — nichts nachzubessern.
+  `src-tauri/Cargo.lock` **wird committet** (Tauri-App ist ein Binary, kein
+  Library-Crate — reproduzierbare Builds brauchen das gepinnte Lockfile).
+- **CI-Workflow neu** (`.github/workflows/ci.yml`, GitHub Actions, läuft auf
+  `macos-latest` wegen Tauri): Job `test` (Node, `npm ci`, `npm run
+  typecheck`, `npm test`) auf jeden Push/PR; Job `tauri` (Rust-Toolchain,
+  `npm run build`, dann `cargo check --locked` in `src-tauri/`) prüft, dass
+  die Rust-Seite kompiliert, **ohne** die volle Bundle-Erstellung anzustoßen
+  (umgeht damit das DMG-Problem oben und spart CI-Minuten). Noch nicht
+  gegen einen echten CI-Lauf verifiziert (der erste Lauf passiert automatisch
+  mit PR #2).
+
+**Damit ist Phase 1 (Fundament) laut ROADMAP.md vollständig abgehakt.**
+
+**Als Nächstes:** Phase 2 „Planung" (03.08–16.08) — Fächer/Prüfungen/
+Verfügbarkeit erfassen, Aufwandsschätzung nach ADR-004 kalibrieren,
+Kapazitätsrechnung, Terminierung, Planansicht. Das ist der erste Schritt,
+der `domain/` tatsächlich braucht (siehe ARCHITECTURE.md) — bisher leer.
+Sinnvoller Einstieg: `domain/estimation.ts` (Aufwand aus `topic_sections`-
+Umfangsmaßen), weil er auf dem bereits vorhandenen Themenbaum aufsetzt.
+
+**Zurückgestellt, braucht Rückfrage beim Nutzer, bevor es passiert:**
+- PR #2 mergen — Squash-Merge nach `main` nach CONTRIBUTING.md
+- DMG-Bundling-Fix (Automation-Rechte / `tauri.conf.json`-Änderung) — nicht
+  dringend, siehe oben
+
+### Sonstiges für den Wiedereinstieg
+
+- **Arbeitsweise: mit Loops und Plausi-Check.** Auf Nutzerwunsch wird
+  eigenständig weitergearbeitet, entlang der Roadmap, in klar abgegrenzten
+  Schritten (`/loop`, selbstgetaktet statt fest getaktet). Jeder Schritt
+  endet mit einem **Plausibilitätscheck** — nicht nur Tests und Typecheck
+  laufen lassen, sondern das Ergebnis an echtem Material (`Beispiel pdfs/`)
+  stichprobenartig von Hand nachvollziehen, bevor er als erledigt gilt. Das
+  hat in dieser Session zweimal echte Bugs aufgedeckt, die Tests allein
+  nicht gefunden hätten (Fußzeilen-Bug bei der Animationserkennung,
+  Clustering-Bug bei der Kapitelerkennung) — Stichprobe ist kein
+  Nice-to-have, sondern der Teil, der die Fehler tatsächlich findet. Danach
+  CONTEXT.md aktualisieren, committen (`wip:`-Präfix), nächster Schritt.
+  Harte Grenzen dabei unverändert: kein Force-Push, kein PR-Merge, keine
+  weiteren globalen Abhängigkeiten ohne Rückfrage beim Nutzer.
+- **Rust ist installiert** (`rustup`, `rustc 1.97.1`/`cargo 1.97.1`, siehe
+  oben). Neue Shell ggf. `. "$HOME/.cargo/env"` laden, falls `cargo`/`rustc`
+  nicht im PATH sind.
+- **Commit-Politik:** Es wird laufend committet, auch WIP-Stände auf dem
+  Feature-Branch (siehe Regel oben und [CONTRIBUTING.md](CONTRIBUTING.md)).
+  PR erst öffnen, wenn ein größerer Roadmap-Abschnitt ein belastbares
+  Ergebnis liefert — dann per Squash-Merge nach `main`, nach Rückfrage
+  (Push).
+
+### Danach (unverändert aus der Roadmap)
+
+Phase 1 ist komplett. Phase 2 „Planung" (siehe oben, „Als Nächstes").
+
+Siehe [ROADMAP.md](ROADMAP.md) für die vollständige Phasenplanung.
 
 ---
 
@@ -227,7 +542,10 @@ Siehe [ROADMAP.md](ROADMAP.md).
   zeigt das offen an, statt falsche Präzision vorzutäuschen
 - **Formelextraktion unzureichend** — blockiert die spätere Quizgenerierung,
   nicht die Planung
-- **Animationsschritt-Erkennung noch nicht abschließend abgestimmt** (ADR-004)
+- **Trennfolien-Erkennung zu grob** — `isDividerPage` markiert jede
+  fast-textleere Folie als Kapitel-Trennfolie, auch reine Diskussionsfragen
+  oder Bildfolien ohne Fließtext. Drückt `slideCount`/`uniqueChars`
+  künstlich. Gehört zur Kapitelerkennung (nächste Phase), siehe Abschnitt 8
 - **Kein OCR** — gescannte Dokumente werden nicht unterstützt
 
 ---
@@ -243,5 +561,5 @@ Siehe [ROADMAP.md](ROADMAP.md).
    iCloud landen die Lernblöcke samt Erinnerungen auf dem iPhone und erreichen
    die Nutzer auch unterwegs — ohne Zugangsdaten und ohne externen Dienst.
    Zu prüfen, ob das im September ausreicht.
-2. Prüfungstermine Oktober
-3. Ob Paper-Abgaben im Oktober anstehen
+2. Prüfungstermine Oktober (Anzahl unbekannt)
+3. Anzahl/Fristen der bestätigten Paper-Abgaben im Oktober

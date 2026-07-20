@@ -35,12 +35,32 @@ Zusammenführung per Pull Request. **Keine Force-Pushes.**
 
 ## Commits
 
+> **Standing instruction (Claude):** Änderungen werden automatisch committet —
+> nach jedem abgeschlossenen Arbeitsschritt, ohne auf eine explizite
+> Aufforderung des Nutzers zu warten. Das gilt auch für Zwischenstände, die
+> noch nicht fertig sind (z. B. eine Heuristik, die noch nachgebessert wird)
+> — dann mit `wip:`-Präfix. Grund: Sicherheitsnetz gegen Datenverlust
+> (versehentliches `reset --hard`, Festplattenproblem) und eine
+> nachvollziehbare Historie. **Nicht** der Grund: das Fortsetzen in einem
+> neuen Chat — das funktioniert unabhängig vom Commit-Stand, weil eine neue
+> Sitzung die Dateien direkt von der Festplatte liest. `CONTEXT.md` ist die
+> eigentliche Brücke zwischen Chats, nicht der Commit-Log.
+>
+> **Damit das nicht in Unübersichtlichkeit umschlägt:** WIP-Commits bleiben
+> auf dem Feature-Branch. Beim Zusammenführen in `main` wird **gesquasht**
+> (`gh pr merge --squash` bzw. „Squash and merge" auf GitHub) — `main` zeigt
+> dadurch nur saubere, nachvollziehbare Schritte, unabhängig davon, wie
+> viele Zwischenversuche auf dem Branch nötig waren. Weiterhin **keine
+> Force-Pushes** und kein Umschreiben bestehender Commits ohne ausdrückliche
+> Bitte.
+
 Klein und nachvollziehbar. Eine Änderung pro Commit.
 
 ```
 ingest: Animationsschritte beim Import zusammenfassen
 domain: Aufwandsschätzung auf eindeutige Zeichen umstellen
 fix: Gedankenstrich in Kapitelnamen normalisieren
+wip: Positionssignal für Build-Erkennung, noch nicht validiert
 ```
 
 Präfix nach Schicht (`ui`, `domain`, `data`, `ingest`, `ai`, `platform`) oder
