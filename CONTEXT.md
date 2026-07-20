@@ -335,22 +335,47 @@ Folien aus `contentSlides` herausfallen. Gehört sachlich zur
 Kapitelerkennung (nächste Phase), nicht zur Animationserkennung — hier nur
 vermerkt, damit es nicht verloren geht.
 
-**Nicht erneut validierbar:** Die ursprünglichen Testdateien „MBFM 1
-Financial Systems", „MBFM 2 Bonds", „MBFM 4 Financial Institutions" liegen
-nicht mehr im synchronisierten OneDrive-Ordner (nur noch „0 Introduction.pdf"
-vorhanden, 25 Seiten, keine Builds) — vermutlich vom Dozenten aus dem
-geteilten Ordner entfernt. Das dokumentierte Fehlerbeispiel („Types of
-Financial Intermediaries", S.20–22) ist deshalb nicht mehr am Original
-nachprüfbar, aber als Regressionstest in `tests/ingest/slides.test.ts`
-nachgebaut (**„hält drei titelgleiche, inhaltlich verschiedene Folien
-auseinander"**).
+**Jetzt am Original validiert:** Die ursprünglichen Testdateien „1 Financial
+Systems" (40 S.), „2 Bonds" (64 S.), „4 Financial Institutions" (53 S.) —
+Seitenzahlen exakt identisch mit den in dieser Sektion früher notierten
+Werten, also zweifelsfrei dieselben Dateien — sind wieder aufgetaucht (vom
+Nutzer manuell in `Beispiel pdfs/` gelegt). Der dokumentierte Fehlerfall
+„Types of Financial Intermediaries" (S.20–23 in „4 Financial Institutions")
+wurde am Original nachgeprüft: **korrekt nicht zusammengefasst.**
+Stichprobenartig wurden weitere ~15 Folgen mit wiederkehrendem Titel in
+allen drei Dateien von Hand durchgesehen (z. B. „Measurement of Risk"
+S.28–36 in Financial Systems, „The Term Structure of Interest Rates"
+S.50–61 in Bonds, „Bank Capital and Profitability" S.33–35 in Financial
+Institutions) — durchweg echte Folgen unterschiedlicher Unterpunkte unter
+einer wiederkehrenden Abschnittsüberschrift, korrekt nicht zusammengefasst.
 
-**Fundstellen des Testmaterials** (für künftige Sessions, damit die Suche
-nicht wieder von vorne losgeht — die Dateien liegen nicht im Repo, siehe
-SECURITY.md):
-- Consumer/Producer Theory: `~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/2024_11_09_ConsumerTheory_01_PP2.pdf` bzw. `..._ProducerTheory_01_PP4.pdf`
-- Entrepreneurial Transformation, Sessions 1–5: `~/Library/CloudStorage/OneDrive-WHU/AAA WHU 3/4. Semester/Entrepreneurial Transformation/Slides/`
-- Money & Banking: `~/Library/CloudStorage/OneDrive-WHU/AAA WHU 3/4. Semester/Money Banking and Financial Markets/Slides/` (aktuell nur „0 Introduction.pdf")
+**Überraschender, aber plausibler Befund:** In allen drei Dateien wurden
+**0 echte Animationsschritte** erkannt (`buildGroups: 0`). Die gesamte
+Aufblähung (Faktor 1,12–1,23) kommt ausschließlich aus Trennfolien und
+Unterpunkt-Folgen mit gleichem Titel. Das ist wahrscheinlich korrekt, kein
+Erkennungsfehler — diese drei Foliensätze scheinen schlicht ohne
+PowerPoint-Animationen exportiert zu sein, anders als Entrepreneurial
+Transformation. Ein echter Aufbauschritt (Positionstest greift) wurde in
+„3 Exchange Rates & Financial Instruments" bestätigt (S.4–5, identische
+Bildquellenangabe an exakt gleicher Position, Chart-Bild kommt dazu).
+
+**Fundstellen des Testmaterials:** Der Nutzer hat das komplette Set jetzt
+lokal unter `Beispiel pdfs/` abgelegt (gitignored, siehe SECURITY.md) und
+nach Fach sortiert:
+- `Beispiel pdfs/Microeconomics/` — 01 Introduction, 02 Consumer Theory
+  01+02, 03 Producer Theory 01+02, 04 Market Structures 01, 05 Game
+  Theory 01
+- `Beispiel pdfs/Money Banking and Financial Markets/` — 0 Introduction,
+  1 Financial Systems, 2 Bonds, 3 Exchange Rates & Financial Instruments,
+  4 Financial Institutions, 5 Central Bank, Online Questions 1+2 (je mit
+  `_Solutions`), Problem Set 1+2 (je mit `_Solutions`)
+
+Damit ist die Suche nach Testmaterial für künftige Sessions erledigt, ohne
+erst wieder iCloud/OneDrive durchsuchen zu müssen. Nebenbefund beim Sortieren:
+`Online Questions 2.pdf` enthält inhaltlich bereits die Lösungen (identisch
+mit `Online Questions 2_Solutions.pdf`) — vermutlich ein Bezeichnungsfehler
+beim Bereitstellen der Dateien, nicht durch die Pipeline verursacht; hier nur
+vermerkt, nicht korrigiert.
 
 Debug-Skript für Positions-/Textdaten pro Seite lag während der Untersuchung
 im Scratchpad (nicht im Repo, siehe Konvention unten) und wurde nicht
@@ -359,10 +384,11 @@ im Scratchpad (nicht im Repo, siehe Konvention unten) und wurde nicht
 
 ### Nächster Schritt
 
-Kein offener Blocker mehr für die Animationserkennung. Sinnvoll wäre, das
-Ergebnis am **echten** MBFM-1/2/4-Material zu bestätigen, sobald die Dateien
-wieder verfügbar sind — bis dahin trägt der synthetische Regressionstest.
-Danach: PR öffnen (siehe Commit-Politik unten), dann weiter mit der Roadmap.
+Kein offener Blocker mehr für die Animationserkennung — am Original von
+allen vier Fächern (Microeconomics, Entrepreneurial Transformation, Money &
+Banking, plus die MBFM-Zusatzmaterialien Online Questions/Problem Sets)
+bestätigt. PR öffnen (siehe Commit-Politik unten), dann weiter mit der
+Roadmap.
 
 ### Sonstiges für den Wiedereinstieg
 
@@ -396,11 +422,10 @@ Siehe [ROADMAP.md](ROADMAP.md) für die vollständige Phasenplanung.
   zeigt das offen an, statt falsche Präzision vorzutäuschen
 - **Formelextraktion unzureichend** — blockiert die spätere Quizgenerierung,
   nicht die Planung
-- **Animationsschritt-Erkennung noch nicht an den ursprünglichen
-  MBFM-Dateien re-validiert** — die sind nicht mehr verfügbar; der neue
-  Ansatz (Titel + Positions-/Textabgleich) läuft aber sauber auf sieben
-  anderen realen Foliensätzen und hat einen Regressionstest für den
-  dokumentierten Fehlerfall, siehe Abschnitt 8
+- **Trennfolien-Erkennung zu grob** — `isDividerPage` markiert jede
+  fast-textleere Folie als Kapitel-Trennfolie, auch reine Diskussionsfragen
+  oder Bildfolien ohne Fließtext. Drückt `slideCount`/`uniqueChars`
+  künstlich. Gehört zur Kapitelerkennung (nächste Phase), siehe Abschnitt 8
 - **Kein OCR** — gescannte Dokumente werden nicht unterstützt
 
 ---
