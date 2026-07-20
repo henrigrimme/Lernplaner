@@ -24,6 +24,18 @@ export interface Line {
   text: string
   size: number
   y: number
+  /** Linke Kante der Zeile. */
+  x: number
+}
+
+/**
+ * Eine Inhaltszeile mit Position — Basis des Positionsvergleichs bei der
+ * Animationsschritt-Erkennung (siehe `isBuildStep` in `slides.ts`).
+ */
+export interface BodyLine {
+  text: string
+  x: number
+  y: number
 }
 
 /** Eine einzelne PDF-Seite nach der Textextraktion. */
@@ -35,7 +47,7 @@ export interface Page {
   /** Alle Zeilen, von oben nach unten. */
   lines: Line[]
   /** Zeilen ohne Titel und ohne wiederkehrende Kopf-/Fußzeilen. */
-  bodyLines: string[]
+  bodyLines: BodyLine[]
   width: number
   height: number
 }
@@ -49,7 +61,7 @@ export interface Slide {
   pageNumbers: number[]
   title: string
   /** Inhalt der vollständigsten Seite der Gruppe. */
-  bodyLines: string[]
+  bodyLines: BodyLine[]
   /** true, wenn es sich um eine Kapitel-Trennfolie handelt. */
   isDivider: boolean
   /** Zeichen des vollständigsten Aufbauschritts. */

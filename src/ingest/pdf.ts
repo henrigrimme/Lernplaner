@@ -6,7 +6,7 @@ import {
   itemsToLines,
 } from './extract'
 import { groupIntoSlides, uniqueCharCount } from './slides'
-import type { Diagnostics, ExtractedDocument, Page, TextItem } from './types'
+import type { BodyLine, Diagnostics, ExtractedDocument, Page, TextItem } from './types'
 
 /** Unterhalb dieser Zeichenzahl gilt eine Seite als (fast) grafisch. */
 const SPARSE_PAGE_CHARS = 80
@@ -54,7 +54,7 @@ export async function extractDocument(
   const pages = await readPages(data)
   const repeating = findRepeatingLines(pages)
 
-  const bodyLinesByPage = new Map<number, string[]>()
+  const bodyLinesByPage = new Map<number, BodyLine[]>()
   for (const page of pages) {
     const body = bodyLinesOf(page, repeating)
     page.bodyLines = body
@@ -74,7 +74,7 @@ export async function extractDocument(
       contentSlides.length === 0 ? 0 : pages.length / contentSlides.length,
     dividers: slides.filter((s) => s.isDivider).length,
     sparsePages: pages.filter(
-      (p) => p.bodyLines.join(' ').length < SPARSE_PAGE_CHARS,
+      (p) => p.bodyLines.map((l) => l.text).join(' ').length < SPARSE_PAGE_CHARS,
     ).length,
   }
 

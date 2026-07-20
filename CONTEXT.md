@@ -226,7 +226,7 @@ aussagekräftigen Nachrichten, keine Force-Pushes, Feature-Branches mit PR.
 ## 8. Stand
 
 **Phase 1 — Fundament, begonnen 20.07.2026. Aktiver Branch:
-`feat/ingest-pipeline` (noch nicht gepusht, noch kein Commit auf diesem Branch).**
+`feat/ingest-pipeline`.**
 
 ### Erledigt
 
@@ -242,98 +242,127 @@ aussagekräftigen Nachrichten, keine Force-Pushes, Feature-Branches mit PR.
 - Node-Projekt aufgesetzt: `package.json`, `tsconfig.json` (strict),
   `vite.config.ts`, Abhängigkeiten installiert (`pdfjs-dist`, React, Vitest,
   tsx u. a.)
-- Import-Pipeline in TypeScript geschrieben (**noch nicht committet**,
-  liegt als unstaged/untracked im Arbeitsverzeichnis):
-  - `src/ingest/types.ts` — Typen (`Page`, `Slide`, `Chapter`, `ExtractedDocument` …)
-  - `src/ingest/extract.ts` — Zeilenbildung aus pdf.js-Fragmenten,
-    Titelerkennung (oberes Drittel, größte Schrift), Normalisierung,
-    Erkennung wiederkehrender Kopf-/Fußzeilen, Behebung der
-    PowerPoint-Doppelzeichen bei Formeln (`𝑢𝑢` → `𝑢`)
+- Import-Pipeline in TypeScript geschrieben:
+  - `src/ingest/types.ts` — Typen (`Page`, `Slide`, `Chapter`,
+    `ExtractedDocument`, `BodyLine` — neu, trägt Position …)
+  - `src/ingest/extract.ts` — Zeilenbildung aus pdf.js-Fragmenten (jetzt
+    inkl. `x`-Position), Titelerkennung (oberes Drittel, größte Schrift),
+    Normalisierung, Erkennung wiederkehrender Kopf-/Fußzeilen (Fix siehe
+    unten), Behebung der PowerPoint-Doppelzeichen bei Formeln (`𝑢𝑢` → `𝑢`)
   - `src/ingest/slides.ts` — Zusammenfassen von Animationsschritten zu
-    Folien, eindeutiger Zeichenumfang
+    Folien (Positions- + Textabgleich, siehe unten), eindeutiger
+    Zeichenumfang
   - `src/ingest/pdf.ts` — Gesamtpipeline PDF → `ExtractedDocument`
   - `scripts/analyze-material.ts` — Kommandozeilen-Diagnosewerkzeug,
     `npm run analyze -- [--detail] <pfad.pdf>`
 - **Titelerkennung bestätigt: 95–98 % über alle sieben getesteten
   Foliensätze** (drei Fächer). Das Verfahren (größte Schrift im oberen
   Seitendrittel) funktioniert robust.
+- **Erste Tests geschrieben:** `tests/ingest/slides.test.ts`,
+  `tests/ingest/extract.test.ts` (9 Tests, `npm test`).
 
-### 🔴 Gerade in Arbeit — ungelöst, hier ansetzen
+### ✅ Animationsschritt-Erkennung — dritter Ansatz, deutlich verbessert
 
-**Problem:** Die Animationsschritt-Erkennung (`isBuildStep` in
-`src/ingest/slides.ts`) liefert falsche Ergebnisse.
+**Neuer Ansatz (Idee 1 aus der vorherigen Session, Positionssignal):** Eine
+Zeile der früheren Seite gilt zusätzlich dann als erhalten, wenn sie auf der
+späteren Seite an (fast) derselben Position wiederkehrt (±3pt y, ±5pt x) —
+auch wenn sich ihr exakter Zeilenumbruch geändert hat. Das ist eine
+**Ergänzung**, kein Ersatz für den Textvergleich: Positionsübereinstimmung
+zählt nur zusammen mit Textähnlichkeit (≥ 50 % gemeinsamer Zeichenanteil,
+`textsOverlap`) — sonst wären titelgleiche Folien mit demselben
+Layout-Template (der Money-&-Banking-Fall) wieder fälschlich zusammengefasst
+worden, weil ihre erste Zeile zufällig an derselben Stelle beginnt.
+Containment-Schwelle von 80 % auf 70 % gesenkt. Implementiert in
+`isBuildStep` / `linePersists` / `textsOverlap`, `src/ingest/slides.ts`.
 
-**Was implementiert ist:** Zwei Seiten gelten als derselbe Folie, wenn (a)
-der Titel übereinstimmt UND (b) der Zeileninhalt der früheren Seite zu
-≥ 80 % in der späteren wieder vorkommt (Containment-Test).
+**Nebenbefund, der die Diagnose stärker verbessert hat als die
+Positionsänderung selbst:** `findRepeatingLines` hatte einen Bug. Fußzeilen
+mit eingebetteter Foliennummer (z. B. `"19March 16, 2026Prof. Dr. Priscilla
+Kraft"` — Nummer ohne Leerzeichen ans nächste Wort angehängt) tauchen nie
+zweimal wortgleich auf, weil jede Seite eine andere Nummer hat. Die
+Sonderbehandlung dafür in `bodyLinesOf` (Abgleich der um die Nummer
+bereinigten Zeile gegen `repeating`) konnte deshalb **nie greifen** —
+`repeating` wurde nur mit Rohzeilen befüllt, nie mit bereinigten. Der Zweig
+war faktisch totes Coding. Effekt: Auf praktisch jeder Seite blieb eine
+nie-wieder-passende Fußzeilen-Restzeile im Inhalt zurück und senkte den
+Containment-Wert jedes Seitenpaars künstlich. Fix: `findRepeatingLines`
+zählt jetzt zusätzlich die um die **eigene** Seitenzahl bereinigte Fassung
+jeder Zeile (`stripOwnPageNumber` — exakter Abgleich mit `page.number`,
+nicht irgendeine Ziffernfolge, sonst wären nummerierte Aufzählungspunkte wie
+„1 Introduction …" fälschlich als Fußzeile behandelt worden; dafür gibt es
+einen eigenen Test).
 
-**Was der Test an echtem Material zeigt:** Dieses Kriterium ist **zu
-streng** und erkennt fast keine Builds mehr (Faktor sank von den vorher
-gemessenen 1,10–2,21× auf 1,00–1,23×, siehe Tabelle unten). Grund: Bei
-Money & Banking teilen sich mehrere **inhaltlich verschiedene** Folien
-denselben Titel — das ist eine wiederkehrende Abschnittsüberschrift, kein
-Animationsaufbau. Beispiel „4 Financial Institutions", Seiten 20–22, Titel
-jeweils „Types of Financial Intermediaries":
+**Validiert an echtem Material** (die ursprünglichen Testdateien lagen
+inzwischen an anderem Ort, siehe „Fundstellen" unten):
 
-```
-S.20 → S.21: 0/10 Zeilen erhalten = 0 %
-S.21 → S.22: 3/14 Zeilen erhalten = 21 %
-```
-
-Das sind drei separate Folien zu Unterarten von Finanzintermediären
-(Depository / Contractual Savings / …), keine Aufbauschritte einer Folie.
-Gleiches Muster bestätigt bei S.9→10, S.17→18 (verschiedene Textinhalte
-trotz gleichem Titel).
-
-**Konsequenz:** Titel-Gleichheit ist offenbar **kein verlässliches Signal**
-für „gleiche Folie" in diesem Fach — anders als ursprünglich angenommen
-(vgl. die frühere, zu lockere Heuristik reiner Titelvergleich, die
-umgekehrt zu viel zusammenfasste). Der reine Textvergleich ohne Titel
-könnte echte Builds finden, aber dann fehlt das Abgrenzungskriterium zu
-inhaltlich neuen Folien mit zufällig ähnlichem Text.
-
-**Testergebnisse der aktuellen (zu strengen) Heuristik zum Vergleich:**
-
-| Datei | PDF-Seiten | erkannte Folien | Faktor | (vorher, alte Heuristik) |
+| Datei | PDF-Seiten | Folien | Trenn | Builds |
 |---|---|---|---|---|
-| Consumer Theory 01 | 32 | 32 | 1,00 | — |
-| Producer Theory 01 | 21 | 21 | 1,00 | — |
-| ET Slides Session 1 | 53 | 52 | 1,02 | 1,23 (reiner Titelvergleich, zu locker) |
-| ET Slides Session 2 | 51 | 49 | 1,04 | 1,27 |
-| MBFM 1 Financial Systems | 40 | 35 | 1,14 | 1,60 |
-| MBFM 2 Bonds | 64 | 57 | 1,12 | 2,21 |
-| MBFM 4 Financial Institutions | 53 | 43 | 1,23 | 1,56 |
+| Consumer Theory 01 | 32 | 32 | 0 | 0 |
+| Producer Theory 01 | 21 | 21 | 0 | 0 |
+| ET Slides Session 1 | 53 | 40 | 12 | 1 |
+| ET Slides Session 2 | 51 | 38 | 7 | 6 |
+| ET Slides Session 3 | 34 | 26 | 7 | 1 |
+| ET Slides Session 4 | 41 | 33 | 5 | 3 |
+| ET Slides Session 5 | 45 | 35 | 5 | 2 |
 
-**Nächster Schritt (konkret):** Eine dritte, differenziertere Heuristik
-entwerfen. Ideen, die noch nicht ausprobiert wurden:
-1. **Layout-/Positionssignal statt nur Text:** pdf.js liefert `x`/`y` pro
-   Textfragment. Ein echter Animationsschritt verschiebt bestehenden Text
-   selten — neue Boxen kommen hinzu, alte bleiben an ihrer Position stehen.
-   Bei inhaltlich neuen Folien mit gleichem Titel ist oft das gesamte
-   Layout unterhalb des Titels anders. Positionsstabilität der
-   Körper-Textblöcke prüfen, nicht nur Zeicheninhalt.
-2. **Strengeres Kriterium für „neue Folie trotz gleichem Titel":** prüfen,
-   ob die Seite eigene Aufzählungs-/Struktur-Marker hat (z. B. beginnt mit
-   einer neuen Kategorie: „Depository institutions" vs. „Contractual
-   savings institutions" — evtl. per Fettdruck/Größe der ersten Zeile
-   erkennbar, die pdf.js mitliefert).
-3. **Schwellenwert-Kalibrierung:** ggf. reicht ein deutlich niedrigerer
-   Containment-Schwellenwert (z. B. 40–50 % statt 80 %) plus eine
-   Zusatzbedingung (Seite hat keinen komplett neuen ersten Absatz).
-4. **Pragmatischer Rückfall:** Falls sich Builds nicht zuverlässig von
-   titelgleichen Neu-Folien unterscheiden lassen, könnte es besser sein,
-   **auf Animationserkennung ganz zu verzichten** und stattdessen mit der
-   rohen Seitenzahl zu leben, aber pro Fach kalibriert (siehe
-   `calibration`-Tabelle in DATA_MODEL.md) — die Kalibrierung lernt dann
-   implizit den fachspezifischen Aufblähfaktor mit. Das würde ADR-004
-   nicht widerlegen (eindeutige Zeichen bleiben das bessere Rohsignal),
-   aber die Notwendigkeit einer separaten Build-Erkennung in Frage stellen.
+Stichprobenartig von Hand nachvollzogen (Positions-/Textdaten der
+betroffenen Seiten ausgegeben, nicht nur die Zahlen geglaubt):
+- **S.6–8, Session 2** (dreimal derselbe Titel „Why do established companies
+  often fail…", je andere Zitate/Bullet-Points): korrekt **nicht**
+  zusammengefasst — genau das Money-&-Banking-Muster, jetzt auch hier
+  bestätigt und richtig behandelt.
+- **S.19–20, Session 2**: identische Zeile „New-to-World innovation /
+  New-to-Firm innovation" an exakt derselben Position, S.20 ergänzt nur ein
+  Bild darunter → korrekt als Build erkannt (vorher durch den
+  Fußzeilen-Bug verpasst).
+- **S.39–43, Session 2** (mehrere fast-leere „Examples"-Folien mit
+  wechselndem Titel): bleiben getrennt, weil sie als Trennfolien erkannt
+  werden (0 Zeilen Inhalt) und `groupIntoSlides` nie über eine Trennfolie
+  hinweg zusammenfasst.
 
-**Offene Debug-Hilfsmittel:** Ein Wegwerf-Skript `dbg.mts` wurde während der
-Untersuchung im Repo-Root angelegt und wieder gelöscht (gehörte nicht dorthin
-— Debug-Skripte gehören ins Scratchpad, nicht ins Repository). Bei Bedarf neu
-schreiben; Vorlage lässt sich aus dem Muster oben ableiten (Seiten laden,
-`bodyLinesOf` pro Seite aufrufen, Zeilenmengen vergleichen).
+**Der gestiegene Trenn-Anteil ist eine Korrektur, kein neues Problem:** Die
+vorher als „Inhalt" gezählten 0-Zeilen-Folien enthielten ausschließlich
+Fußzeilen-Reste (Bug oben) — mit dem Fix zeigen sie korrekt 0 echte
+Textzeilen. Stichprobe von Hand geprüft (Session 1, S.10/S.11, S.15/S.16):
+tatsächlich reine Bild-/Titelfolien ohne Fließtext.
+
+**Nebenbeobachtung, NICHT behoben (außerhalb des Umfangs dieser Session):**
+`isDividerPage` markiert jede fast-textleere Folie als „Trennfolie", auch
+wenn sie inhaltlich kein Kapitelwechsel ist, sondern z. B. eine
+Diskussionsfrage („What do these companies have in common?") oder eine reine
+Bildfolie. Das drückt `slideCount`/`uniqueChars` künstlich, weil solche
+Folien aus `contentSlides` herausfallen. Gehört sachlich zur
+Kapitelerkennung (nächste Phase), nicht zur Animationserkennung — hier nur
+vermerkt, damit es nicht verloren geht.
+
+**Nicht erneut validierbar:** Die ursprünglichen Testdateien „MBFM 1
+Financial Systems", „MBFM 2 Bonds", „MBFM 4 Financial Institutions" liegen
+nicht mehr im synchronisierten OneDrive-Ordner (nur noch „0 Introduction.pdf"
+vorhanden, 25 Seiten, keine Builds) — vermutlich vom Dozenten aus dem
+geteilten Ordner entfernt. Das dokumentierte Fehlerbeispiel („Types of
+Financial Intermediaries", S.20–22) ist deshalb nicht mehr am Original
+nachprüfbar, aber als Regressionstest in `tests/ingest/slides.test.ts`
+nachgebaut (**„hält drei titelgleiche, inhaltlich verschiedene Folien
+auseinander"**).
+
+**Fundstellen des Testmaterials** (für künftige Sessions, damit die Suche
+nicht wieder von vorne losgeht — die Dateien liegen nicht im Repo, siehe
+SECURITY.md):
+- Consumer/Producer Theory: `~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/2024_11_09_ConsumerTheory_01_PP2.pdf` bzw. `..._ProducerTheory_01_PP4.pdf`
+- Entrepreneurial Transformation, Sessions 1–5: `~/Library/CloudStorage/OneDrive-WHU/AAA WHU 3/4. Semester/Entrepreneurial Transformation/Slides/`
+- Money & Banking: `~/Library/CloudStorage/OneDrive-WHU/AAA WHU 3/4. Semester/Money Banking and Financial Markets/Slides/` (aktuell nur „0 Introduction.pdf")
+
+Debug-Skript für Positions-/Textdaten pro Seite lag während der Untersuchung
+im Scratchpad (nicht im Repo, siehe Konvention unten) und wurde nicht
+übernommen — bei Bedarf neu schreiben: `readPages` laden, `findRepeatingLines`
++ `bodyLinesOf` pro Seite aufrufen, `x`/`y`/Text ausgeben.
+
+### Nächster Schritt
+
+Kein offener Blocker mehr für die Animationserkennung. Sinnvoll wäre, das
+Ergebnis am **echten** MBFM-1/2/4-Material zu bestätigen, sobald die Dateien
+wieder verfügbar sind — bis dahin trägt der synthetische Regressionstest.
+Danach: PR öffnen (siehe Commit-Politik unten), dann weiter mit der Roadmap.
 
 ### Sonstiges für den Wiedereinstieg
 
@@ -344,14 +373,10 @@ schreiben; Vorlage lässt sich aus dem Muster oben ableiten (Seiten laden,
   Tauri-Rahmens: `xcode-select -p` ist vorhanden, `rustc`/`cargo` fehlen —
   Installation via `rustup` beim Nutzer erfragen (keine globalen
   Abhängigkeiten ohne Rückfrage).
-- **Noch keine Tests geschrieben** für `src/ingest/`. Sollte parallel zur
-  Weiterentwicklung der Heuristik entstehen (Vitest ist eingerichtet,
-  `npm test` lauffähig, aber `tests/` existiert noch nicht).
-- **Commit-Politik geändert:** Es wird ab jetzt laufend committet, auch
-  WIP-Stände auf dem Feature-Branch (siehe Regel oben und
-  [CONTRIBUTING.md](CONTRIBUTING.md)). PR erst öffnen, wenn die
-  Animationsschritt-Erkennung ein belastbares Ergebnis liefert — dann per
-  Squash-Merge nach `main`.
+- **Commit-Politik:** Es wird laufend committet, auch WIP-Stände auf dem
+  Feature-Branch (siehe Regel oben und [CONTRIBUTING.md](CONTRIBUTING.md)).
+  PR erst öffnen, wenn die Animationsschritt-Erkennung ein belastbares
+  Ergebnis liefert — dann per Squash-Merge nach `main`.
 
 ### Danach (unverändert aus der Roadmap)
 
@@ -371,8 +396,11 @@ Siehe [ROADMAP.md](ROADMAP.md) für die vollständige Phasenplanung.
   zeigt das offen an, statt falsche Präzision vorzutäuschen
 - **Formelextraktion unzureichend** — blockiert die spätere Quizgenerierung,
   nicht die Planung
-- **Animationsschritt-Erkennung noch ungelöst** — aktueller Ansatz
-  (Titel + Textcontainment) erwiesenermaßen zu streng, siehe Abschnitt 8
+- **Animationsschritt-Erkennung noch nicht an den ursprünglichen
+  MBFM-Dateien re-validiert** — die sind nicht mehr verfügbar; der neue
+  Ansatz (Titel + Positions-/Textabgleich) läuft aber sauber auf sieben
+  anderen realen Foliensätzen und hat einen Regressionstest für den
+  dokumentierten Fehlerfall, siehe Abschnitt 8
 - **Kein OCR** — gescannte Dokumente werden nicht unterstützt
 
 ---
