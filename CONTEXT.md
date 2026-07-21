@@ -1655,13 +1655,53 @@ das war für genau diesen Baustein so vorbereitet): „Plan (neu)
   Absturz, Button-Text bleibt „Plan übernehmen" (kein optimistisches
   Update ohne erfolgreichen DB-Write, wie bei den bisherigen Bausteinen).
 
+### Persistenz-Härtung — Baustein 7: Planversionen echt in SQLite (Persistenz-Härtung abgeschlossen)
+
+Branch `feat/persistence-planversions` (von `main` abgezweigt). Letzte
+verbleibende Entität — mit Abstand der einfachste Baustein: `plan_versions`
+ist ein reines Anhänge-Protokoll (ADR-005 „die vorige Fassung bleibt
+erhalten"), nie Update oder Delete.
+
+- **`data/planVersionsRepo.ts`** (neu): `loadPlanVersions`,
+  `insertPlanVersion` — kein Update/Delete, da `plan_versions` nie
+  bearbeitet oder gelöscht wird.
+- **`data/planVersions.ts` (die alte reine `recordPlanVersion`-Funktion)
+  entfernt**, inkl. ihres Tests (`tests/data/planVersions.test.ts`) — sie
+  vergab eine rein lokale, fortlaufende Platzhalter-`id` (`versions.reduce
+  (...) + 1`), die durch `insertPlanVersion`s echte `AUTOINCREMENT`-`id`
+  vollständig ersetzt wird. Anders als bei Themen/Lernblöcken (wo die reine
+  Funktion weiterhin für lokale lineare Zustandsberechnung gebraucht wird)
+  gibt es hier keinen Grund, beide Varianten parallel zu halten — vor dem
+  Löschen per Grep geprüft, dass `recordPlanVersion` nirgends sonst
+  verwendet wurde.
+- **`App.tsx`**: `applyReplan` ruft jetzt `insertPlanVersion` auf (mit dem
+  `studyBlocks`-Stand *vor* der Änderung als `snapshot_json`, wie zuvor)
+  und hängt das Ergebnis (echte `id`) direkt an den lokalen
+  `planVersions`-Zustand an. Fünfter `useEffect`-Lader (`loadPlanVersions`)
+  analog zu den bisherigen Ladern.
+- **Damit ist die Persistenz-Härtung abgeschlossen: alle sieben Entitäten
+  (Fächer, Prüfungen, Verfügbarkeit, Themen/Themenabschnitte/Dokumente,
+  Lernblöcke, Planversionen) sind echt in SQLite gespeichert.** Der
+  `App.tsx`-Kopfkommentar wurde entsprechend aktualisiert — die
+  „provisorischer Rahmen, Persistenz kommt schrittweise"-Formulierung ist
+  komplett entfallen. Verbleibende, bewusst unveränderte Ausnahmen:
+  PDF-Rohbytes (`documentBytes`, SECURITY.md) und die Kurs-Export/Import-
+  Lücke (`applyCourseImport`, seit Baustein 2 bekannt) — beide weiterhin
+  im Kopfkommentar dokumentiert.
+- **2 neue Tests** (`planVersionsRepo.test.ts`), 2 alte entfernt — Gesamtzahl
+  unverändert bei 278.
+- **Im frischen Tab geprüft:** App lädt fehlerfrei, keine Konsolenfehler.
+
 ### Nächster Schritt
 
-Persistenz-Härtung Baustein 7: **Planversionen** (`plan_versions`) — die
-letzte verbleibende Entität. Danach den `App.tsx`-Kommentar entsprechend
-abschließend aktualisieren (die „provisorischer Rahmen"-Formulierung kann
-dann ganz entfallen). Danach: ROADMAP.md Phase 4 der Reihe nach, wie vom
-Nutzer bestätigt.
+Persistenz-Härtung ist abgeschlossen. Weiter mit ROADMAP.md Phase 4 der
+Reihe nach, wie vom Nutzer bestätigt: Nachschärfen aus dem Alltag,
+Markieren im Dokument → Karteikarten, Spaced Repetition FSRS,
+Formelextraktion sauber, Quiz-Generierung, Probeklausur-Simulation,
+Fehlerhistorie → gezielte Wiederholung, Paper-Workflow, Altklausur-Analyse
+→ automatische Gewichtung — jeweils in eigenen Branches/PRs, mit
+derselben Sorgfalt (Tests, Build, Plausibilitätscheck, CONTEXT.md-Update,
+PR-Merge).
 
 ### Danach (unverändert aus der Roadmap)
 
