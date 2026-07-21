@@ -1772,13 +1772,67 @@ oben in diesem Abschnitt).
   über echte (nicht gemockte) DOM-Selection-APIs in den Unit-Tests
   abgedeckt.
 
+### Phase 4 — Spaced Repetition (FSRS)
+
+Branch `feat/spaced-repetition-fsrs` (von `main` abgezweigt). Zweiter
+Phase-4-Punkt, baut auf `cards` (voriger Baustein) auf und befüllt die
+bisher leere `reviews`-Tabelle.
+
+- **Neue Abhängigkeit `ts-fsrs` (mit Rückfrage genehmigt):** FSRS hat viele
+  fein kalibrierte Parameter (Standard-Gewichte, Vergessenskurven-Formeln,
+  siehe CONTEXT.md „Recherche: Spaced Repetition") — ein Eigenbau wäre
+  fehleranfällig und wartungsaufwändig gegenüber der etablierten,
+  spezifikationstreuen TypeScript-Referenzimplementierung (auch von Anki
+  intern genutzt). **Keine eigenen Laufzeit-Abhängigkeiten** (`npm ls
+  ts-fsrs` zeigt keine Kindpakete) — die bereits vorhandenen
+  Sicherheitswarnungen (`npm audit`) betreffen ausschließlich das
+  bestehende vite/vitest-Toolchain, nicht `ts-fsrs`.
+- **`domain/spacedRepetition.ts`** (neu): reine Funktionen um `ts-fsrs`
+  herum (ARCHITECTURE.md „domain/ kennt weder DB noch UI" — `ts-fsrs`
+  selbst ist reine Berechnung, kein I/O). Zentrale Herausforderung: die
+  `reviews`-Tabelle (0001_init.sql, bereits vor diesem Baustein fest
+  angelegt) speichert bewusst nur `stability`/`difficulty`/`due_at`/
+  `rating`/`reviewed_at` je Wiederholung — nicht den vollen
+  `ts-fsrs`-`Card`-Zustand (`state`/`reps`/`lapses`/`learning_steps`).
+  `toFsrsCard` baut daraus ein gültiges `Card` für die nächste Berechnung
+  zurück: `elapsed_days`/`scheduled_days` dürfen auf 0 bleiben, weil
+  `ts-fsrs` das Intervall intern ohnehin frisch aus `last_review`/`now`
+  berechnet (im Quelltext geprüft, nicht geraten) — `learning_steps` bleibt
+  bewusst immer 0, da das vereinfachte Schema FSRS' Kurzzeit-„Learning
+  Steps" (Wiederholung am selben Tag) nicht nachbildet: jede Karte mit
+  mindestens einer Bewertung gilt hier als im Zustand `Review`.
+  `isDue`/`scheduleReview` als öffentliche Funktionen.
+- **`data/reviewsRepo.ts`** (neu): `loadReviews`, `insertReview` — reines
+  Anhänge-Protokoll wie `plan_versions`, kein Update/Delete.
+- **`ui/ReviewSession.tsx`** (neu): zeigt die erste fällige Karte
+  (`isDue`) mit Vorderseite, „Antwort zeigen" deckt Rückseite und die vier
+  FSRS-Bewertungsstufen auf — „Nochmal"/„Schwer"/„Gut"/„Leicht" (Anki-
+  übliche vier Stufen, siehe Recherche-Abschnitt). Reine Präsentation,
+  `now` kommt von außen wie bei `TodayView`.
+- **`App.tsx`**: `reviews`-Zustand, siebter `useEffect`-Lader
+  (`loadReviews`), `handleReview(cardId, grade)` — berechnet über
+  `scheduleReview` die neue Fälligkeit aus der bisherigen Historie dieser
+  Karte und persistiert sie. Kaskaden-Nachzug erweitert: Karte löschen und
+  Thema löschen (kaskadiert über `cards` weiter) ziehen jetzt auch
+  verwaiste `reviews` lokal nach.
+- **17 neue Tests**: `spacedRepetition.test.ts` (7, u. a. „Nochmal" ergibt
+  ein kürzeres Intervall als „Leicht" bei sonst gleichem Ausgangszustand —
+  Eigenschaftstest statt exakter FSRS-Zahlenwerte, da die Zahlen selbst
+  Sache von `ts-fsrs`s eigener Testsuite sind, nicht dieser hier),
+  `reviewsRepo.test.ts` (3, inkl. Fremdschlüssel-Kaskade),
+  `ReviewSession.test.tsx` (7).
+- **Im frischen Tab geprüft:** App lädt fehlerfrei, „Wiederholung"-Bereich
+  zeigt korrekt „Keine fällige Karte" (leerer Anfangszustand, keine neuen
+  Konsolenfehler durch `ts-fsrs`). Ein echter Ende-zu-Ende-Durchlauf mit
+  einer echten Karte ist im Dev-Server aus demselben Grund wie beim vorigen
+  Baustein nicht erreichbar (Fach-/Karten-Anlegen scheitert ohne echtes
+  Tauri-Fenster) — die FSRS-Berechnung selbst ist über die
+  Eigenschaftstests in `spacedRepetition.test.ts` abgedeckt.
+
 ### Nächster Schritt
 
-ROADMAP.md Phase 4, nächster Punkt: **Spaced Repetition (FSRS)** — Recherche
-bereits gemacht (siehe oben „Recherche: Spaced Repetition"). Baut auf den
-jetzt vorhandenen `cards` auf: `reviews`-Tabelle befüllen, FSRS-Algorithmus
-für Erinnerungs-Feedback pro Karte, Wiederholungsansicht. Danach der Reihe
-nach: Formelextraktion sauber, Quiz-Generierung, Probeklausur-Simulation,
+ROADMAP.md Phase 4, nächster Punkt der Reihe nach: **Formelextraktion
+sauber**. Danach: Quiz-Generierung, Probeklausur-Simulation,
 Fehlerhistorie → gezielte Wiederholung, Paper-Workflow, Altklausur-Analyse
 → automatische Gewichtung.
 
