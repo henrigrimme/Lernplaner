@@ -9,12 +9,15 @@ import { ReplanView } from './ui/ReplanView'
 import { ProgressView } from './ui/ProgressView'
 import { SourceViewer } from './ui/SourceViewer'
 import { CourseExportImport } from './ui/CourseExportImport'
+import { NotificationsPanel } from './ui/NotificationsPanel'
 import { extractDocument } from './ingest/pdf'
 import { topicsFromExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
 import { recordPlanVersion } from './data/planVersions'
 import type { ImportedCourseResult } from './data/courseExport'
 import { buildSchedule } from './domain/planBuilder'
+import { computeDueNotifications, type NotificationKind } from './domain/notifications'
+import { ensureNotificationPermission, showNotification } from './platform/notifications'
 import type {
   Assessment,
   AvailabilityException,
@@ -52,6 +55,7 @@ export function App() {
   const [studyBlocks, setStudyBlocks] = useState<StudyBlock[]>([])
   const [planVersions, setPlanVersions] = useState<PlanVersion[]>([])
   const [documentBytes, setDocumentBytes] = useState<Record<number, Uint8Array>>({})
+  const [notificationLog, setNotificationLog] = useState<Partial<Record<NotificationKind, string>>>({})
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [nextDocumentId, setNextDocumentId] = useState(1)
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
@@ -66,6 +70,30 @@ export function App() {
   const applyReplan = (blocks: StudyBlock[], reason: string) => {
     setPlanVersions((versions) => recordPlanVersion(versions, reason, studyBlocks, new Date().toISOString()))
     setStudyBlocks(blocks)
+  }
+
+  const checkNotifications = async () => {
+    const alreadyShownToday = new Set(
+      Object.entries(notificationLog)
+        .filter(([, date]) => date === today)
+        .map(([kind]) => kind as NotificationKind),
+    )
+    const todaysBlocks = studyBlocks.filter((b) => b.planned_date === today)
+    const due = computeDueNotifications({ today, studyBlocksToday: todaysBlocks, topics, assessments, alreadyShownToday })
+    if (due.length === 0) return []
+
+    const granted = await ensureNotificationPermission()
+    if (!granted) return []
+
+    for (const notification of due) {
+      await showNotification(notification.title, notification.body)
+    }
+    setNotificationLog((prev) => {
+      const next = { ...prev }
+      for (const notification of due) next[notification.kind] = today
+      return next
+    })
+    return due
   }
 
   const applyCourseImport = (result: ImportedCourseResult) => {
@@ -185,6 +213,8 @@ export function App() {
         onApply={applyReplan}
       />
       {planVersions.length > 0 && <p>{planVersions.length} frühere Fassung(en) gespeichert (ADR-005).</p>}
+
+      <NotificationsPanel onCheckNow={checkNotifications} />
 
       <CourseExportImport
         courses={courses}

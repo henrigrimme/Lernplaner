@@ -38,7 +38,7 @@ Prüfungen im Oktober.
 - [x] Heute-Ansicht mit Timer und Schwierigkeits-Feedback
 - [x] Neuberechnung mit Diff-Ansicht
 - [x] Fortschrittsanzeige
-- [ ] Lokale Benachrichtigungen
+- [x] Lokale Benachrichtigungen
 - [ ] Kalender-Export
 - [x] PDF-Viewer mit Seitensprung
 - [x] Kurs-Export/Import
