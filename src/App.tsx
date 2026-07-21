@@ -33,6 +33,9 @@ import { loadTopicSections } from './data/topicSectionsRepo'
 import { loadStudyBlocks, syncStudyBlocks } from './data/studyBlocksRepo'
 import { insertPlanVersion, loadPlanVersions } from './data/planVersionsRepo'
 import { deleteCardRow, insertCard, loadCards, type NewCardInput } from './data/cardsRepo'
+import { insertReview, loadReviews } from './data/reviewsRepo'
+import { scheduleReview, type Grade } from './domain/spacedRepetition'
+import { ReviewSession } from './ui/ReviewSession'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
@@ -44,6 +47,7 @@ import type {
   Card,
   Course,
   PlanVersion,
+  Review,
   StudyBlock,
   Topic,
   TopicSection,
@@ -89,6 +93,7 @@ export function App() {
   const [studyBlocks, setStudyBlocks] = useState<StudyBlock[]>([])
   const [planVersions, setPlanVersions] = useState<PlanVersion[]>([])
   const [cards, setCards] = useState<Card[]>([])
+  const [reviews, setReviews] = useState<Review[]>([])
   const [documentBytes, setDocumentBytes] = useState<Record<number, Uint8Array>>({})
   const [notificationLog, setNotificationLog] = useState<Partial<Record<NotificationKind, string>>>({})
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
@@ -207,6 +212,37 @@ export function App() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => loadReviews(db))
+      .then((rows) => {
+        if (!cancelled) setReviews(rows)
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const handleReview = async (cardId: number, grade: Grade) => {
+    try {
+      const db = await getDb()
+      const reviewedAt = new Date().toISOString()
+      const scheduled = scheduleReview(
+        reviews.filter((r) => r.card_id === cardId),
+        new Date(reviewedAt),
+        grade,
+      )
+      const review = await insertReview(db, { card_id: cardId, reviewed_at: reviewedAt, ...scheduled })
+      setReviews((prev) => [...prev, review])
+    } catch (error) {
+      console.error('Wiederholung konnte nicht gespeichert werden', error)
+    }
+  }
+
   const handleCreateCard = async (input: NewCardInput) => {
     try {
       const db = await getDb()
@@ -222,6 +258,8 @@ export function App() {
       const db = await getDb()
       await deleteCardRow(db, id)
       setCards((prev) => prev.filter((c) => c.id !== id))
+      // Kaskadiert in der DB auf reviews (ON DELETE CASCADE) — lokal nachziehen.
+      setReviews((prev) => prev.filter((r) => r.card_id !== id))
     } catch (error) {
       console.error('Karteikarte konnte nicht gelöscht werden', error)
     }
@@ -333,11 +371,15 @@ export function App() {
       await syncTopics(db, topics, nextTopics)
       setTopics(nextTopics)
       // Ein gelöschtes Thema kaskadiert in der DB auf seine topic_sections
-      // UND cards (ON DELETE CASCADE) — den lokalen Zustand entsprechend
-      // nachziehen, sonst blieben verwaiste Abschnitte/Karten stehen.
+      // UND cards, ein gelöschtes card wiederum auf seine reviews (ON DELETE
+      // CASCADE, zweifach) — den lokalen Zustand entsprechend nachziehen,
+      // sonst blieben verwaiste Abschnitte/Karten/Wiederholungen stehen.
       const remainingTopicIds = new Set(nextTopics.map((t) => t.id))
+      const remainingCards = cards.filter((c) => remainingTopicIds.has(c.topic_id))
+      const remainingCardIds = new Set(remainingCards.map((c) => c.id))
       setTopicSections((prev) => prev.filter((s) => remainingTopicIds.has(s.topic_id)))
-      setCards((prev) => prev.filter((c) => remainingTopicIds.has(c.topic_id)))
+      setCards(remainingCards)
+      setReviews((prev) => prev.filter((r) => remainingCardIds.has(r.card_id)))
     } catch (error) {
       console.error('Themenbaum konnte nicht gespeichert werden', error)
     }
@@ -497,6 +539,14 @@ export function App() {
         cards={cards}
         onCreateCard={handleCreateCard}
         onDeleteCard={handleDeleteCard}
+      />
+
+      <ReviewSession
+        cards={cards}
+        reviews={reviews}
+        topics={topics}
+        now={() => new Date().toISOString()}
+        onReview={handleReview}
       />
 
       <PlanView
