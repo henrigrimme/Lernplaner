@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3: PDF-Viewer mit Seitensprung fertig — `PdfViewer`/`SourceViewer`, zusätzlich zu Heute-Ansicht, Neuberechnung und Fortschrittsanzeige)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3: Kurs-Export/Import fertig — nur noch Lokale Benachrichtigungen und Kalender-Export offen, beide brauchen Rückfrage beim Nutzer)
 
 ---
 
@@ -1181,19 +1181,71 @@ bereits Abhängigkeit von `ingest/pdf.ts`, hier erstmals für echtes
   Material verifiziert. Bekannte Lücke, wie schon beim PDF-Import-
   Plausibilitätscheck zuvor dokumentiert.
 
+Direkt im Anschluss, Branch `feat/course-export` (von `main` abgezweigt):
+„Kurs-Export/Import" (CONTEXT.md „Anforderungen": „Austausch: Kurs-Export
+als Datei"; SECURITY.md: „Der Kurs-Export … ist die einzige Möglichkeit,
+Arbeit zu sichern" — dient also zugleich dem Austausch zwischen den beiden
+Nutzern und als einziges Backup).
+
+- **`data/courseExport.ts`** (`exportCourse`, `importCourse`,
+  `serializeCourseExport`, `deserializeCourseExport`): Export-Bundle pro
+  Fach enthält `course`, `topics` (mit Hierarchie), `topicSections`,
+  `assessments`, **und `study_blocks`** — letzteres bewusst, weil das die
+  tatsächliche „Arbeit" aus SECURITY.md ist (geplante/erledigte Sitzungen
+  samt Feedback), nicht nur Kursstruktur.
+  - **Bewusst NICHT enthalten: die PDF-Dateien selbst.** SECURITY.md ist
+    eindeutig: „Unterlagen … sind urheberrechtlich geschützt … Weitergabe
+    häufig ausdrücklich untersagt". `topic_sections.document_id` bleibt
+    als reine Zahl erhalten, zeigt nach dem Import ins Leere —
+    `SourceViewer` behandelt fehlende PDF-Bytes bereits als regulären Fall
+    (siehe letzter Schritt), kein Absturz.
+  - **Bewusst NICHT enthalten (zweiter Grund): `documents`-Metadaten
+    selbst** — `App.tsx` hält aktuell keine `Document[]`-Liste im Zustand
+    (nur `topics`/`topicSections`), das nachzuziehen wäre eine eigene
+    Erweiterung. Auch nicht enthalten: `plan_versions`, `calibration`,
+    `ai_usage`, `settings` — Verlaufs-/Kalibrierungsdaten, die nach einem
+    ID-Remapping nicht mehr sinnvoll wären bzw. rein persönlich sind.
+  - **`importCourse` schreibt jeden Fremdschlüssel auf neue, an den
+    lokalen Bestand anknüpfende IDs um** (`course_id`, `topic_id`,
+    `parent_id` — zweiter Durchgang nötig, weil ein Thema auf ein im
+    Bundle-Array später stehendes Elternthema verweisen kann —,
+    `assessment_id`). **Bewusst einfach:** legt immer ein **neues** Fach
+    an, auch bei Namensgleichheit — kein Zusammenführen/Konfliktauflösung,
+    analog zu `materializeStudyBlocks`s „bewusst einfach" beim
+    „Plan übernehmen"-Schritt.
+  - `deserializeCourseExport` prüft nur ein `version`-Feld, keine tiefere
+    Schema-Validierung — für ein internes Austauschformat zwischen zwei
+    Nutzern derselben App-Version ausreichend, keine Fremdformat-Härtung
+    nötig.
+  - 10 Tests, u. a. Rundreise über JSON, ID-Remapping inkl. Eltern-Kind-
+    Beziehung, Anknüpfen an einen nicht-leeren Bestand, unbekannte
+    Export-Version.
+- **`ui/CourseExportImport.tsx`**: Fach-Auswahl + „Exportieren" löst einen
+  Browser-Download aus (`Blob` + `URL.createObjectURL` + programmatischer
+  Klick auf ein `<a download>` — kein `tauri-plugin-fs` vor dem echten
+  Rahmen, wie der PDF-Import). Datei-Input für den Import, zeigt eine
+  Fehlermeldung statt abzustürzen, wenn die Datei kein gültiger Export ist.
+  4 Tests (`URL.createObjectURL`/`revokeObjectURL`/`HTMLAnchorElement.
+  prototype.click` gemockt, da in jsdom nicht implementiert).
+  In `App.tsx` als letzte Sektion eingehängt (passt zu SECURITY.md „Kurs-
+  Export in den Einstellungen").
+- **Live im Dev-Server geprüft:** Fach angelegt, Export-Button geklickt —
+  keine Konsolenfehler, App bleibt intakt (stärkster verfügbarer Nachweis
+  für den Download-Ablauf ohne ein Downloads-Verzeichnis einsehen zu
+  können). Import selbst nur über die Komponententests geprüft (bräuchte
+  eine echte heruntergeladene Datei zum erneuten Hochladen, was denselben
+  Download-Nachweis voraussetzt).
+
 ### Nächster Schritt
 
-ROADMAP.md Phase 3 verbleibend: Lokale Benachrichtigungen, Kalender-Export,
-Kurs-Export/Import. Keine Abhängigkeit zwischen ihnen zwingt eine
-Reihenfolge. **Lokale Benachrichtigungen** und **Kalender-Export** brauchen
-`platform/` (macOS-Anbindung) — vermutlich neue Abhängigkeiten
-(z. B. ein Tauri-Notification-Plugin) bzw. eine echte fachliche Entscheidung
-(Kalender-Export bräuchte eine Uhrzeit pro `study_block`, die das Schema
-aktuell nicht hat — nur `planned_date`, keine Tageszeit; **vor dem Bauen
-mit dem Nutzer klären**, statt eine Uhrzeit zu erfinden). **Kurs-Export/
-Import** ist reiner `data/`-Umfang (JSON-Serialisierung von Fach + Themen +
-Prüfungen) auf dem bestehenden Schema, keine neue Abhängigkeit — vermutlich
-der nächste unkompliziert autonom baubare Schritt.
+ROADMAP.md Phase 3 verbleibend: **Lokale Benachrichtigungen** und
+**Kalender-Export** — beide bewusst noch nicht angegangen, siehe oben in
+dieser Session: Benachrichtigungen brauchen vermutlich eine neue
+Abhängigkeit (Tauri-Notification-Plugin), Kalender-Export eine echte
+fachliche Entscheidung (Uhrzeit pro `study_block` fehlt im Schema). **Beide
+brauchen eine Rückfrage beim Nutzer, bevor gebaut wird** — nicht mehr
+autonom ohne Weiteres fortsetzbar, ohne zu raten. Mit Kurs-Export/Import
+ist ROADMAP.md Phase 3 „Alltag" bis auf diese beiden Punkte vollständig.
 
 ### Danach (unverändert aus der Roadmap)
 
