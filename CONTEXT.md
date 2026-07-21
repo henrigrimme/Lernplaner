@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3 „Alltag" vollständig abgeschlossen — Kalender-Export als letzter Punkt fertig; vor Phase 4 Rückfrage beim Nutzer nötig, siehe Abschnitt 8)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Persistenz-Härtung begonnen: `tauri-plugin-sql` angebunden, Migrationen über den plugin-eigenen Mechanismus — noch keine Entität tatsächlich umgestellt; danach Phase 4 der Reihe nach, wie vom Nutzer bestätigt)
 
 ---
 
@@ -1340,21 +1340,59 @@ ROADMAP.md Phase 3 „Alltag" **vollständig abgeschlossen**.
 **ROADMAP.md Phase 3 „Alltag" ist damit vollständig** (alle sieben Punkte
 erledigt). Vor Phase 4 kurz innehalten, siehe „Danach" unten.
 
+**Antwort des Nutzers auf die obige Rückfrage:** zuerst den Rahmen härten
+(echte Persistenz), danach Phase 4 der Reihe nach abarbeiten. Beides jetzt
+in Arbeit, siehe unten.
+
+### Persistenz-Härtung — Baustein 1: `tauri-plugin-sql` angebunden
+
+Branch `feat/persistence-sql-plugin` (von `main` abgezweigt). Bisher ist
+der komplette Zustand in `App.tsx` nur In-Memory React-State (siehe
+Kommentar dort) — dieser Baustein schließt die Lücke schrittweise, siehe
+„Nächster Schritt" für den Rest des Plans.
+
+- **Neue Abhängigkeit, nach Rückfrage/Freigabe:** `@tauri-apps/plugin-sql`
+  (npm) und `tauri-plugin-sql` (Cargo, Feature `sqlite`).
+- **Migrationen laufen über den plugin-eigenen Mechanismus, kein eigener
+  Runner nötig:** `src-tauri/src/lib.rs` bindet `src/data/migrations/
+  0001_init.sql`/`0002_ai_usage.sql` per `include_str!` als
+  `tauri_plugin_sql::Migration`-Einträge ein und übergibt sie
+  `Builder::add_migrations("sqlite:lernplaner.db", …)` — das Plugin verfolgt
+  selbst, welche Version schon angewendet wurde (eigene interne
+  Trackingtabelle). Dieselben `.sql`-Dateien bleiben unverändert die
+  Grundlage für `tests/data/schema.test.ts` (dort weiterhin gegen
+  `better-sqlite3` geprüft, ohne Tauri-Laufzeit) — **eine** Quelle für das
+  Schema, zwei Verifikationswege.
+- **Berechtigungen** `sql:default`, `sql:allow-execute`, `sql:allow-select`
+  in `src-tauri/capabilities/default.json` ergänzt.
+- **`src/data/db.ts`** neu: `getDb()` (Lazy-Singleton-Verbindung,
+  Datenbankname `sqlite:lernplaner.db` muss mit `lib.rs` übereinstimmen)
+  sowie das `SqlConnection`-Interface (`execute`/`select`) als schmale
+  Schnittstelle für kommende `data/*Repo.ts`-Module — noch **nicht**
+  benutzt, reine Grundlage für die folgenden Schritte. Einzige Datei, die
+  `@tauri-apps/plugin-sql` importiert (wie `platform/notifications.ts` für
+  das Notification-Plugin).
+- **`cargo check --locked` läuft fehlerfrei**, ebenso `npm run build`
+  (Vite-Bundle unverändert erfolgreich, `db.ts` ist noch von nirgends
+  importiert). Kein Plausibilitätscheck im Dev-Server nötig für diesen
+  Schritt — keine UI-Änderung, `db.ts` wird erst in den folgenden Schritten
+  tatsächlich verdrahtet. Funktioniert ohnehin nur im echten Tauri-Fenster
+  (IPC-Bridge fehlt im Browser, dieselbe Einschränkung wie bei den
+  Benachrichtigungen) — auch dort noch nicht manuell geprüft.
+
 ### Nächster Schritt
 
-ROADMAP.md sieht Phase 4 „parallel zur Nutzung" ab dem 1. September vor,
-mit Reihenfolge „nach Dringlichkeit aus echter Nutzung" — die es vor dem
-Lernbeginn noch nicht geben kann (heute: 21. Juli 2026, sechs Wochen
-vorher, keine echten Kurse/Prüfungstermine importiert). Autonom in Phase 4
-weiterzuarbeiten würde also gegen die eigene Logik der Roadmap verstoßen
-(raten statt aus echter Nutzung ableiten). **Rückfrage beim Nutzer nötig,
-bevor hier weitergemacht wird** — z. B. ob dennoch schon an einem
-Phase-4-Punkt vorgearbeitet werden soll (welchem?), ob es an dieser Stelle
-sinnvoller ist, den Rahmen in Richtung eines echten Tauri-Rahmens zu
-härten (`tauri-plugin-sql`, echte Persistenz — bisher ist der komplette
-Zustand nur In-Memory, siehe `App.tsx`-Kommentar), oder ob die Session hier
-endet, bis mehr Klarheit über die tatsächlichen Kurse im Oktober besteht
-(Abschnitt 10 „Offene Fragen").
+Persistenz-Härtung Baustein 2: `App.tsx`s In-Memory-Zustand schrittweise
+auf `data/db.ts` umstellen, angefangen bei den einfachsten Entitäten
+(**Fächer** zuerst). Reihenfolge laut Plan: Fächer → Prüfungen →
+Verfügbarkeit (Wochenmuster/Ausnahmen) → Themen/Themenabschnitte →
+Lernblöcke → Planversionen. PDF-Rohbytes (`documentBytes`) bewusst
+**nicht** in die DB — bleiben In-Memory oder bekommen eine eigene
+Dateisystem-Lösung (`documents.stored_path`), siehe Auftrag des Nutzers.
+Jede Entität ein eigener, testbarer Schritt/PR. Erst wenn alle Entitäten
+umgestellt sind, den `App.tsx`-Kommentar „Provisorischer App-Rahmen"
+aktualisieren. Danach: ROADMAP.md Phase 4 der Reihe nach, wie vom Nutzer
+bestätigt.
 
 ### Danach (unverändert aus der Roadmap)
 
