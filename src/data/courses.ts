@@ -1,15 +1,16 @@
 import type { Course } from './schema'
 
 /**
- * Reine Editierfunktionen für Fächer (siehe DATA_MODEL.md „Kern"). Wie
- * `topicTree.ts`: kein Datenbankzugriff, keine Systemuhr — `createdAt`
- * kommt explizit vom Aufrufer, damit die Funktionen deterministisch
- * bleiben (ARCHITECTURE.md „domain/ … kennt weder DB noch UI").
+ * Reine Editierfunktionen für den lokalen Fächer-Zustand (siehe
+ * DATA_MODEL.md „Kern"). Kein Datenbankzugriff, keine Systemuhr.
  *
- * Vor dem Tauri-Rahmen (`tauri-plugin-sql`, siehe CONTEXT.md) gibt es noch
- * keine echten `id`/`created_at`-Werte aus der Datenbank — `nextId` vergibt
- * fortlaufende IDs innerhalb des lokalen Zustands, kompatibel mit dem
- * späteren `AUTOINCREMENT`-Verhalten (0001_init.sql), aber ohne DB-Zugriff.
+ * Seit der Persistenz-Härtung (`data/coursesRepo.ts`, `tauri-plugin-sql`,
+ * siehe CONTEXT.md) übernehmen diese Funktionen nur noch Änderungen, bei
+ * denen die `id` bereits feststeht (Aktualisieren/Archivieren/Löschen).
+ * Neuanlegen braucht keine reine Funktion mehr: die echte `id` kommt jetzt
+ * per `AUTOINCREMENT` aus der Datenbank (`coursesRepo.insertCourse`),
+ * lokales Raten einer `id` (wie früher `addCourse`/`nextId` hier) wäre
+ * jetzt falsch statt nur vorläufig.
  */
 
 export interface NewCourseInput {
@@ -18,15 +19,6 @@ export interface NewCourseInput {
   color: string
   priority: 1 | 2 | 3 | 4 | 5
   difficulty: 1 | 2 | 3 | 4 | 5
-}
-
-function nextId(rows: { id: number }[]): number {
-  return rows.reduce((max, r) => Math.max(max, r.id), 0) + 1
-}
-
-export function addCourse(courses: Course[], input: NewCourseInput, createdAt: string): Course[] {
-  const course: Course = { id: nextId(courses), ...input, archived: 0, created_at: createdAt }
-  return [...courses, course]
 }
 
 export function updateCourse(

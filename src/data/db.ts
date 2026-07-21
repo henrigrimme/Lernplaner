@@ -40,6 +40,7 @@ export function getDb(): Promise<Database> {
  * zum bereits bestehenden `SqlExecutor` in `data/importTopics.ts`).
  */
 export interface SqlConnection {
-  execute(sql: string, params?: unknown[]): Promise<{ lastInsertId: number; rowsAffected: number }>
+  /** `lastInsertId` fehlt bei Operationen ohne AUTOINCREMENT-Zeile (z. B. UPDATE/DELETE) — passend zu `@tauri-apps/plugin-sql`s `QueryResult`. */
+  execute(sql: string, params?: unknown[]): Promise<{ lastInsertId?: number; rowsAffected: number }>
   select<T>(sql: string, params?: unknown[]): Promise<T[]>
 }

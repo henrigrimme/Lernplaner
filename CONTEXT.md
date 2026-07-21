@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Persistenz-Härtung begonnen: `tauri-plugin-sql` angebunden, Migrationen über den plugin-eigenen Mechanismus — noch keine Entität tatsächlich umgestellt; danach Phase 4 der Reihe nach, wie vom Nutzer bestätigt)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Persistenz-Härtung: Fächer als erste Entität echt in SQLite gespeichert, `data/coursesRepo.ts` + `ui/CourseSetup.tsx`-API umgestellt; Prüfungen als Nächstes, danach Phase 4)
 
 ---
 
@@ -1380,19 +1380,80 @@ Kommentar dort) — dieser Baustein schließt die Lücke schrittweise, siehe
   (IPC-Bridge fehlt im Browser, dieselbe Einschränkung wie bei den
   Benachrichtigungen) — auch dort noch nicht manuell geprüft.
 
+### Persistenz-Härtung — Baustein 2: Fächer echt in SQLite
+
+Branch `feat/persistence-courses` (von `main` abgezweigt). Erste
+tatsächlich umgestellte Entität — Fächer, wie geplant die einfachste
+(keine Fremdschlüssel auf andere frisch persistierte Tabellen).
+
+- **`tests/data/testConnection.ts` neu**: `SqlConnection`-Implementierung
+  über `better-sqlite3` (frische In-Memory-DB, beide Migrationen
+  angewendet) — **echtes SQL**, kein Mock. Geteilt zwischen allen
+  kommenden `data/*Repo.ts`-Tests, damit nicht jede Datei die
+  Migrations-Dateien selbst einliest. Das ist der Testweg, der bei
+  `platform/notifications.ts` fehlte (dort gibt es keine SQL-Logik zu
+  testen, nur einen dünnen Plugin-Aufruf) — hier lässt sich die
+  eigentliche SQL-Korrektheit echt prüfen, nur die Tauri-IPC-Bridge
+  selbst bleibt ungeprüft.
+- **`SqlConnection` in `data/db.ts` korrigiert:** `execute()`s
+  `lastInsertId` ist **optional** (`lastInsertId?: number`), passend zu
+  `@tauri-apps/plugin-sql`s echtem `QueryResult`-Typ (fehlt z. B. bei
+  UPDATE/DELETE) — beim ersten Verdrahten mit dem echten Paket aufgefallen
+  (Typfehler), im ursprünglichen `db.ts`-Entwurf noch als Pflichtfeld
+  angenommen.
+- **`data/coursesRepo.ts`** (`loadCourses`, `insertCourse`,
+  `updateCourseRow`, `setCourseArchivedRow`, `deleteCourseRow`): echte
+  SQL-Operationen über `SqlConnection`. `insertCourse` liefert die
+  **echte** `AUTOINCREMENT`-`id` zurück statt sie zu raten. 6 Tests.
+- **`data/courses.ts` verkleinert:** `addCourse`/`nextId` entfernt (lokales
+  Raten einer `id` wäre jetzt schlicht falsch, nicht mehr nur vorläufig) —
+  `updateCourse`/`setCourseArchived`/`removeCourse` bleiben (keine
+  `id`-Vergabe nötig, weiterhin nützlich fürs lokale Nachziehen des
+  React-Zustands nach einem erfolgreichen DB-Write, siehe `App.tsx`).
+  Zugehöriger Test entsprechend angepasst (Fixture statt `addCourse` zum
+  Aufbauen der Testdaten).
+- **`ui/CourseSetup.tsx`s API geändert:** ein einzelnes `onChange(courses:
+  Course[])` (der Komponente unbekannt, *welche* Änderung geschah) durch
+  vier explizite Callbacks ersetzt (`onAdd`/`onUpdate`/`onArchive`/
+  `onRemove`) — der Aufrufer muss jetzt wissen, welche SQL-Operation zu
+  welcher Aktion gehört, das ließ sich aus einem fertigen Array nicht mehr
+  ableiten. `now`-Prop entfernt (Zeitstempel entsteht jetzt beim
+  tatsächlichen DB-Write in `App.tsx`, nicht mehr in der Komponente).
+  7 bestehende Tests entsprechend umgeschrieben (prüfen jetzt den
+  jeweiligen Callback-Aufruf statt des fertigen Arrays).
+- **`App.tsx`**: `useEffect` lädt Fächer beim Start (`getDb().then(loadCourses)`),
+  vier Handler (`handleAddCourse` usw.) rufen jeweils die Repo-Funktion
+  auf und ziehen bei Erfolg den lokalen Zustand nach (`updateCourse`/
+  `setCourseArchived`/`removeCourse` aus `data/courses.ts` fürs
+  Nachziehen, `insertCourse`s Rückgabewert direkt fürs Anhängen). Jeder
+  Handler fängt Fehler ab und loggt sie (`console.error`) statt
+  abzustürzen — nötig, weil `getDb()` außerhalb des echten Tauri-Fensters
+  immer fehlschlägt (siehe Plausibilitätscheck unten).
+- **Live im Dev-Server geprüft (kein echtes Tauri-Fenster):** Fach über
+  das Formular angelegt — Konsole zeigt den erwarteten, abgefangenen
+  Fehler („Cannot read properties of undefined (reading 'invoke')", exakt
+  dieselbe fehlende IPC-Bridge wie bei den Benachrichtigungen), **kein
+  Absturz**, und — wichtig — das Fach erscheint korrekt **nicht** in der
+  Liste (kein optimistisches Update ohne erfolgreichen DB-Write, UI bleibt
+  konsistent mit dem tatsächlichen, nicht gespeicherten Zustand). **Noch
+  nicht geprüft:** echte Persistenz im tatsächlichen Tauri-Fenster
+  (`npx tauri dev`) — bräuchte einen laufenden nativen Fensterprozess, den
+  diese Sitzung nicht ohne Weiteres automatisiert bedienen kann (bekannte
+  Lücke, wie schon bei den Benachrichtigungen).
+
 ### Nächster Schritt
 
-Persistenz-Härtung Baustein 2: `App.tsx`s In-Memory-Zustand schrittweise
-auf `data/db.ts` umstellen, angefangen bei den einfachsten Entitäten
-(**Fächer** zuerst). Reihenfolge laut Plan: Fächer → Prüfungen →
-Verfügbarkeit (Wochenmuster/Ausnahmen) → Themen/Themenabschnitte →
-Lernblöcke → Planversionen. PDF-Rohbytes (`documentBytes`) bewusst
-**nicht** in die DB — bleiben In-Memory oder bekommen eine eigene
-Dateisystem-Lösung (`documents.stored_path`), siehe Auftrag des Nutzers.
-Jede Entität ein eigener, testbarer Schritt/PR. Erst wenn alle Entitäten
-umgestellt sind, den `App.tsx`-Kommentar „Provisorischer App-Rahmen"
-aktualisieren. Danach: ROADMAP.md Phase 4 der Reihe nach, wie vom Nutzer
-bestätigt.
+Persistenz-Härtung Baustein 3: nächste Entität nach demselben Muster
+(Repository + Test-Connection + Prop-API-Umstellung der jeweiligen
+`ui/*Setup.tsx`-Komponente + `App.tsx`-Handler). Reihenfolge laut Plan:
+**Prüfungen** als Nächstes (referenziert nur `courses`, die jetzt schon
+persistiert sind), danach Verfügbarkeit (Wochenmuster/Ausnahmen) →
+Themen/Themenabschnitte → Lernblöcke → Planversionen. PDF-Rohbytes
+(`documentBytes`) bewusst **nicht** in die DB — bleiben In-Memory oder
+bekommen eine eigene Dateisystem-Lösung (`documents.stored_path`), siehe
+Auftrag des Nutzers. Erst wenn alle Entitäten umgestellt sind, den
+`App.tsx`-Kommentar entsprechend abschließend aktualisieren. Danach:
+ROADMAP.md Phase 4 der Reihe nach, wie vom Nutzer bestätigt.
 
 ### Danach (unverändert aus der Roadmap)
 

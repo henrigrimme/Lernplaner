@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TopicTree } from './ui/TopicTree'
 import { CourseSetup } from './ui/CourseSetup'
 import { AssessmentSetup } from './ui/AssessmentSetup'
@@ -16,6 +16,9 @@ import { topicsFromExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
 import { recordPlanVersion } from './data/planVersions'
 import type { ImportedCourseResult } from './data/courseExport'
+import { getDb } from './data/db'
+import { deleteCourseRow, insertCourse, loadCourses, setCourseArchivedRow, updateCourseRow } from './data/coursesRepo'
+import { removeCourse, setCourseArchived, updateCourse, type NewCourseInput } from './data/courses'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
@@ -32,18 +35,23 @@ import type {
 } from './data/schema'
 
 /**
- * Provisorischer App-Rahmen — beweist, dass Tauri-Fenster, Vite-Build und
- * die `ui/`-Schicht zusammenspielen (ROADMAP.md Phase 1 „Tauri-Projekt,
- * Build, Tests, CI") und dass der komplette Fluss bis zum Lernplan
- * durchspielbar ist (Phase 2 „Ergebnis"). Noch **keine** echte
- * Datenbankanbindung — kein `tauri-plugin-sql` — aller Zustand ist
- * lokaler React-State statt aus der Datenbank geladen, geht beim
- * Neuladen verloren. Das kommt mit der eigentlichen Datenanbindung,
- * siehe CONTEXT.md Abschnitt 8.
+ * App-Rahmen — beweist, dass Tauri-Fenster, Vite-Build und die
+ * `ui/`-Schicht zusammenspielen (ROADMAP.md Phase 1) und dass der
+ * komplette Fluss bis zum Lernplan durchspielbar ist (Phase 2). Persistenz
+ * wird schrittweise nachgezogen (CONTEXT.md „Persistenz-Härtung"):
+ * **Fächer sind bereits echt in SQLite gespeichert** (`data/coursesRepo.ts`
+ * über `data/db.ts`/`tauri-plugin-sql`), alle anderen Entitäten
+ * (Prüfungen, Verfügbarkeit, Themen, Lernblöcke, Planversionen) sind
+ * weiterhin nur lokaler React-State, geht beim Neuladen verloren — das
+ * kommt in den nächsten Schritten. `getDb()`/die Repo-Funktionen
+ * funktionieren nur im echten Tauri-Fenster (keine IPC-Bridge im
+ * Vite-Dev-Server/Browser, wie bei `platform/notifications.ts`) — die
+ * `catch`-Blöcke unten fangen das ab, statt die UI abstürzen zu lassen.
  *
- * PDF-Import läuft hier direkt im Browser über `topicsFromExtractedDocument`
- * (Array-Variante ohne Datenbank, siehe `data/importTopics.ts`) statt der
- * `SqlExecutor`-Variante, die für den echten Tauri-Rahmen gedacht ist.
+ * PDF-Import läuft weiterhin direkt im Browser über
+ * `topicsFromExtractedDocument` (Array-Variante ohne Datenbank, siehe
+ * `data/importTopics.ts`) statt der `SqlExecutor`-Variante — Themen sind
+ * noch nicht Teil der Persistenz-Härtung.
  */
 export function App() {
   const [topics, setTopics] = useState<Topic[]>([])
@@ -62,6 +70,61 @@ export function App() {
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
+
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => loadCourses(db))
+      .then((rows) => {
+        if (!cancelled) setCourses(rows)
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const handleAddCourse = async (input: NewCourseInput) => {
+    try {
+      const db = await getDb()
+      const course = await insertCourse(db, input, new Date().toISOString())
+      setCourses((prev) => [...prev, course])
+    } catch (error) {
+      console.error('Fach konnte nicht gespeichert werden', error)
+    }
+  }
+
+  const handleUpdateCourse = async (id: number, changes: Partial<NewCourseInput>) => {
+    try {
+      const db = await getDb()
+      await updateCourseRow(db, id, changes)
+      setCourses((prev) => updateCourse(prev, id, changes))
+    } catch (error) {
+      console.error('Fach konnte nicht aktualisiert werden', error)
+    }
+  }
+
+  const handleArchiveCourse = async (id: number, archived: boolean) => {
+    try {
+      const db = await getDb()
+      await setCourseArchivedRow(db, id, archived)
+      setCourses((prev) => setCourseArchived(prev, id, archived))
+    } catch (error) {
+      console.error('Fach konnte nicht archiviert werden', error)
+    }
+  }
+
+  const handleRemoveCourse = async (id: number) => {
+    try {
+      const db = await getDb()
+      await deleteCourseRow(db, id)
+      setCourses((prev) => removeCourse(prev, id))
+    } catch (error) {
+      console.error('Fach konnte nicht gelöscht werden', error)
+    }
+  }
 
   const generateStudyBlocks = () => {
     const schedule = buildSchedule({ topics, topicSections, assessments, courses, pattern, exceptions, blockers, from: today })
@@ -131,7 +194,13 @@ export function App() {
     <main>
       <h1>Lernplaner</h1>
 
-      <CourseSetup courses={courses} onChange={setCourses} now={() => new Date().toISOString()} />
+      <CourseSetup
+        courses={courses}
+        onAdd={handleAddCourse}
+        onUpdate={handleUpdateCourse}
+        onArchive={handleArchiveCourse}
+        onRemove={handleRemoveCourse}
+      />
 
       {courses.length > 0 && (
         <label>

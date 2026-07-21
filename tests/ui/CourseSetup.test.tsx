@@ -4,8 +4,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { CourseSetup } from '../../src/ui/CourseSetup'
 import type { Course } from '../../src/data/schema'
 
-const NOW = () => '2026-07-20T00:00:00.000Z'
-
 function course(overrides: Partial<Course> & { id: number }): Course {
   return {
     name: `Fach ${overrides.id}`,
@@ -19,10 +17,14 @@ function course(overrides: Partial<Course> & { id: number }): Course {
   } as Course
 }
 
+function noop() {
+  return { onAdd: vi.fn(), onUpdate: vi.fn(), onArchive: vi.fn(), onRemove: vi.fn() }
+}
+
 describe('CourseSetup', () => {
   it('zeigt sichtbare Fächer, blendet archivierte standardmäßig aus', () => {
     const courses = [course({ id: 1, name: 'Microeconomics' }), course({ id: 2, name: 'Alt', archived: 1 })]
-    render(<CourseSetup courses={courses} onChange={vi.fn()} now={NOW} />)
+    render(<CourseSetup courses={courses} {...noop()} />)
 
     expect(screen.getByText('Microeconomics')).toBeInTheDocument()
     expect(screen.queryByText('Alt')).not.toBeInTheDocument()
@@ -31,7 +33,7 @@ describe('CourseSetup', () => {
   it('zeigt archivierte Fächer nach Klick auf die Checkbox', async () => {
     const user = userEvent.setup()
     const courses = [course({ id: 1, name: 'Alt', archived: 1 })]
-    render(<CourseSetup courses={courses} onChange={vi.fn()} now={NOW} />)
+    render(<CourseSetup courses={courses} {...noop()} />)
 
     await user.click(screen.getByRole('checkbox', { name: /archivierte anzeigen/i }))
     expect(screen.getByText('Alt')).toBeInTheDocument()
@@ -39,65 +41,63 @@ describe('CourseSetup', () => {
 
   it('legt ein neues Fach mit den Formularwerten an', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<CourseSetup courses={[]} onChange={onChange} now={NOW} />)
+    const onAdd = vi.fn()
+    render(<CourseSetup courses={[]} {...noop()} onAdd={onAdd} />)
 
     await user.click(screen.getByRole('button', { name: 'Fach hinzufügen' }))
     await user.type(screen.getByLabelText('Name'), 'Microeconomics')
     await user.type(screen.getByLabelText('Semester'), 'WS25')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 
-    expect(onChange).toHaveBeenCalledTimes(1)
-    const result = onChange.mock.calls[0]![0] as Course[]
-    expect(result[0]).toMatchObject({ name: 'Microeconomics', semester: 'WS25', archived: 0 })
+    expect(onAdd).toHaveBeenCalledTimes(1)
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ name: 'Microeconomics', semester: 'WS25' }))
   })
 
   it('verhindert das Anlegen ohne Namen', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<CourseSetup courses={[]} onChange={onChange} now={NOW} />)
+    const onAdd = vi.fn()
+    render(<CourseSetup courses={[]} {...noop()} onAdd={onAdd} />)
 
     await user.click(screen.getByRole('button', { name: 'Fach hinzufügen' }))
     await user.type(screen.getByLabelText('Semester'), 'WS25')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 
-    expect(onChange).not.toHaveBeenCalled()
+    expect(onAdd).not.toHaveBeenCalled()
   })
 
   it('bearbeitet ein bestehendes Fach', async () => {
     const user = userEvent.setup()
     const courses = [course({ id: 1, name: 'Microeconomics', priority: 3 })]
-    const onChange = vi.fn()
-    render(<CourseSetup courses={courses} onChange={onChange} now={NOW} />)
+    const onUpdate = vi.fn()
+    render(<CourseSetup courses={courses} {...noop()} onUpdate={onUpdate} />)
 
     const item = screen.getByText('Microeconomics').closest('li')!
     await user.click(within(item).getByRole('button', { name: 'Bearbeiten' }))
     await user.selectOptions(screen.getByLabelText('Priorität'), '5')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 
-    const result = onChange.mock.calls[0]![0] as Course[]
-    expect(result[0]).toMatchObject({ priority: 5 })
+    expect(onUpdate).toHaveBeenCalledWith(1, expect.objectContaining({ priority: 5 }))
   })
 
   it('archiviert und stellt wieder her', async () => {
     const user = userEvent.setup()
     const courses = [course({ id: 1, name: 'Microeconomics' })]
-    const onChange = vi.fn()
-    render(<CourseSetup courses={courses} onChange={onChange} now={NOW} />)
+    const onArchive = vi.fn()
+    render(<CourseSetup courses={courses} {...noop()} onArchive={onArchive} />)
 
     const item = screen.getByText('Microeconomics').closest('li')!
     await user.click(within(item).getByRole('button', { name: 'Archivieren' }))
-    expect((onChange.mock.calls[0]![0] as Course[])[0]!.archived).toBe(1)
+    expect(onArchive).toHaveBeenCalledWith(1, true)
   })
 
   it('löscht ein Fach', async () => {
     const user = userEvent.setup()
     const courses = [course({ id: 1, name: 'Microeconomics' })]
-    const onChange = vi.fn()
-    render(<CourseSetup courses={courses} onChange={onChange} now={NOW} />)
+    const onRemove = vi.fn()
+    render(<CourseSetup courses={courses} {...noop()} onRemove={onRemove} />)
 
     const item = screen.getByText('Microeconomics').closest('li')!
     await user.click(within(item).getByRole('button', { name: 'Löschen' }))
-    expect(onChange).toHaveBeenCalledWith([])
+    expect(onRemove).toHaveBeenCalledWith(1)
   })
 })
