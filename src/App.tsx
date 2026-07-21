@@ -14,7 +14,6 @@ import { CalendarExport } from './ui/CalendarExport'
 import { extractDocument } from './ingest/pdf'
 import { computeSha256, persistExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
-import { recordPlanVersion } from './data/planVersions'
 import type { ImportedCourseResult } from './data/courseExport'
 import { getDb } from './data/db'
 import { deleteCourseRow, insertCourse, loadCourses, setCourseArchivedRow, updateCourseRow } from './data/coursesRepo'
@@ -32,6 +31,7 @@ import { removeAvailabilityException, setAvailabilityException, setAvailabilityP
 import { loadTopics, syncTopics } from './data/topicsRepo'
 import { loadTopicSections } from './data/topicSectionsRepo'
 import { loadStudyBlocks, syncStudyBlocks } from './data/studyBlocksRepo'
+import { insertPlanVersion, loadPlanVersions } from './data/planVersionsRepo'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
@@ -50,15 +50,13 @@ import type {
 /**
  * App-Rahmen — beweist, dass Tauri-Fenster, Vite-Build und die
  * `ui/`-Schicht zusammenspielen (ROADMAP.md Phase 1) und dass der
- * komplette Fluss bis zum Lernplan durchspielbar ist (Phase 2). Persistenz
- * wird schrittweise nachgezogen (CONTEXT.md „Persistenz-Härtung"):
- * **Fächer, Prüfungen, Verfügbarkeit, Themen/Themenabschnitte und
- * Lernblöcke sind bereits echt in SQLite gespeichert** (`data/coursesRepo.ts`/
+ * komplette Fluss bis zum Lernplan durchspielbar ist (Phase 2). **Alle
+ * Entitäten sind echt in SQLite gespeichert** (CONTEXT.md
+ * „Persistenz-Härtung", Bausteine 1-7): `data/coursesRepo.ts`/
  * `data/assessmentsRepo.ts`/`data/availabilityRepo.ts`/
  * `data/topicsRepo.ts`/`data/topicSectionsRepo.ts`/`data/documentsRepo.ts`/
- * `data/studyBlocksRepo.ts` über `data/db.ts`/`tauri-plugin-sql`), nur
- * Planversionen sind weiterhin lokaler React-State, geht beim Neuladen
- * verloren — das kommt im nächsten Schritt. `getDb()`/die Repo-Funktionen
+ * `data/studyBlocksRepo.ts`/`data/planVersionsRepo.ts`, alle über
+ * `data/db.ts`/`tauri-plugin-sql`. `getDb()`/die Repo-Funktionen
  * funktionieren nur im echten Tauri-Fenster (keine IPC-Bridge im
  * Vite-Dev-Server/Browser, wie bei `platform/notifications.ts`) — die
  * `catch`-Blöcke unten fangen das ab, statt die UI abstürzen zu lassen.
@@ -167,6 +165,21 @@ export function App() {
       .then((db) => loadStudyBlocks(db))
       .then((rows) => {
         if (!cancelled) setStudyBlocks(rows)
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => loadPlanVersions(db))
+      .then((rows) => {
+        if (!cancelled) setPlanVersions(rows)
       })
       .catch(() => {
         // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
@@ -307,7 +320,17 @@ export function App() {
   }
 
   const applyReplan = async (blocks: StudyBlock[], reason: string) => {
-    setPlanVersions((versions) => recordPlanVersion(versions, reason, studyBlocks, new Date().toISOString()))
+    try {
+      const db = await getDb()
+      const version = await insertPlanVersion(
+        db,
+        { reason, snapshot_json: JSON.stringify(studyBlocks) },
+        new Date().toISOString(),
+      )
+      setPlanVersions((prev) => [...prev, version])
+    } catch (error) {
+      console.error('Planversion konnte nicht gespeichert werden', error)
+    }
     await handleChangeStudyBlocks(blocks)
   }
 
