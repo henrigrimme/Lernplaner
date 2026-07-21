@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Timer } from './Timer'
+import { KIND_LABELS } from './kindLabels'
 import { completeStudyBlock } from '../data/studyBlocks'
 import type { StudyBlock, Topic } from '../data/schema'
 
@@ -23,14 +24,6 @@ export interface TodayViewProps {
   /** "Heute", ISO-Datum — vom Aufrufer übergeben, keine Systemuhr in der Komponente. */
   today: string
   now: () => string
-}
-
-const KIND_LABELS: Record<string, string> = {
-  erstdurchgang: 'Erstdurchgang',
-  wiederholung: 'Wiederholung',
-  uebung: 'Übung',
-  quiz: 'Quiz',
-  puffer: 'Puffer',
 }
 
 const FEEDBACK_OPTIONS: { value: -1 | 0 | 1; label: string }[] = [

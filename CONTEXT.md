@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3 begonnen: `domain/replanning.ts` — Neuberechnung + Diff nach ADR-005 — sowie Heute-Ansicht mit Timer und Schwierigkeits-Feedback)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3: Neuberechnung mit Diff-Ansicht fertig — `replanning.ts` jetzt an `App.tsx`/`ReplanView` angebunden, zusätzlich zu Heute-Ansicht mit Timer/Feedback)
 
 ---
 
@@ -1030,27 +1030,75 @@ mit Timer und Schwierigkeits-Feedback" (ROADMAP.md Phase 3, erster Punkt).
 - `.claude/launch.json` neu angelegt (`npm run dev`, Port 1420) für den
   `Browser`-Preview-Mechanismus — vorher nicht vorhanden.
 
+Direkt im Anschluss, Branch `feat/replan-ui` (von `main` abgezweigt): die
+Lücke zwischen den beiden fertigen Bausteinen oben geschlossen —
+`replanning.ts` ist jetzt an `App.tsx`/eine echte Ansicht angebunden, „Plan
+übernehmen" bleibt für den Erstimport, ersetzt aber nicht mehr die einzige
+Möglichkeit, auf Rückstand zu reagieren. Damit ist ROADMAP.md Phase 3
+„Neuberechnung mit Diff-Ansicht" fachlich fertig.
+
+- **`data/studyBlocks.ts` → `applyReplan`**: wendet ein `ReplanResult` auf
+  den Bestand an (erst nach Bestätigung aufzurufen, prüft das aber nicht
+  selbst — das macht `ReplanView`). Ersetzt genau die noch offenen
+  `erstdurchgang`-Blöcke (verpasste wie zukünftige — exakt das, was
+  `replan()` selbst betrachtet) durch die neu berechneten; alles andere
+  bleibt unverändert, **auch `wiederholung`/`uebung`/`quiz`/`puffer`-Blöcke
+  mit Status `offen`** — bewusst, weil `replan()` Wiederholungen nicht
+  anfasst (dokumentierte Fortführungslücke, siehe `replanning.ts`); sie
+  hier trotzdem zu löschen würde eine unveränderte Wiederholung fälschlich
+  verwerfen. `materializeStudyBlocks` bekommt dafür einen neuen optionalen
+  `startId`-Parameter (Default 1, unverändertes Verhalten für den
+  bestehenden Aufrufer in `App.tsx`), damit neu erzeugte IDs an den
+  bestehenden Bestand anknüpfen statt ihn zu überschreiben.
+- **`data/planVersions.ts` → `recordPlanVersion`**: hält die *vorige*
+  Fassung des `study_blocks`-Bestands fest, bevor eine Neuplanung
+  angewendet wird — wörtlich ADR-005: „Die vorige Fassung bleibt in
+  `plan_versions` erhalten." Snapshot ist der komplette `StudyBlock[]`-
+  Bestand als JSON, nicht nur der Diff (einfacher wiederherzustellen,
+  DATA_MODEL.md nennt keine kompaktere Form). **Noch nicht gebaut:** eine
+  UI, um eine frühere Fassung tatsächlich wiederherzustellen — `App.tsx`
+  zeigt nur die Anzahl gespeicherter Fassungen an („N frühere Fassung(en)
+  gespeichert"); „zurück zur vorigen Fassung" ist kein eigener
+  ROADMAP.md-Punkt und wurde deshalb nicht mitgebaut, nur das von ADR-005
+  geforderte Aufbewahren selbst.
+- **`ui/ReplanView.tsx`** — neue Ansicht: Button „Rückstand prüfen und neu
+  berechnen" ruft `replan()` auf und zeigt das Ergebnis als Diff-Liste
+  (Thema, Art, Änderungsart, vorher/nachher inkl. Tage und Minuten) sowie
+  weiterhin nicht untergebrachte Zeit — **ohne etwas anzuwenden**, bis
+  „Übernehmen" geklickt wird (ADR-005). „Übernehmen" ist deaktiviert, wenn
+  der Diff leer ist (nichts zu tun). Bleibt ausgeblendet (nur ein Hinweis),
+  solange noch nie ein Plan übernommen wurde — `replan()` baut ohne
+  bestehende `erstdurchgang`-Historie keinen sinnvollen Vorschlag.
+- **`KIND_LABELS` nach `ui/kindLabels.ts` extrahiert** — stand dupliziert
+  in `PlanView.tsx` und `TodayView.tsx`, jetzt ein drittes Mal gebraucht
+  (`ReplanView.tsx`); ab drei Stellen keine vertretbare Duplikation mehr.
+  Reiner Konstanten-Export, keine Verhaltensänderung.
+- **`App.tsx`**: neuer `planVersions`-Zustand, `applyReplan`-Handler
+  (speichert die *vorige* `study_blocks`-Fassung, bevor er den neuen
+  Zustand setzt), `ReplanView` nach `TodayView` eingehängt.
+- 14 neue Tests (`applyReplan`, `recordPlanVersion`, `ReplanView` inkl. des
+  „Rückstand mitten in der Phase"-Szenarios aus Sicht der UI: ein
+  erledigter plus ein verpasster Block wird korrekt als „verschoben"
+  erkannt und beim Übernehmen zusammengeführt, ohne den erledigten Block zu
+  verändern). Live im Dev-Server geprüft: „Neuberechnung"-Bereich zeigt
+  korrekt den Hinweis „Erst einen Plan übernehmen …", solange kein Plan
+  besteht, keine Konsolenfehler.
+
 ### Nächster Schritt
 
-Beide Bausteine oben sind gemerged, aber noch nicht miteinander verbunden:
-`replanning.ts` ist nicht in `App.tsx` verdrahtet, „Plan übernehmen"
-ersetzt `study_blocks` weiterhin bedingungslos. Laut ROADMAP.md Phase 3
-als Nächstes eines von:
-
-- **Fortschrittsanzeige** (`domain/progress.ts`, siehe ARCHITECTURE.md) —
-  würde nebenbei auch die dokumentierte Fortführungslücke oben
-  (Wiederholung nach abgeschlossenem Erstdurchgang) mit abdecken.
-- **`replanning.ts` an die Heute-Ansicht/`App.tsx` anbinden** — bisher nur
-  in beiden Modulen unabhängig voneinander fertig, noch nicht als
-  zusammenhängender Nutzerfluss (Rückstand erkennen → Diff anzeigen →
-  Bestätigung → `study_blocks` aktualisieren). Kein eigener Roadmap-Punkt,
-  aber die naheliegende Lücke zwischen den beiden fertigen Bausteinen.
-- **Lokale Benachrichtigungen** oder **Kalender-Export** (nächste
-  Roadmap-Punkte) — brauchen `platform/`, bisher komplett ungebaut.
+ROADMAP.md Phase 3 verbleibend: Fortschrittsanzeige, Lokale
+Benachrichtigungen, Kalender-Export, PDF-Viewer mit Seitensprung,
+Kurs-Export/Import. Keine Abhängigkeit zwischen ihnen zwingt eine
+Reihenfolge; **Fortschrittsanzeige** (`domain/progress.ts`, siehe
+ARCHITECTURE.md) liegt nahe, weil sie nebenbei auch die weiterhin offene
+Fortführungslücke (Wiederholung nach abgeschlossenem Erstdurchgang, siehe
+`replanning.ts`-Kommentar) mit abdecken würde. **Lokale Benachrichtigungen**
+und **Kalender-Export** brauchen zusätzlich `platform/`, bisher komplett
+ungebaut — vermutlich der größere Brocken der beiden.
 
 ### Danach (unverändert aus der Roadmap)
 
-Phase 1 und Phase 2 sind komplett. Phase 3 „Alltag" begonnen (siehe oben).
+Phase 1 und Phase 2 sind komplett. Phase 3 „Alltag" in Arbeit (siehe oben).
 
 Siehe [ROADMAP.md](ROADMAP.md) für die vollständige Phasenplanung.
 
