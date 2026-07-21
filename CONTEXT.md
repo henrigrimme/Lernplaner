@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3 begonnen: `domain/replanning.ts` — Neuberechnung + Diff nach ADR-005)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3 begonnen: `domain/replanning.ts` — Neuberechnung + Diff nach ADR-005 — sowie Heute-Ansicht mit Timer und Schwierigkeits-Feedback)
 
 ---
 
@@ -897,7 +897,7 @@ wäre eine sinnvolle Erweiterung, aber kein Muss für die erste Version.
 
 ### Phase 3 — Alltag, begonnen
 
-Neuer Branch `feat/replanning` (von `main` abgezweigt — Phase 2 ist gemerged).
+Branch `feat/replanning` (von `main` abgezweigt — Phase 2 ist gemerged).
 Erster Baustein: `domain/replanning.ts` (`remainingErstdurchgangNeed`,
 `diffPlans`, `replan`) nach ADR-005 („Umplanung als Vorschlag, nie
 automatisch"). Erste Datei des ROADMAP.md-Punkts „Neuberechnung mit
@@ -950,25 +950,103 @@ Diff-Ansicht".
   ein Thema mit einem erledigten und einem verpassten Block wird ab einem
   späteren `from` neu berechnet, das Ergebnis bleibt ohne Defizit, und der
   verpasste Block erscheint im Diff als „verschoben".
-- Kein UI, keine Anbindung an `study_blocks` in der Datenbank — das ist
-  `data/`/`ui/`, kommt mit der Heute-Ansicht (ROADMAP.md Phase 3, erster
-  Punkt, noch offen).
+- Kein UI, keine Anbindung an `study_blocks` in der Datenbank zum Zeitpunkt
+  dieses Commits — das kam direkt im Anschluss mit der Heute-Ansicht
+  (nächster Abschnitt), `replanning.ts` selbst ist aber weiterhin nicht in
+  `App.tsx` verdrahtet (siehe dort).
+
+Direkt im Anschluss, auf einem zweiten von `main` abgezweigten Branch
+(`feat/today-view`, parallel begonnen, da die beiden Branches keine
+gemeinsamen Dateien außer CONTEXT.md/ROADMAP.md berühren): „Heute-Ansicht
+mit Timer und Schwierigkeits-Feedback" (ROADMAP.md Phase 3, erster Punkt).
+
+- **Kleine Vorab-Aufräumung:** Die Zusammenstellung „Themen/Fächer/
+  Prüfungen → `SchedulingTopic[]` → `scheduleStudyBlocks`" stand bisher
+  inline in `ui/PlanView.tsx` — ein Verstoß gegen ARCHITECTURE.md „ui/ …
+  keine Geschäftslogik", der nicht neu ist, aber jetzt ein zweites Mal
+  gebraucht wurde (siehe unten). Nach `domain/planBuilder.ts`
+  (`buildSchedule`) extrahiert; `PlanView.tsx` ruft das jetzt nur noch auf.
+  Verhalten unverändert — alle 5 bestehenden `PlanView.test.tsx`-Tests
+  laufen ohne Anpassung weiter durch (Regressionsnachweis für den
+  Refactor).
+- **`data/studyBlocks.ts`** (`materializeStudyBlocks`, `completeStudyBlock`):
+  wie `courses.ts`/`topicTree.ts` reine Editierfunktionen, keine Systemuhr,
+  keine DB. `materializeStudyBlocks` übernimmt eine `ScheduledBlock[]`
+  (aus `planBuilder.ts`) als frische `StudyBlock`-Zeilen mit fortlaufender
+  `id` und Status `offen` — **ersetzt bewusst den gesamten Bestand**, kein
+  Merge nach Status/id (das ist die Aufgabe der echten Neuplanung,
+  `domain/replanning.ts` auf dem parallelen Branch, noch nicht hier
+  integriert). `completeStudyBlock` setzt Status `erledigt` plus
+  `actual_minutes`/`difficulty_feedback`/`completed_at` für einen Block.
+- **`ui/Timer.tsx`** — eigenständiger Session-Timer, Presets nach der
+  bereits dokumentierten Recherche (siehe „Recherche:
+  Pomodoro/Session-Timing" oben): 25/5, 35/10, 50/10 **plus** frei
+  einstellbare eigene Werte (Nutzerwunsch: „dass man sich die Timer selbst
+  im Voraus einstellen kann"). Arbeits-/Pause-Phasen wechseln automatisch;
+  meldet die bisher gearbeiteten Minuten laufend über
+  `onElapsedWorkMinutesChange` nach außen — reine Präsentationskomponente,
+  keine Geschäftslogik zu `actual_minutes` o. Ä. (das entscheidet der
+  Aufrufer). Dauer-Einstellungen sind gesperrt, sobald der Timer lief oder
+  läuft, um eine laufende Sitzung nicht rückwirkend zu verändern.
+  6 Tests (`tests/ui/Timer.test.tsx`) — **mit `fireEvent` statt
+  `userEvent`**: `userEvent` hängt sich in Kombination mit
+  `vi.useFakeTimers()` auf (bekannte Inkompatibilität zwischen
+  `@testing-library/user-event` v14 und Vitests gefakten Timern, auch mit
+  `{ delay: null }`/`advanceTimers` nicht behoben) — `fireEvent` ist
+  synchron und kollidiert nicht mit den gefakten Timern. Für spätere
+  Timer-bezogene Tests dieselbe Falle vermeiden.
+- **`ui/TodayView.tsx`** — zeigt den ersten noch offenen `study_blocks`-
+  Eintrag des Tages mit eingebettetem `Timer`, lässt ihn mit tatsächlicher
+  Dauer (vorbefüllt aus dem Timer, überschreibbar) und Schwierigkeits-
+  Feedback (`-1`/`0`/`1`, Radiobuttons „Zu leicht"/„Passend"/„Zu schwer")
+  abschließen — über `data/studyBlocks.ts`, keine eigene Geschäftslogik.
+  „Fertig" bleibt deaktiviert, bis ein Feedback gewählt ist. Weitere offene
+  Blöcke des Tages erscheinen als Liste „Noch heute", bereits erledigte
+  als „Heute erledigt". Reine Präsentationskomponente wie `TopicTree"/
+  `CourseSetup` (`onChange`/`now` von außen). 6 Tests
+  (`tests/ui/TodayView.test.tsx`).
+- **`App.tsx`**: neuer `studyBlocks`-Zustand, Button „Plan übernehmen"
+  (bzw. „Plan neu übernehmen (überschreibt heutigen Fortschritt)", sobald
+  schon Blöcke bestehen) ruft `buildSchedule` + `materializeStudyBlocks`
+  auf und ersetzt den `studyBlocks`-Zustand. **Bewusst einfach** (siehe
+  `data/studyBlocks.ts`-Kommentar): kein automatisches Neu-Erzeugen bei
+  jeder Eingabeänderung, kein Abgleich mit bereits erledigten Blöcken —
+  beides wäre faktisch die Aufgabe der echten Neuplanung
+  (`replanning.ts`), noch nicht in `App.tsx` verdrahtet.
+- **Plausibilitätscheck im laufenden Dev-Server** (`npm run dev`, Chrome
+  über MCP-Browser-Anbindung): Fach anlegen, Prüfung anlegen, Wochenmuster
+  auf 60 Min. je Tag setzen, „Plan übernehmen" klicken — keine Fehler in
+  der Konsole, „Heute"-Bereich zeigt korrekt „Für heute ist nichts
+  geplant." (da noch kein Thema/Umfang vorhanden). **Nicht möglich:**
+  echten PDF-Import über die Browser-Automatisierung durchspielen — die
+  Dateifreigabe-Sandbox der Browser-Tools lässt nur Dateien zu, die der
+  Nutzer explizit für die Sitzung freigegeben hat, `Beispiel pdfs/` gehört
+  nicht dazu. Der komplette Fluss inkl. eines echten `StudyBlock` mit
+  Timer/Feedback ist stattdessen ausschließlich über die 15 neuen
+  automatisierten Komponententests abgedeckt (u. a. simulierter Timer-
+  Countdown, Preset-Wechsel, Schwierigkeits-Auswahl, „Fertig"-Klick mit
+  Prüfung der `onChange`-Nutzlast) — bei Gelegenheit nachholen, sobald PDF-
+  Testmaterial für die Browser-Sitzung freigegeben werden kann.
+- `.claude/launch.json` neu angelegt (`npm run dev`, Port 1420) für den
+  `Browser`-Preview-Mechanismus — vorher nicht vorhanden.
 
 ### Nächster Schritt
 
-`domain/replanning.ts` ist fachlich fertig (Rückstandsberechnung, Diff,
-Zusammenspiel), aber noch nicht an eine echte Oberfläche angebunden. Zwei
-mögliche Richtungen, beide aus ROADMAP.md Phase 3, keine hat Vorrang
-festgelegt:
+Beide Bausteine oben sind gemerged, aber noch nicht miteinander verbunden:
+`replanning.ts` ist nicht in `App.tsx` verdrahtet, „Plan übernehmen"
+ersetzt `study_blocks` weiterhin bedingungslos. Laut ROADMAP.md Phase 3
+als Nächstes eines von:
 
-- **Heute-Ansicht mit Timer** (erster Roadmap-Punkt, Recherche zu
-  Session-Timing bereits erledigt, siehe „Recherche:
-  Pomodoro/Session-Timing" oben) — braucht `platform/` (Systembenachrich­
-  tigungen kommen später) nicht zwingend, kann rein `ui/` + `data/` sein.
-- **`domain/progress.ts`** (mastery, Vorbereitungsgrad, nächster Schritt,
-  siehe ARCHITECTURE.md) — würde die grobe Fortführungslücke oben
-  (Wiederholung nach abgeschlossenem Erstdurchgang) mit abdecken, weil
-  Fortschritt dann ohnehin pro Thema nachgehalten wird.
+- **Fortschrittsanzeige** (`domain/progress.ts`, siehe ARCHITECTURE.md) —
+  würde nebenbei auch die dokumentierte Fortführungslücke oben
+  (Wiederholung nach abgeschlossenem Erstdurchgang) mit abdecken.
+- **`replanning.ts` an die Heute-Ansicht/`App.tsx` anbinden** — bisher nur
+  in beiden Modulen unabhängig voneinander fertig, noch nicht als
+  zusammenhängender Nutzerfluss (Rückstand erkennen → Diff anzeigen →
+  Bestätigung → `study_blocks` aktualisieren). Kein eigener Roadmap-Punkt,
+  aber die naheliegende Lücke zwischen den beiden fertigen Bausteinen.
+- **Lokale Benachrichtigungen** oder **Kalender-Export** (nächste
+  Roadmap-Punkte) — brauchen `platform/`, bisher komplett ungebaut.
 
 ### Danach (unverändert aus der Roadmap)
 

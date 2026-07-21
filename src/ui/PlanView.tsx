@@ -1,5 +1,4 @@
-import { estimateMinutes } from '../domain/estimation'
-import { scheduleStudyBlocks, type SchedulingAssessment, type SchedulingTopic } from '../domain/scheduling'
+import { buildSchedule } from '../domain/planBuilder'
 import type {
   Assessment,
   AvailabilityException,
@@ -12,20 +11,12 @@ import type {
 
 /**
  * Planansicht (ROADMAP.md Phase 2 „Ergebnis": erster echter Lernplan).
- * Ruft `estimation.ts`/`scheduling.ts` auf und zeigt das Ergebnis als
- * Wochenübersicht. Reine Präsentation nach außen (ARCHITECTURE.md „ui/ …
- * keine Geschäftslogik") — die eigentliche Rechenlogik liegt vollständig in
- * `domain/`; was hier passiert, ist nur das **Zusammenstellen** der Eingaben
- * aus den anderen Zustandsteilen der App, keine eigene Planungslogik.
- *
- * **Vereinfachung, nicht im Schema abgebildet:** `topics` haben kein
- * eigenes `assessment_id` (siehe DATA_MODEL.md — die Zuordnung passiert
- * erst in `study_blocks`, ein Thema könnte grundsätzlich zu mehreren
- * Prüfungen gehören). Diese Ansicht wählt für jedes Thema die **nächste
- * bevorstehende Prüfung seines Fachs** (kleinstes Datum ≥ `from`) — ein
- * Thema für eine spätere Prüfung desselben Fachs vorzubereiten, geht damit
- * noch nicht. Themen ohne bevorstehende Prüfung werden separat aufgeführt,
- * nicht stillschweigend weggelassen.
+ * Ruft `domain/planBuilder.ts` (Schätzung + Terminierung) auf und zeigt das
+ * Ergebnis als Wochenübersicht. Reine Präsentation nach außen
+ * (ARCHITECTURE.md „ui/ … keine Geschäftslogik") — das Zusammenstellen der
+ * Eingaben aus Themen/Fächern/Prüfungen lebt in `planBuilder.ts`, nicht
+ * hier (siehe dortiger Kommentar zur Vereinfachung „nächste bevorstehende
+ * Prüfung je Fach").
  */
 
 export interface PlanViewProps {
@@ -67,47 +58,7 @@ export function PlanView({
   from,
 }: PlanViewProps) {
   const topicById = new Map(topics.map((t) => [t.id, t]))
-  const courseById = new Map(courses.map((c) => [c.id, c]))
-  const assessmentById = new Map(assessments.map((a) => [a.id, a]))
-
-  const schedulingTopics: SchedulingTopic[] = []
-  const topicsWithoutAssessment: Topic[] = []
-  const usedAssessmentIds = new Set<number>()
-
-  for (const topic of topics) {
-    const course = courseById.get(topic.course_id)
-    const upcoming = assessments
-      .filter((a) => a.course_id === topic.course_id && a.date >= from)
-      .sort((a, b) => a.date.localeCompare(b.date))[0]
-
-    if (!course || !upcoming) {
-      topicsWithoutAssessment.push(topic)
-      continue
-    }
-
-    const sections = topicSections.filter((s) => s.topic_id === topic.id)
-    const estimate = estimateMinutes({
-      topic: { weight: topic.weight },
-      sections,
-      course: { difficulty: course.difficulty },
-      assessmentFormat: upcoming.format,
-      calibration: null,
-    })
-    if (estimate.minutes === 0) continue
-
-    usedAssessmentIds.add(upcoming.id)
-    schedulingTopics.push({ topicId: topic.id, assessmentId: upcoming.id, neededMinutes: estimate.minutes })
-  }
-
-  const schedulingAssessments: SchedulingAssessment[] = [...usedAssessmentIds].map((id) => ({
-    id,
-    date: assessmentById.get(id)!.date,
-  }))
-
-  const result =
-    schedulingTopics.length === 0
-      ? { blocks: [], unscheduled: [] }
-      : scheduleStudyBlocks(schedulingTopics, schedulingAssessments, from, pattern, exceptions, blockers)
+  const result = buildSchedule({ topics, topicSections, assessments, courses, pattern, exceptions, blockers, from })
 
   const blocksByWeek = new Map<string, Map<string, typeof result.blocks>>()
   for (const block of [...result.blocks].sort((a, b) => a.planned_date.localeCompare(b.planned_date))) {
@@ -123,7 +74,7 @@ export function PlanView({
     <section aria-label="Lernplan">
       <h2>Lernplan</h2>
 
-      {schedulingTopics.length === 0 ? (
+      {result.topicsConsideredCount === 0 ? (
         <p>Noch kein Thema mit bevorstehender Prüfung und geschätztem Aufwand.</p>
       ) : (
         [...blocksByWeek.entries()].map(([week, byDay]) => (
@@ -164,12 +115,12 @@ export function PlanView({
         </div>
       )}
 
-      {topicsWithoutAssessment.length > 0 && (
+      {result.topicsWithoutAssessment.length > 0 && (
         <div>
           <h3>Ohne bevorstehende Prüfung</h3>
           <p>Diese Themen fließen nicht in den Plan ein, solange ihr Fach keine anstehende Prüfung hat:</p>
           <ul>
-            {topicsWithoutAssessment.map((t) => (
+            {result.topicsWithoutAssessment.map((t) => (
               <li key={t.id}>{t.name}</li>
             ))}
           </ul>
