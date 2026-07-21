@@ -31,6 +31,7 @@ import {
 import { removeAvailabilityException, setAvailabilityException, setAvailabilityPattern } from './data/availability'
 import { loadTopics, syncTopics } from './data/topicsRepo'
 import { loadTopicSections } from './data/topicSectionsRepo'
+import { loadStudyBlocks, syncStudyBlocks } from './data/studyBlocksRepo'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
@@ -51,16 +52,16 @@ import type {
  * `ui/`-Schicht zusammenspielen (ROADMAP.md Phase 1) und dass der
  * komplette Fluss bis zum Lernplan durchspielbar ist (Phase 2). Persistenz
  * wird schrittweise nachgezogen (CONTEXT.md „Persistenz-Härtung"):
- * **Fächer, Prüfungen, Verfügbarkeit und Themen/Themenabschnitte sind
- * bereits echt in SQLite gespeichert** (`data/coursesRepo.ts`/
+ * **Fächer, Prüfungen, Verfügbarkeit, Themen/Themenabschnitte und
+ * Lernblöcke sind bereits echt in SQLite gespeichert** (`data/coursesRepo.ts`/
  * `data/assessmentsRepo.ts`/`data/availabilityRepo.ts`/
- * `data/topicsRepo.ts`/`data/topicSectionsRepo.ts`/`data/documentsRepo.ts`
- * über `data/db.ts`/`tauri-plugin-sql`), nur Lernblöcke und Planversionen
- * sind weiterhin lokaler React-State, geht beim Neuladen verloren — das
- * kommt im nächsten Schritt. `getDb()`/die Repo-Funktionen funktionieren
- * nur im echten Tauri-Fenster (keine IPC-Bridge im Vite-Dev-Server/
- * Browser, wie bei `platform/notifications.ts`) — die `catch`-Blöcke
- * unten fangen das ab, statt die UI abstürzen zu lassen.
+ * `data/topicsRepo.ts`/`data/topicSectionsRepo.ts`/`data/documentsRepo.ts`/
+ * `data/studyBlocksRepo.ts` über `data/db.ts`/`tauri-plugin-sql`), nur
+ * Planversionen sind weiterhin lokaler React-State, geht beim Neuladen
+ * verloren — das kommt im nächsten Schritt. `getDb()`/die Repo-Funktionen
+ * funktionieren nur im echten Tauri-Fenster (keine IPC-Bridge im
+ * Vite-Dev-Server/Browser, wie bei `platform/notifications.ts`) — die
+ * `catch`-Blöcke unten fangen das ab, statt die UI abstürzen zu lassen.
  *
  * PDF-Rohbytes (`documentBytes`) bleiben bewusst **nicht** persistiert
  * (SECURITY.md: PDFs sind urheberrechtlich geschützt, gehören nicht mal
@@ -71,11 +72,11 @@ import type {
  * **Bekannte Lücke:** Kurs-Export/Import (`applyCourseImport` unten) geht
  * bewusst **nicht** über die Repo-Schicht — es ist ein eigenständiges,
  * rein array-basiertes Austauschformat (`data/courseExport.ts`, JSON-Datei
- * zwischen den beiden Nutzern). Ein importierter Kurs erscheint dadurch
- * nur für die laufende Sitzung, nicht dauerhaft in der Datenbank — dieselbe
- * Lücke besteht bereits seit den Fächer-/Prüfungs-Bausteinen, hier nur der
- * Vollständigkeit halber erneut festgehalten, da sie jetzt auch Themen
- * betrifft.
+ * zwischen den beiden Nutzern). Ein importierter Kurs (inkl. seiner
+ * Lernblöcke) erscheint dadurch nur für die laufende Sitzung, nicht
+ * dauerhaft in der Datenbank — dieselbe Lücke besteht bereits seit den
+ * Fächer-/Prüfungs-Bausteinen, hier nur der Vollständigkeit halber erneut
+ * festgehalten, da sie jetzt auch Themen und Lernblöcke betrifft.
  */
 export function App() {
   const [topics, setTopics] = useState<Topic[]>([])
@@ -151,6 +152,21 @@ export function App() {
           setTopics(topicRows)
           setTopicSections(sectionRows)
         }
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => loadStudyBlocks(db))
+      .then((rows) => {
+        if (!cancelled) setStudyBlocks(rows)
       })
       .catch(() => {
         // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
@@ -275,14 +291,24 @@ export function App() {
     }
   }
 
-  const generateStudyBlocks = () => {
-    const schedule = buildSchedule({ topics, topicSections, assessments, courses, pattern, exceptions, blockers, from: today })
-    setStudyBlocks(materializeStudyBlocks(schedule.blocks))
+  const handleChangeStudyBlocks = async (nextBlocks: StudyBlock[]) => {
+    try {
+      const db = await getDb()
+      const persisted = await syncStudyBlocks(db, studyBlocks, nextBlocks)
+      setStudyBlocks(persisted)
+    } catch (error) {
+      console.error('Lernblöcke konnten nicht gespeichert werden', error)
+    }
   }
 
-  const applyReplan = (blocks: StudyBlock[], reason: string) => {
+  const generateStudyBlocks = async () => {
+    const schedule = buildSchedule({ topics, topicSections, assessments, courses, pattern, exceptions, blockers, from: today })
+    await handleChangeStudyBlocks(materializeStudyBlocks(schedule.blocks))
+  }
+
+  const applyReplan = async (blocks: StudyBlock[], reason: string) => {
     setPlanVersions((versions) => recordPlanVersion(versions, reason, studyBlocks, new Date().toISOString()))
-    setStudyBlocks(blocks)
+    await handleChangeStudyBlocks(blocks)
   }
 
   const checkNotifications = async () => {
@@ -426,7 +452,7 @@ export function App() {
       <TodayView
         studyBlocks={studyBlocks}
         topics={topics}
-        onChange={setStudyBlocks}
+        onChange={handleChangeStudyBlocks}
         today={today}
         now={() => new Date().toISOString()}
       />

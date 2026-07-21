@@ -1596,14 +1596,72 @@ vorher nur als vage Option offengehalten.
   frische/leere DB im Dev-Server-Kontext — erwartetes Verhalten, kein
   Fehler).
 
+### Persistenz-Härtung — Baustein 6: Lernblöcke echt in SQLite
+
+Branch `feat/persistence-studyblocks` (von `main` abgezweigt). Fünfte
+umgestellte Entität. Anders als bei Themen (Baustein 5) entstehen hier
+über **drei** verschiedene Nutzeraktionen laufend neue Zeilen mit lokalen
+Platzhalter-`id`s (`data/studyBlocks.ts`s `materializeStudyBlocks` vergibt
+sie fortlaufend, „kompatibel mit dem späteren `AUTOINCREMENT`-Verhalten" —
+das war für genau diesen Baustein so vorbereitet): „Plan (neu)
+übernehmen" (`generateStudyBlocks`), Neuberechnung übernehmen
+(`ReplanView`/`applyReplan`) und Block abschließen (`TodayView`/
+`completeStudyBlock`, hier ohne neue Zeilen, nur ein Update).
+
+- **`data/studyBlocksRepo.ts`** (neu): `loadStudyBlocks`, `insertStudyBlock`,
+  `updateStudyBlockRow`, `deleteStudyBlockRow` sowie `syncStudyBlocks(conn,
+  before, after)`. **Wichtiger Unterschied zu `syncTopics`:** `syncTopics`
+  legt bewusst nie neue Zeilen an (Themen entstehen ausschließlich über den
+  PDF-Import). Bei Lernblöcken ist das Gegenteil der Fall — alle drei
+  genannten Aktionen können neue Blöcke einbringen. `syncStudyBlocks` hat
+  deshalb zusätzlich einen Insert-Zweig (Zeilen aus `after`, deren `id`
+  nicht in `before` vorkommt) und liefert **die korrigierte Liste
+  zurück**, in der die lokalen Platzhalter-`id`s durch die echten
+  `AUTOINCREMENT`-`id`s ersetzt sind — nur diese, nicht `after`, darf
+  anschließend als neuer React-Zustand übernommen werden, sonst würde ein
+  späteres `completeStudyBlock(id)` oder ein erneutes `syncStudyBlocks` die
+  falsche Zeile treffen.
+- **Warum kein separates „Alles löschen, alles neu einfügen" für „Plan
+  übernehmen" nötig war:** man könnte annehmen, ein voller Regenerierungs-
+  Klick bräuchte einen Sonderfall (DELETE ALL + INSERT ALL), weil
+  `materializeStudyBlocks` beim zweiten Aufruf wieder bei `id = 1`
+  anfängt und damit zufällig mit echten, bereits vergebenen `id`s
+  kollidieren kann. Bei näherer Prüfung ist das unschädlich: `syncStudyBlocks`
+  behandelt eine solche `id`-Koinzidenz einfach als „diese Zeile hat sich
+  komplett geändert" und schreibt sie per `UPDATE` auf die neuen
+  Feldwerte — das Endergebnis in der DB ist feldweise identisch mit einem
+  Löschen+Neuanlegen (nur die physische Zeilenidentität bleibt zufällig
+  erhalten, was hier nirgends eine Rolle spielt, da nichts auf
+  `study_blocks.id` verweist). **Ein einziger genereller Sync deckt daher
+  alle drei Aktionen ab**, kein Sonderfall nötig.
+- **`App.tsx`**: neuer gemeinsamer Handler `handleChangeStudyBlocks(next)`
+  (analog `handleChangeTopics`), den `generateStudyBlocks`,
+  `applyReplan` (App.tsx-Ebene, ruft weiterhin zuerst `recordPlanVersion`
+  auf, unverändert lokal, siehe Baustein 7) und `TodayView`s `onChange`
+  jetzt alle drei aufrufen, statt direkt `setStudyBlocks`. Vierter
+  `useEffect`-Lader (`loadStudyBlocks`) analog zu den bisherigen Ladern.
+  Bekannte Lücke (Kurs-Export/Import, siehe Baustein 2/5) erweitert:
+  betrifft jetzt auch importierte Lernblöcke.
+- **9 neue Tests** (`studyBlocksRepo.test.ts`) über `tests/data/testConnection.ts`,
+  u. a.: Fremdschlüssel-Kaskade beim Löschen eines referenzierten Themas,
+  `completeStudyBlock` als reines `UPDATE`, Neuanlegen mit echter statt
+  Platzhalter-`id` (mit bewusst weit entferntem `startId`, um einen
+  Koinzidenz-Fehlalarm auszuschließen), und ein voller
+  Neuberechnungs-Szenario-Test (behält/löscht/legt neu an in einem
+  Durchlauf).
+- **Im frischen Tab geprüft:** Klick auf „Plan übernehmen" ohne echtes
+  Tauri-Fenster — Konsole zeigt exakt die erwartete, abgefangene
+  Fehlermeldung („Lernblöcke konnten nicht gespeichert werden"), kein
+  Absturz, Button-Text bleibt „Plan übernehmen" (kein optimistisches
+  Update ohne erfolgreichen DB-Write, wie bei den bisherigen Bausteinen).
+
 ### Nächster Schritt
 
-Persistenz-Härtung Baustein 6: **Lernblöcke** (`study_blocks`). Danach
-Baustein 7: **Planversionen** (`plan_versions`). Erst wenn alle Entitäten
-umgestellt sind, den `App.tsx`-Kommentar entsprechend abschließend
-aktualisieren (aktuell verweist er noch auf einen „provisorischen
-Rahmen" für die verbleibenden Entitäten). Danach: ROADMAP.md Phase 4 der
-Reihe nach, wie vom Nutzer bestätigt.
+Persistenz-Härtung Baustein 7: **Planversionen** (`plan_versions`) — die
+letzte verbleibende Entität. Danach den `App.tsx`-Kommentar entsprechend
+abschließend aktualisieren (die „provisorischer Rahmen"-Formulierung kann
+dann ganz entfallen). Danach: ROADMAP.md Phase 4 der Reihe nach, wie vom
+Nutzer bestätigt.
 
 ### Danach (unverändert aus der Roadmap)
 
