@@ -1,22 +1,27 @@
 import { useState } from 'react'
-import { addCourse, removeCourse, setCourseArchived, updateCourse } from '../data/courses'
+import type { NewCourseInput } from '../data/courses'
 import type { Course } from '../data/schema'
 
 /**
  * Fach-Setup: Fächer anlegen, bearbeiten, archivieren, löschen. Voraus-
- * setzung für `estimation.ts`/`capacity.ts`, die bisher nur mit
- * synthetischen Testdaten laufen (siehe CONTEXT.md „Als Nächstes").
+ * setzung für `estimation.ts`/`capacity.ts`.
  *
- * Reine Präsentationskomponente wie `TopicTree` — Logik lebt in
- * `data/courses.ts`, `onChange` reicht den neuen Zustand nach außen.
- * `createdAt` kommt von außen (kein `Date.now()` in der Komponente), damit
- * die Zeitquelle an einer einzigen, austauschbaren Stelle bleibt.
+ * Reine Präsentationskomponente wie `TopicTree` — kennt weder `data/
+ * courses.ts` noch `data/coursesRepo.ts` direkt (anders als vor der
+ * Persistenz-Härtung): jede Aktion geht über einen eigenen Callback
+ * (`onAdd`/`onUpdate`/`onArchive`/`onRemove`) nach außen, weil der
+ * Aufrufer (`App.tsx`) jetzt sowohl die echte Datenbank-Operation als auch
+ * die lokale Zustandsänderung ausführen muss — ein einzelnes `onChange`
+ * mit dem fertigen Array (wie zuvor) ließe offen, *welche* Änderung
+ * passiert ist, und damit auch nicht, welche SQL-Operation dazu gehört.
  */
 
 export interface CourseSetupProps {
   courses: Course[]
-  onChange: (courses: Course[]) => void
-  now: () => string
+  onAdd: (input: NewCourseInput) => void
+  onUpdate: (id: number, changes: Partial<NewCourseInput>) => void
+  onArchive: (id: number, archived: boolean) => void
+  onRemove: (id: number) => void
 }
 
 interface DraftCourse {
@@ -29,7 +34,7 @@ interface DraftCourse {
 
 const EMPTY_DRAFT: DraftCourse = { name: '', semester: '', color: '#4f46e5', priority: 3, difficulty: 3 }
 
-export function CourseSetup({ courses, onChange, now }: CourseSetupProps) {
+export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: CourseSetupProps) {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [draft, setDraft] = useState<DraftCourse>(EMPTY_DRAFT)
   const [showArchived, setShowArchived] = useState(false)
@@ -57,9 +62,9 @@ export function CourseSetup({ courses, onChange, now }: CourseSetupProps) {
     if (draft.name.trim().length === 0 || draft.semester.trim().length === 0) return
 
     if (editingId === -1) {
-      onChange(addCourse(courses, { ...draft, name: draft.name.trim(), semester: draft.semester.trim() }, now()))
+      onAdd({ ...draft, name: draft.name.trim(), semester: draft.semester.trim() })
     } else if (editingId !== null) {
-      onChange(updateCourse(courses, editingId, { ...draft, name: draft.name.trim() }))
+      onUpdate(editingId, { ...draft, name: draft.name.trim() })
     }
     setEditingId(null)
   }
@@ -80,10 +85,10 @@ export function CourseSetup({ courses, onChange, now }: CourseSetupProps) {
             <button type="button" onClick={() => startEdit(course)}>
               Bearbeiten
             </button>
-            <button type="button" onClick={() => onChange(setCourseArchived(courses, course.id, course.archived === 0))}>
+            <button type="button" onClick={() => onArchive(course.id, course.archived === 0)}>
               {course.archived === 0 ? 'Archivieren' : 'Wiederherstellen'}
             </button>
-            <button type="button" onClick={() => onChange(removeCourse(courses, course.id))}>
+            <button type="button" onClick={() => onRemove(course.id)}>
               Löschen
             </button>
           </li>
