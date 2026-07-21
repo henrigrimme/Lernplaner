@@ -10,6 +10,7 @@ import { ProgressView } from './ui/ProgressView'
 import { SourceViewer } from './ui/SourceViewer'
 import { CourseExportImport } from './ui/CourseExportImport'
 import { NotificationsPanel } from './ui/NotificationsPanel'
+import { CalendarExport } from './ui/CalendarExport'
 import { extractDocument } from './ingest/pdf'
 import { topicsFromExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
@@ -215,6 +216,8 @@ export function App() {
       {planVersions.length > 0 && <p>{planVersions.length} frühere Fassung(en) gespeichert (ADR-005).</p>}
 
       <NotificationsPanel onCheckNow={checkNotifications} />
+
+      <CalendarExport studyBlocks={studyBlocks} topics={topics} now={() => new Date().toISOString()} />
 
       <CourseExportImport
         courses={courses}
