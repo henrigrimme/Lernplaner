@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3: Neuberechnung mit Diff-Ansicht fertig — `replanning.ts` jetzt an `App.tsx`/`ReplanView` angebunden, zusätzlich zu Heute-Ansicht mit Timer/Feedback)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3: Fortschrittsanzeige fertig — `domain/progress.ts`/`ProgressView`, zusätzlich zu Heute-Ansicht und Neuberechnung mit Diff-Ansicht)
 
 ---
 
@@ -1084,17 +1084,61 @@ Möglichkeit, auf Rückstand zu reagieren. Damit ist ROADMAP.md Phase 3
   korrekt den Hinweis „Erst einen Plan übernehmen …", solange kein Plan
   besteht, keine Konsolenfehler.
 
+Direkt im Anschluss, Branch `feat/progress` (von `main` abgezweigt):
+`domain/progress.ts` — mastery, Vorbereitungsgrad, nächster Schritt
+(ARCHITECTURE.md), plus `ui/ProgressView.tsx`. Formeln wörtlich aus
+DATA_MODEL.md „Abgeleitete Werte" übernommen:
+
+- **`computeTopicMastery`**: Erledigungsquote (`actual_minutes`, Fallback
+  `planned_minutes`) über alle nicht gestrichenen Blöcke eines Themas
+  (**alle Arten** — Übung/Quiz/Wiederholung zählen zur Beherrschung, nicht
+  nur Erstdurchgang, anders als `replanning.ts`s bewusst engerer Fokus),
+  korrigiert um Schwierigkeits-Feedback: `FEEDBACK_MASTERY_WEIGHT = 0,15`
+  (neu, wie `EXAM_FORMAT_MULTIPLIER` in `estimation.ts` erfunden, aber
+  benannt und auffindbar exportiert statt versteckter Magic Number — nichts
+  in DATA_MODEL.md beziffert diese Korrektur). „Zu schwer" drückt die
+  Erledigungsquote um bis zu 15 Prozentpunkte, „zu leicht" hebt sie an,
+  gekappt auf `[0, 1]`.
+- **`computePreparedness`**: Σ(mastery × weight) / Σ(weight), über eine vom
+  Aufrufer übergebene Themenliste (nicht aus `study_blocks` abgeleitet) —
+  ein Thema **ohne** jeden Block zählt bewusst mit `mastery = 0`, statt im
+  Ergebnis zu fehlen; sonst sähe „noch nie angefangen" aus wie „nicht
+  relevant". `mastery` je Thema kommt dabei nur aus Blöcken der
+  übergebenen `assessmentId` — dieselbe Vereinfachung wie die „nächste
+  bevorstehende Prüfung"-Wahl in `planBuilder.ts`, ein Thema über mehrere
+  Prüfungen hinweg zu verfolgen bräuchte eine Zuordnung, die das Schema
+  nicht vorsieht.
+- **`suggestNextTopic`**: `max(weight × (1 − mastery))`, stabil bei
+  Gleichstand (zuerst übergebenes Thema gewinnt, keine versteckte
+  Zufallsreihenfolge).
+- **`ui/ProgressView.tsx`**: pro bevorstehender Prüfung (Datum ≥ `from`)
+  Vorbereitungsgrad in Prozent plus „Nächster Schritt: <Thema>". Themen je
+  Prüfung werden einfach über `topic.course_id === assessment.course_id`
+  bestimmt (**alle** Themen des Fachs, nicht nur bereits verplante) — reiner
+  Filter in der Komponente, keine eigene Berechnung (ARCHITECTURE.md
+  „ui/"). In `App.tsx` direkt nach `PlanView` eingehängt.
+- 20 neue Tests (16 `progress.test.ts`, 4 `ProgressView.test.tsx`). Live im
+  Dev-Server geprüft: Fach + Prüfung angelegt, „Fortschritt" zeigt korrekt
+  „Endklausur (2026-08-10)" mit „Noch keine Themen für dieses Fach." (da
+  noch kein PDF importiert), keine Konsolenfehler.
+- **Nicht mitgebaut:** Die in `replanning.ts` dokumentierte
+  Fortführungslücke (Wiederholung nach abgeschlossenem Erstdurchgang) bleibt
+  weiterhin offen — `progress.ts` berechnet mastery unabhängig von dieser
+  Terminierungsfrage, löst sie nicht mit. Wurde bei der Schrittwahl als
+  möglicher Nebeneffekt vermutet, hat sich beim Bauen aber nicht ergeben:
+  beide Module bleiben unabhängig, wie ARCHITECTURE.md es für `domain/`
+  vorsieht (keine Modul-Abhängigkeiten untereinander außer über die
+  aufrufende Schicht).
+
 ### Nächster Schritt
 
-ROADMAP.md Phase 3 verbleibend: Fortschrittsanzeige, Lokale
-Benachrichtigungen, Kalender-Export, PDF-Viewer mit Seitensprung,
-Kurs-Export/Import. Keine Abhängigkeit zwischen ihnen zwingt eine
-Reihenfolge; **Fortschrittsanzeige** (`domain/progress.ts`, siehe
-ARCHITECTURE.md) liegt nahe, weil sie nebenbei auch die weiterhin offene
-Fortführungslücke (Wiederholung nach abgeschlossenem Erstdurchgang, siehe
-`replanning.ts`-Kommentar) mit abdecken würde. **Lokale Benachrichtigungen**
-und **Kalender-Export** brauchen zusätzlich `platform/`, bisher komplett
-ungebaut — vermutlich der größere Brocken der beiden.
+ROADMAP.md Phase 3 verbleibend: Lokale Benachrichtigungen, Kalender-Export,
+PDF-Viewer mit Seitensprung, Kurs-Export/Import. Keine Abhängigkeit
+zwischen ihnen zwingt eine Reihenfolge. **Lokale Benachrichtigungen** und
+**Kalender-Export** brauchen `platform/` (macOS-Anbindung), bisher komplett
+ungebaut — vermutlich der größere Brocken; **PDF-Viewer** und
+**Kurs-Export/Import** sind reiner `ui/`/`data/`-Umfang auf bereits
+bestehenden Grundlagen (`ingest/pdf.ts` bzw. das SQLite-Schema).
 
 ### Danach (unverändert aus der Roadmap)
 
