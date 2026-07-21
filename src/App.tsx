@@ -7,6 +7,7 @@ import { PlanView } from './ui/PlanView'
 import { TodayView } from './ui/TodayView'
 import { ReplanView } from './ui/ReplanView'
 import { ProgressView } from './ui/ProgressView'
+import { SourceViewer } from './ui/SourceViewer'
 import { extractDocument } from './ingest/pdf'
 import { topicsFromExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
@@ -48,6 +49,7 @@ export function App() {
   const [blockers] = useState<Blocker[]>([])
   const [studyBlocks, setStudyBlocks] = useState<StudyBlock[]>([])
   const [planVersions, setPlanVersions] = useState<PlanVersion[]>([])
+  const [documentBytes, setDocumentBytes] = useState<Record<number, Uint8Array>>({})
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [nextDocumentId, setNextDocumentId] = useState(1)
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
@@ -76,6 +78,8 @@ export function App() {
       const result = topicsFromExtractedDocument(extracted, selectedCourseId, documentId, currentTopics, currentSections)
       currentTopics = result.topics
       currentSections = result.topicSections
+      const importedDocumentId = documentId
+      setDocumentBytes((prev) => ({ ...prev, [importedDocumentId]: data }))
       documentId += 1
     }
 
@@ -130,6 +134,8 @@ export function App() {
       )}
 
       <TopicTree topics={topics} onChange={setTopics} />
+
+      <SourceViewer topics={topics} topicSections={topicSections} documentBytes={documentBytes} />
 
       <PlanView
         topics={topics}

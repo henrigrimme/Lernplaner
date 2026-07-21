@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3: Fortschrittsanzeige fertig — `domain/progress.ts`/`ProgressView`, zusätzlich zu Heute-Ansicht und Neuberechnung mit Diff-Ansicht)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3: PDF-Viewer mit Seitensprung fertig — `PdfViewer`/`SourceViewer`, zusätzlich zu Heute-Ansicht, Neuberechnung und Fortschrittsanzeige)
 
 ---
 
@@ -1130,15 +1130,70 @@ DATA_MODEL.md „Abgeleitete Werte" übernommen:
   vorsieht (keine Modul-Abhängigkeiten untereinander außer über die
   aufrufende Schicht).
 
+Direkt im Anschluss, Branch `feat/pdf-viewer` (von `main` abgezweigt):
+„PDF-Viewer mit Seitensprung" — bewusst als reiner `ui/`-Umfang gelesen
+(ein Viewer, der zu einer Seite springen kann), nicht als „Klick auf ein
+Thema navigiert automatisch zur richtigen Prüfungs-/Kalenderintegration"
+o. Ä. Ausgewählt, weil er **keine** neue Abhängigkeit braucht (anders als
+Lokale Benachrichtigungen/Kalender-Export, siehe unten) — `pdfjs-dist` ist
+bereits Abhängigkeit von `ingest/pdf.ts`, hier erstmals für echtes
+**Rendern** (`page.render`) statt nur Textextraktion verwendet.
+
+- **`ui/PdfViewer.tsx`**: rendert eine Seite eines im Speicher gehaltenen
+  PDFs (`Uint8Array`) auf ein Canvas. Vor/Zurück-Buttons (an den
+  Dokumentgrenzen deaktiviert) plus ein Eingabefeld, das direkt zu einer
+  Seitenzahl springt (außerhalb des gültigen Bereichs auf `[1, numPages]`
+  gekappt). Übernimmt den Worker-Setup-Kommentar/-Guard wörtlich aus
+  `ingest/pdf.ts` (`typeof window`-Guard, sonst wirft `getDocument` unter
+  Vitest/Node keinen Fehler wegen des „Fake Worker"-Fallbacks von pdf.js).
+  5 Tests (`pdfjs-dist` komplett gemockt, `canvas.getContext('2d')` ist in
+  jsdom ohnehin `null` ohne das `canvas`-npm-Paket — die Komponente
+  überspringt das eigentliche Rendern in dem Fall bewusst still, statt
+  abzustürzen, siehe Kommentar im Code).
+- **`ui/SourceViewer.tsx`**: verbindet Themenbaum und Viewer — pro
+  `topic_section` ein Eintrag mit Themenname und Seitenbereich, „Im PDF
+  ansehen" öffnet den `PdfViewer` direkt auf `page_start`. Das ist der
+  eigentliche „Seitensprung": `topic_sections` trägt `document_id` und
+  Seitenzahlen bereits (siehe DATA_MODEL.md), keine neue Datenstruktur
+  nötig. Zeigt einen Hinweis statt abzustürzen, wenn die PDF-Bytes für ein
+  Dokument nicht (mehr) vorliegen (siehe `App.tsx` unten). 5 Tests
+  (`PdfViewer` darin gemockt, damit `SourceViewer`s eigene Logik isoliert
+  getestet wird).
+- **`App.tsx`**: neuer `documentBytes`-Zustand (`Record<documentId,
+  Uint8Array>`), beim PDF-Import zusätzlich zur Extraktion befüllt — bisher
+  wurden die rohen Bytes nach der Extraktion verworfen. **Bewusste
+  Einschränkung, konsistent mit dem Rest von `App.tsx`:** nur für die
+  laufende Sitzung im Speicher, keine echte Persistenz (`documents.
+  stored_path` im Schema ist dafür vorgesehen, aber ungenutzt, bis der
+  Tauri-Rahmen echte Dateisystem-Zugriffe hat) — `SourceViewer` zeigt in
+  dem Fall den oben genannten Hinweis statt eines Absturzes.
+- **Nicht Teil dieses Schritts:** ein Klick auf ein Thema in `TopicTree`
+  direkt zum `SourceViewer` verlinken (aktuell zwei getrennte Bereiche in
+  `App.tsx`) — wäre ein Komfortgewinn, aber `TopicTree` ist eine
+  abgeschlossene, bereits getestete Komponente; eine engere Kopplung hier
+  hineinzubauen war nicht Teil des Roadmap-Punkts.
+- **Live im Dev-Server geprüft:** „Quellen"-Bereich zeigt korrekt „Noch
+  keine Materialien importiert.", keine Konsolenfehler. **Nicht möglich:**
+  ein echter PDF-Import über die Browser-Automatisierung (dieselbe
+  Datei-Sandbox-Einschränkung wie beim Heute-Ansicht-Schritt, siehe dort) —
+  das eigentliche Rendern (`page.render` auf ein echtes Canvas) ist damit
+  nur über die gemockten Komponententests abgedeckt, nicht am echten
+  Material verifiziert. Bekannte Lücke, wie schon beim PDF-Import-
+  Plausibilitätscheck zuvor dokumentiert.
+
 ### Nächster Schritt
 
 ROADMAP.md Phase 3 verbleibend: Lokale Benachrichtigungen, Kalender-Export,
-PDF-Viewer mit Seitensprung, Kurs-Export/Import. Keine Abhängigkeit
-zwischen ihnen zwingt eine Reihenfolge. **Lokale Benachrichtigungen** und
-**Kalender-Export** brauchen `platform/` (macOS-Anbindung), bisher komplett
-ungebaut — vermutlich der größere Brocken; **PDF-Viewer** und
-**Kurs-Export/Import** sind reiner `ui/`/`data/`-Umfang auf bereits
-bestehenden Grundlagen (`ingest/pdf.ts` bzw. das SQLite-Schema).
+Kurs-Export/Import. Keine Abhängigkeit zwischen ihnen zwingt eine
+Reihenfolge. **Lokale Benachrichtigungen** und **Kalender-Export** brauchen
+`platform/` (macOS-Anbindung) — vermutlich neue Abhängigkeiten
+(z. B. ein Tauri-Notification-Plugin) bzw. eine echte fachliche Entscheidung
+(Kalender-Export bräuchte eine Uhrzeit pro `study_block`, die das Schema
+aktuell nicht hat — nur `planned_date`, keine Tageszeit; **vor dem Bauen
+mit dem Nutzer klären**, statt eine Uhrzeit zu erfinden). **Kurs-Export/
+Import** ist reiner `data/`-Umfang (JSON-Serialisierung von Fach + Themen +
+Prüfungen) auf dem bestehenden Schema, keine neue Abhängigkeit — vermutlich
+der nächste unkompliziert autonom baubare Schritt.
 
 ### Danach (unverändert aus der Roadmap)
 
