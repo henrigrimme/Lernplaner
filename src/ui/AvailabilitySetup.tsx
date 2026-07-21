@@ -1,20 +1,22 @@
 import { useState } from 'react'
-import {
-  removeAvailabilityException,
-  setAvailabilityException,
-  setAvailabilityPattern,
-} from '../data/availability'
 import type { AvailabilityException, AvailabilityPattern } from '../data/schema'
 
 /**
  * Verfügbarkeits-Setup: Wochenmuster (Minuten je Wochentag) plus einzelne
  * abweichende Tage. Liefert die Eingaben für `capacity.ts`
- * (`availableMinutesForDay`/`-InRange`), bisher nur mit synthetischen
- * Testdaten geprüft.
+ * (`availableMinutesForDay`/`-InRange`).
  *
  * **Wochentag-Konvention:** 0 = Sonntag (JS `Date#getUTCDay()`), siehe
  * Kommentar in `capacity.ts` — hier übernommen, nirgends in DATA_MODEL.md
  * beziffert.
+ *
+ * Reine Präsentationskomponente wie `CourseSetup`/`AssessmentSetup` — kennt
+ * seit der Persistenz-Härtung `data/availability.ts`/`-Repo.ts` nicht
+ * direkt: jede Aktion geht über einen eigenen Callback
+ * (`onSetPatternMinutes`/`onAddException`/`onRemoveException`) nach außen,
+ * siehe dortiger Kommentar zur Begründung. Anders als bei
+ * `CourseSetup`/`AssessmentSetup` bräuchte `weekday`/`date` als
+ * Primärschlüssel keine neue `id` — „Anlegen" ist immer ein Upsert.
  */
 
 const WEEKDAY_LABELS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'] as const
@@ -22,15 +24,17 @@ const WEEKDAY_LABELS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag
 export interface AvailabilitySetupProps {
   pattern: AvailabilityPattern[]
   exceptions: AvailabilityException[]
-  onChangePattern: (pattern: AvailabilityPattern[]) => void
-  onChangeExceptions: (exceptions: AvailabilityException[]) => void
+  onSetPatternMinutes: (weekday: AvailabilityPattern['weekday'], minutes: number) => void
+  onAddException: (date: string, minutes: number, note: string | null) => void
+  onRemoveException: (date: string) => void
 }
 
 export function AvailabilitySetup({
   pattern,
   exceptions,
-  onChangePattern,
-  onChangeExceptions,
+  onSetPatternMinutes,
+  onAddException,
+  onRemoveException,
 }: AvailabilitySetupProps) {
   const [newException, setNewException] = useState({ date: '', minutes: '', note: '' })
 
@@ -39,13 +43,10 @@ export function AvailabilitySetup({
   const addException = (e: React.FormEvent) => {
     e.preventDefault()
     if (newException.date.trim().length === 0) return
-    onChangeExceptions(
-      setAvailabilityException(
-        exceptions,
-        newException.date,
-        Number(newException.minutes) || 0,
-        newException.note.trim() === '' ? null : newException.note.trim(),
-      ),
+    onAddException(
+      newException.date,
+      Number(newException.minutes) || 0,
+      newException.note.trim() === '' ? null : newException.note.trim(),
     )
     setNewException({ date: '', minutes: '', note: '' })
   }
@@ -65,13 +66,7 @@ export function AvailabilitySetup({
                 min={0}
                 value={minutesFor(weekday)}
                 onChange={(e) =>
-                  onChangePattern(
-                    setAvailabilityPattern(
-                      pattern,
-                      weekday as AvailabilityPattern['weekday'],
-                      Math.max(0, Number(e.target.value) || 0),
-                    ),
-                  )
+                  onSetPatternMinutes(weekday as AvailabilityPattern['weekday'], Math.max(0, Number(e.target.value) || 0))
                 }
               />
               Minuten
@@ -86,7 +81,7 @@ export function AvailabilitySetup({
           <li key={exception.date}>
             {exception.date}: {exception.minutes} Min.
             {exception.note && ` (${exception.note})`}
-            <button type="button" onClick={() => onChangeExceptions(removeAvailabilityException(exceptions, exception.date))}>
+            <button type="button" onClick={() => onRemoveException(exception.date)}>
               Entfernen
             </button>
           </li>

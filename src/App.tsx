@@ -21,6 +21,14 @@ import { deleteCourseRow, insertCourse, loadCourses, setCourseArchivedRow, updat
 import { removeCourse, setCourseArchived, updateCourse, type NewCourseInput } from './data/courses'
 import { deleteAssessmentRow, insertAssessment, loadAssessments, updateAssessmentRow } from './data/assessmentsRepo'
 import { removeAssessment, updateAssessment, type NewAssessmentInput } from './data/assessments'
+import {
+  deleteAvailabilityExceptionRow,
+  loadAvailabilityExceptions,
+  loadAvailabilityPattern,
+  upsertAvailabilityExceptionRow,
+  upsertAvailabilityPatternRow,
+} from './data/availabilityRepo'
+import { removeAvailabilityException, setAvailabilityException, setAvailabilityPattern } from './data/availability'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
@@ -41,12 +49,12 @@ import type {
  * `ui/`-Schicht zusammenspielen (ROADMAP.md Phase 1) und dass der
  * komplette Fluss bis zum Lernplan durchspielbar ist (Phase 2). Persistenz
  * wird schrittweise nachgezogen (CONTEXT.md „Persistenz-Härtung"):
- * **Fächer und Prüfungen sind bereits echt in SQLite gespeichert**
- * (`data/coursesRepo.ts`/`data/assessmentsRepo.ts` über
- * `data/db.ts`/`tauri-plugin-sql`), alle anderen Entitäten (Verfügbarkeit,
- * Themen, Lernblöcke, Planversionen) sind weiterhin nur lokaler
- * React-State, geht beim Neuladen verloren — das kommt in den nächsten
- * Schritten. `getDb()`/die Repo-Funktionen
+ * **Fächer, Prüfungen und Verfügbarkeit sind bereits echt in SQLite
+ * gespeichert** (`data/coursesRepo.ts`/`data/assessmentsRepo.ts`/
+ * `data/availabilityRepo.ts` über `data/db.ts`/`tauri-plugin-sql`), alle
+ * anderen Entitäten (Themen, Lernblöcke, Planversionen) sind weiterhin nur
+ * lokaler React-State, geht beim Neuladen verloren — das kommt in den
+ * nächsten Schritten. `getDb()`/die Repo-Funktionen
  * funktionieren nur im echten Tauri-Fenster (keine IPC-Bridge im
  * Vite-Dev-Server/Browser, wie bei `platform/notifications.ts`) — die
  * `catch`-Blöcke unten fangen das ab, statt die UI abstürzen zu lassen.
@@ -95,6 +103,24 @@ export function App() {
       .then((db) => loadAssessments(db))
       .then((rows) => {
         if (!cancelled) setAssessments(rows)
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => Promise.all([loadAvailabilityPattern(db), loadAvailabilityExceptions(db)]))
+      .then(([patternRows, exceptionRows]) => {
+        if (!cancelled) {
+          setPattern(patternRows)
+          setExceptions(exceptionRows)
+        }
       })
       .catch(() => {
         // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
@@ -171,6 +197,36 @@ export function App() {
       setAssessments((prev) => removeAssessment(prev, id))
     } catch (error) {
       console.error('Prüfung konnte nicht gelöscht werden', error)
+    }
+  }
+
+  const handleSetPatternMinutes = async (weekday: AvailabilityPattern['weekday'], minutes: number) => {
+    try {
+      const db = await getDb()
+      await upsertAvailabilityPatternRow(db, weekday, minutes)
+      setPattern((prev) => setAvailabilityPattern(prev, weekday, minutes))
+    } catch (error) {
+      console.error('Wochenmuster konnte nicht gespeichert werden', error)
+    }
+  }
+
+  const handleAddException = async (date: string, minutes: number, note: string | null) => {
+    try {
+      const db = await getDb()
+      await upsertAvailabilityExceptionRow(db, date, minutes, note)
+      setExceptions((prev) => setAvailabilityException(prev, date, minutes, note))
+    } catch (error) {
+      console.error('Ausnahme konnte nicht gespeichert werden', error)
+    }
+  }
+
+  const handleRemoveException = async (date: string) => {
+    try {
+      const db = await getDb()
+      await deleteAvailabilityExceptionRow(db, date)
+      setExceptions((prev) => removeAvailabilityException(prev, date))
+    } catch (error) {
+      console.error('Ausnahme konnte nicht gelöscht werden', error)
     }
   }
 
@@ -279,8 +335,9 @@ export function App() {
       <AvailabilitySetup
         pattern={pattern}
         exceptions={exceptions}
-        onChangePattern={setPattern}
-        onChangeExceptions={setExceptions}
+        onSetPatternMinutes={handleSetPatternMinutes}
+        onAddException={handleAddException}
+        onRemoveException={handleRemoveException}
       />
 
       {selectedCourse && (
