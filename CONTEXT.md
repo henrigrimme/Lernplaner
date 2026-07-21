@@ -1946,14 +1946,55 @@ Branch `feat/error-history` (von `main` abgezweigt). Baut auf `cards`/
 - **Im frischen Tab geprüft:** App lädt fehlerfrei, „Fehlerhistorie —
   gezielte Wiederholung" zeigt korrekt den leeren Anfangszustand.
 
+### Phase 4 — Paper-Workflow
+
+Branch `feat/paper-workflow` (von `main` abgezweigt). Anders als
+Quiz-Generierung/Probeklausur-Simulation **keine Rückfrage nötig** — das
+Datenmodell war dafür bereits vollständig vorbereitet (`paper_steps`,
+0001_init.sql, sowie `PaperStep`/`PaperStepStatus` in `schema.ts`),
+CONTEXT.md Abschnitt 3 hatte das von Anfang an mitgedacht: „der Planer
+muss Paper-Teilschritte von Anfang an mitdenken, auch wenn der
+Paper-Workflow erst in Phase 4 ausgebaut wird." Reine Checklisten-
+Verwaltung für Paper-Abgaben (`assessments.type = 'paper'`) — kein
+automatisches Ableiten von Schritten aus dem Prüfungsformat, das wäre
+Spekulation ohne Vorgabe.
+
+- **`data/paperSteps.ts`** (neu, reine Funktionen) + **`data/paperStepsRepo.ts`**
+  (neu, SQL) — exaktes Muster von `courses.ts`/`coursesRepo.ts`: einfache
+  Entität, `NewPaperStepInput` in der reinen Datei definiert, Repo liefert
+  die echte `AUTOINCREMENT`-`id` beim Anlegen zurück.
+- **`ui/PaperSteps.tsx`** (neu): zeigt je Paper-Abgabe des gewählten Fachs
+  (`assessments.type === 'paper'`) eine Teilschritt-Liste mit
+  Status-Dropdown (`offen`/`in_arbeit`/`erledigt`) und Fälligkeitsdatum,
+  plus Formular zum Anlegen neuer Schritte. Reine Präsentation wie
+  `AssessmentSetup` — `onAdd`/`onUpdate`/`onRemove`-Callbacks, kein
+  direkter Repo-Zugriff. Rendert nichts, wenn das Fach keine Paper-Abgabe
+  hat (`null`, kein leerer Rahmen).
+- **`App.tsx`**: `paperSteps`-Zustand, achter `useEffect`-Lader
+  (`loadPaperSteps`), drei Handler nach dem etablierten Muster.
+  `handleRemoveAssessment` um Kaskaden-Nachzug erweitert — eine gelöschte
+  Prüfung kaskadiert in der DB auch auf ihre `paper_steps`
+  (`ON DELETE CASCADE`).
+- **12 neue Tests**: `paperSteps.test.ts` (2), `paperStepsRepo.test.ts`
+  (4, inkl. Fremdschlüssel-Kaskade), `PaperSteps.test.tsx` (6, u. a. dass
+  die Komponente bei einem Fach ohne Paper-Abgabe nichts rendert).
+- **Im frischen Tab geprüft:** App lädt fehlerfrei. Ein echter
+  Ende-zu-Ende-Durchlauf (Fach anlegen → Paper-Prüfung anlegen →
+  Teilschritt anlegen) ist im Dev-Server aus demselben, bereits mehrfach
+  dokumentierten Grund nicht erreichbar (Fach-Anlegen scheitert ohne
+  echtes Tauri-Fenster).
+
 ### Nächster Schritt
 
-ROADMAP.md Phase 4: **Quiz-Generierung** und **Probeklausur-Simulation**
-zurückgestellt (siehe oben). Als Nächstes: **Paper-Workflow**, danach
-**Altklausur-Analyse → automatische Gewichtung** — beide im Roadmap nicht
-näher spezifiziert, vor dem Entwurf jeweils prüfen, ob eine echte
-fachliche Entscheidung ansteht, die eine Rückfrage braucht (wie bei
-Quiz-Generierung/Probeklausur-Simulation).
+ROADMAP.md Phase 4, letzter Punkt der Reihe nach: **Altklausur-Analyse →
+automatische Gewichtung** — im Roadmap nicht näher spezifiziert, vor dem
+Entwurf prüfen, ob eine echte fachliche Entscheidung ansteht, die eine
+Rückfrage braucht (z. B. wie Altklausur-Inhalte auf bestehende Themen
+gemappt werden — Stichwortabgleich wie bei der Kapitelerkennung, oder
+KI-gestützt, was wieder eine Anbieter-Rückfrage wie bei Quiz-Generierung
+bräuchte). Danach: **Quiz-Generierung** und **Probeklausur-Simulation**
+zurückgestellt, bis der Nutzer einen KI-Anbieter wählt bzw.
+Probeklausur-Simulation näher spezifiziert.
 
 ### Danach (unverändert aus der Roadmap)
 

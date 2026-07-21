@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { TopicTree } from './ui/TopicTree'
 import { CourseSetup } from './ui/CourseSetup'
 import { AssessmentSetup } from './ui/AssessmentSetup'
+import { PaperSteps } from './ui/PaperSteps'
 import { AvailabilitySetup } from './ui/AvailabilitySetup'
 import { PlanView } from './ui/PlanView'
 import { TodayView } from './ui/TodayView'
@@ -20,6 +21,8 @@ import { deleteCourseRow, insertCourse, loadCourses, setCourseArchivedRow, updat
 import { removeCourse, setCourseArchived, updateCourse, type NewCourseInput } from './data/courses'
 import { deleteAssessmentRow, insertAssessment, loadAssessments, updateAssessmentRow } from './data/assessmentsRepo'
 import { removeAssessment, updateAssessment, type NewAssessmentInput } from './data/assessments'
+import { deletePaperStepRow, insertPaperStep, loadPaperSteps, updatePaperStepRow } from './data/paperStepsRepo'
+import { removePaperStep, updatePaperStep, type NewPaperStepInput } from './data/paperSteps'
 import {
   deleteAvailabilityExceptionRow,
   loadAvailabilityExceptions,
@@ -47,6 +50,7 @@ import type {
   Blocker,
   Card,
   Course,
+  PaperStep,
   PlanVersion,
   Review,
   StudyBlock,
@@ -88,6 +92,7 @@ export function App() {
   const [topicSections, setTopicSections] = useState<TopicSection[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [assessments, setAssessments] = useState<Assessment[]>([])
+  const [paperSteps, setPaperSteps] = useState<PaperStep[]>([])
   const [pattern, setPattern] = useState<AvailabilityPattern[]>([])
   const [exceptions, setExceptions] = useState<AvailabilityException[]>([])
   const [blockers] = useState<Blocker[]>([])
@@ -123,6 +128,21 @@ export function App() {
       .then((db) => loadAssessments(db))
       .then((rows) => {
         if (!cancelled) setAssessments(rows)
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => loadPaperSteps(db))
+      .then((rows) => {
+        if (!cancelled) setPaperSteps(rows)
       })
       .catch(() => {
         // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
@@ -331,8 +351,40 @@ export function App() {
       const db = await getDb()
       await deleteAssessmentRow(db, id)
       setAssessments((prev) => removeAssessment(prev, id))
+      // Kaskadiert in der DB auf paper_steps (ON DELETE CASCADE) — lokal nachziehen.
+      setPaperSteps((prev) => prev.filter((s) => s.assessment_id !== id))
     } catch (error) {
       console.error('Prüfung konnte nicht gelöscht werden', error)
+    }
+  }
+
+  const handleAddPaperStep = async (input: NewPaperStepInput) => {
+    try {
+      const db = await getDb()
+      const step = await insertPaperStep(db, input)
+      setPaperSteps((prev) => [...prev, step])
+    } catch (error) {
+      console.error('Teilschritt konnte nicht gespeichert werden', error)
+    }
+  }
+
+  const handleUpdatePaperStep = async (id: number, changes: Partial<NewPaperStepInput>) => {
+    try {
+      const db = await getDb()
+      await updatePaperStepRow(db, id, changes)
+      setPaperSteps((prev) => updatePaperStep(prev, id, changes))
+    } catch (error) {
+      console.error('Teilschritt konnte nicht aktualisiert werden', error)
+    }
+  }
+
+  const handleRemovePaperStep = async (id: number) => {
+    try {
+      const db = await getDb()
+      await deletePaperStepRow(db, id)
+      setPaperSteps((prev) => removePaperStep(prev, id))
+    } catch (error) {
+      console.error('Teilschritt konnte nicht gelöscht werden', error)
     }
   }
 
@@ -508,6 +560,16 @@ export function App() {
           onAdd={handleAddAssessment}
           onUpdate={handleUpdateAssessment}
           onRemove={handleRemoveAssessment}
+        />
+      )}
+      {selectedCourse && (
+        <PaperSteps
+          course={selectedCourse}
+          assessments={assessments}
+          steps={paperSteps}
+          onAdd={handleAddPaperStep}
+          onUpdate={handleUpdatePaperStep}
+          onRemove={handleRemovePaperStep}
         />
       )}
 
