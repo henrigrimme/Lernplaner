@@ -19,6 +19,8 @@ import type { ImportedCourseResult } from './data/courseExport'
 import { getDb } from './data/db'
 import { deleteCourseRow, insertCourse, loadCourses, setCourseArchivedRow, updateCourseRow } from './data/coursesRepo'
 import { removeCourse, setCourseArchived, updateCourse, type NewCourseInput } from './data/courses'
+import { deleteAssessmentRow, insertAssessment, loadAssessments, updateAssessmentRow } from './data/assessmentsRepo'
+import { removeAssessment, updateAssessment, type NewAssessmentInput } from './data/assessments'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
@@ -39,11 +41,12 @@ import type {
  * `ui/`-Schicht zusammenspielen (ROADMAP.md Phase 1) und dass der
  * komplette Fluss bis zum Lernplan durchspielbar ist (Phase 2). Persistenz
  * wird schrittweise nachgezogen (CONTEXT.md „Persistenz-Härtung"):
- * **Fächer sind bereits echt in SQLite gespeichert** (`data/coursesRepo.ts`
- * über `data/db.ts`/`tauri-plugin-sql`), alle anderen Entitäten
- * (Prüfungen, Verfügbarkeit, Themen, Lernblöcke, Planversionen) sind
- * weiterhin nur lokaler React-State, geht beim Neuladen verloren — das
- * kommt in den nächsten Schritten. `getDb()`/die Repo-Funktionen
+ * **Fächer und Prüfungen sind bereits echt in SQLite gespeichert**
+ * (`data/coursesRepo.ts`/`data/assessmentsRepo.ts` über
+ * `data/db.ts`/`tauri-plugin-sql`), alle anderen Entitäten (Verfügbarkeit,
+ * Themen, Lernblöcke, Planversionen) sind weiterhin nur lokaler
+ * React-State, geht beim Neuladen verloren — das kommt in den nächsten
+ * Schritten. `getDb()`/die Repo-Funktionen
  * funktionieren nur im echten Tauri-Fenster (keine IPC-Bridge im
  * Vite-Dev-Server/Browser, wie bei `platform/notifications.ts`) — die
  * `catch`-Blöcke unten fangen das ab, statt die UI abstürzen zu lassen.
@@ -77,6 +80,21 @@ export function App() {
       .then((db) => loadCourses(db))
       .then((rows) => {
         if (!cancelled) setCourses(rows)
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => loadAssessments(db))
+      .then((rows) => {
+        if (!cancelled) setAssessments(rows)
       })
       .catch(() => {
         // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
@@ -123,6 +141,36 @@ export function App() {
       setCourses((prev) => removeCourse(prev, id))
     } catch (error) {
       console.error('Fach konnte nicht gelöscht werden', error)
+    }
+  }
+
+  const handleAddAssessment = async (input: NewAssessmentInput) => {
+    try {
+      const db = await getDb()
+      const assessment = await insertAssessment(db, input)
+      setAssessments((prev) => [...prev, assessment])
+    } catch (error) {
+      console.error('Prüfung konnte nicht gespeichert werden', error)
+    }
+  }
+
+  const handleUpdateAssessment = async (id: number, changes: Partial<NewAssessmentInput>) => {
+    try {
+      const db = await getDb()
+      await updateAssessmentRow(db, id, changes)
+      setAssessments((prev) => updateAssessment(prev, id, changes))
+    } catch (error) {
+      console.error('Prüfung konnte nicht aktualisiert werden', error)
+    }
+  }
+
+  const handleRemoveAssessment = async (id: number) => {
+    try {
+      const db = await getDb()
+      await deleteAssessmentRow(db, id)
+      setAssessments((prev) => removeAssessment(prev, id))
+    } catch (error) {
+      console.error('Prüfung konnte nicht gelöscht werden', error)
     }
   }
 
@@ -219,7 +267,13 @@ export function App() {
         </label>
       )}
       {selectedCourse && (
-        <AssessmentSetup course={selectedCourse} assessments={assessments} onChange={setAssessments} />
+        <AssessmentSetup
+          course={selectedCourse}
+          assessments={assessments}
+          onAdd={handleAddAssessment}
+          onUpdate={handleUpdateAssessment}
+          onRemove={handleRemoveAssessment}
+        />
       )}
 
       <AvailabilitySetup

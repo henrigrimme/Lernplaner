@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Persistenz-Härtung: Fächer als erste Entität echt in SQLite gespeichert, `data/coursesRepo.ts` + `ui/CourseSetup.tsx`-API umgestellt; Prüfungen als Nächstes, danach Phase 4)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Persistenz-Härtung: Fächer und Prüfungen echt in SQLite gespeichert; Verfügbarkeit als Nächstes, danach Phase 4)
 
 ---
 
@@ -1441,19 +1441,52 @@ tatsächlich umgestellte Entität — Fächer, wie geplant die einfachste
   diese Sitzung nicht ohne Weiteres automatisiert bedienen kann (bekannte
   Lücke, wie schon bei den Benachrichtigungen).
 
+### Persistenz-Härtung — Baustein 3: Prüfungen echt in SQLite
+
+Branch `feat/persistence-assessments` (von `main` abgezweigt). Zweite
+umgestellte Entität, exakt nach dem Muster von Baustein 2 (Fächer).
+
+- **`data/assessmentsRepo.ts`** (`loadAssessments`, `insertAssessment`,
+  `updateAssessmentRow`, `deleteAssessmentRow`) — kein „archived"-Konzept
+  bei Prüfungen (anders als Fächer), deshalb kein Analogon zu
+  `setCourseArchivedRow`. 5 Tests über `tests/data/testConnection.ts`,
+  inkl. eines Cascade-Tests (Löschen des Fachs löscht auch dessen
+  Prüfungen, `ON DELETE CASCADE`).
+- **`data/assessments.ts` verkleinert:** `addAssessment`/`nextId` entfernt,
+  aus demselben Grund wie bei `courses.ts` — `updateAssessment`/
+  `removeAssessment`/`assessmentsByCourse` (reiner Anzeige-Filter, keine
+  Mutation) bleiben.
+- **`ui/AssessmentSetup.tsx`s API geändert:** `onChange(assessments)` durch
+  `onAdd`/`onUpdate`/`onRemove` ersetzt, exakt wie bei `CourseSetup.tsx`.
+  5 bestehende Tests entsprechend umgeschrieben.
+- **`App.tsx`**: zweiter `useEffect` lädt Prüfungen beim Start
+  (unabhängig vom Fächer-`useEffect`, beide laufen parallel), drei Handler
+  nach demselben Fehlerbehandlungs-Muster (Repo-Aufruf, bei Erfolg
+  lokalen Zustand nachziehen, bei Fehler `console.error` statt Absturz).
+- **Live im Dev-Server geprüft:** kein Absturz nach dem Umbau, App lädt
+  sauber. **Hinweis für künftige Plausibilitätschecks:** die Browser-
+  Konsole dieser Sitzung hat über einen `preview_stop`/`preview_start`-
+  Zyklus hinweg alte Fehlermeldungen behalten (aus dem vorigen
+  Baustein-2-Check) — erst ein echtes `navigate` mit `force: true` auf
+  dieselbe URL hat den Zustand sichtbar aufgeräumt und den tatsächlich
+  aktuellen (fehlerfreien) Zustand gezeigt. Beim nächsten Baustein direkt
+  nach dem `preview_start` einmal neu laden, um nicht versehentlich einen
+  alten Fehler für einen neuen zu halten.
+
 ### Nächster Schritt
 
-Persistenz-Härtung Baustein 3: nächste Entität nach demselben Muster
+Persistenz-Härtung Baustein 4: nächste Entität nach demselben Muster
 (Repository + Test-Connection + Prop-API-Umstellung der jeweiligen
 `ui/*Setup.tsx`-Komponente + `App.tsx`-Handler). Reihenfolge laut Plan:
-**Prüfungen** als Nächstes (referenziert nur `courses`, die jetzt schon
-persistiert sind), danach Verfügbarkeit (Wochenmuster/Ausnahmen) →
-Themen/Themenabschnitte → Lernblöcke → Planversionen. PDF-Rohbytes
-(`documentBytes`) bewusst **nicht** in die DB — bleiben In-Memory oder
-bekommen eine eigene Dateisystem-Lösung (`documents.stored_path`), siehe
-Auftrag des Nutzers. Erst wenn alle Entitäten umgestellt sind, den
-`App.tsx`-Kommentar entsprechend abschließend aktualisieren. Danach:
-ROADMAP.md Phase 4 der Reihe nach, wie vom Nutzer bestätigt.
+**Verfügbarkeit** (Wochenmuster/Ausnahmen, `ui/AvailabilitySetup.tsx`) als
+Nächstes — keine Fremdschlüssel auf andere Entitäten, genauso einfach wie
+Fächer/Prüfungen. Danach: Themen/Themenabschnitte (hängt am PDF-Import,
+komplexer) → Lernblöcke → Planversionen. PDF-Rohbytes (`documentBytes`)
+bewusst **nicht** in die DB — bleiben In-Memory oder bekommen eine eigene
+Dateisystem-Lösung (`documents.stored_path`), siehe Auftrag des Nutzers.
+Erst wenn alle Entitäten umgestellt sind, den `App.tsx`-Kommentar
+entsprechend abschließend aktualisieren. Danach: ROADMAP.md Phase 4 der
+Reihe nach, wie vom Nutzer bestätigt.
 
 ### Danach (unverändert aus der Roadmap)
 
