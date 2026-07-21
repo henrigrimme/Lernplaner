@@ -1,14 +1,18 @@
 import { useState } from 'react'
-import { addAssessment, assessmentsByCourse, removeAssessment, updateAssessment } from '../data/assessments'
+import { assessmentsByCourse } from '../data/assessments'
 import type { Assessment, AssessmentFormat, AssessmentType, Course } from '../data/schema'
+import type { NewAssessmentInput } from '../data/assessments'
 
 /**
  * Prüfungs-Setup für ein Fach: Klausuren/Paper/Präsentationen anlegen,
  * bearbeiten, löschen. Liefert `assessment.format`/`weight`/`date`, die
- * `estimation.ts`/`capacity.ts` für eine echte Rechnung brauchen (bisher
- * nur synthetische Testdaten, siehe CONTEXT.md).
+ * `estimation.ts`/`capacity.ts` für eine echte Rechnung brauchen.
  *
- * Reine Präsentationskomponente wie `CourseSetup`/`TopicTree`.
+ * Reine Präsentationskomponente wie `CourseSetup`/`TopicTree` — kennt wie
+ * `CourseSetup` seit der Persistenz-Härtung `data/assessmentsRepo.ts`
+ * nicht direkt: jede Aktion geht über einen eigenen Callback
+ * (`onAdd`/`onUpdate`/`onRemove`) nach außen, siehe dortiger Kommentar zur
+ * Begründung.
  */
 
 const TYPES: AssessmentType[] = ['klausur', 'paper', 'praesentation']
@@ -17,7 +21,9 @@ const FORMATS: AssessmentFormat[] = ['mc', 'freitext', 'essay', 'rechnen', 'fall
 export interface AssessmentSetupProps {
   course: Course
   assessments: Assessment[]
-  onChange: (assessments: Assessment[]) => void
+  onAdd: (input: NewAssessmentInput) => void
+  onUpdate: (id: number, changes: Partial<NewAssessmentInput>) => void
+  onRemove: (id: number) => void
 }
 
 interface DraftAssessment {
@@ -65,7 +71,7 @@ function fromDraft(courseId: number, d: DraftAssessment): Omit<Assessment, 'id'>
   }
 }
 
-export function AssessmentSetup({ course, assessments, onChange }: AssessmentSetupProps) {
+export function AssessmentSetup({ course, assessments, onAdd, onUpdate, onRemove }: AssessmentSetupProps) {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [draft, setDraft] = useState<DraftAssessment>(EMPTY_DRAFT)
 
@@ -86,10 +92,10 @@ export function AssessmentSetup({ course, assessments, onChange }: AssessmentSet
     if (draft.title.trim().length === 0 || draft.date.trim().length === 0) return
 
     if (editingId === -1) {
-      onChange(addAssessment(assessments, fromDraft(course.id, draft)))
+      onAdd(fromDraft(course.id, draft))
     } else if (editingId !== null) {
       const { course_id: _courseId, ...changes } = fromDraft(course.id, draft)
-      onChange(updateAssessment(assessments, editingId, changes))
+      onUpdate(editingId, changes)
     }
     setEditingId(null)
   }
@@ -104,7 +110,7 @@ export function AssessmentSetup({ course, assessments, onChange }: AssessmentSet
             <button type="button" onClick={() => startEdit(a)}>
               Bearbeiten
             </button>
-            <button type="button" onClick={() => onChange(removeAssessment(assessments, a.id))}>
+            <button type="button" onClick={() => onRemove(a.id)}>
               Löschen
             </button>
           </li>

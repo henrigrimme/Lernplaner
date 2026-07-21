@@ -1,16 +1,15 @@
 import type { Assessment } from './schema'
 
-/** Reine Editierfunktionen für Prüfungen — siehe `courses.ts` für das Muster. */
+/**
+ * Reine Editierfunktionen für den lokalen Prüfungs-Zustand — siehe
+ * `courses.ts` für das Muster und die Begründung: seit der
+ * Persistenz-Härtung (`data/assessmentsRepo.ts`) übernehmen diese
+ * Funktionen nur noch Änderungen mit bereits bekannter `id`
+ * (Aktualisieren/Löschen). Neuanlegen liefert die echte `id` jetzt per
+ * `AUTOINCREMENT` aus der Datenbank.
+ */
 
 export type NewAssessmentInput = Omit<Assessment, 'id'>
-
-function nextId(rows: { id: number }[]): number {
-  return rows.reduce((max, r) => Math.max(max, r.id), 0) + 1
-}
-
-export function addAssessment(assessments: Assessment[], input: NewAssessmentInput): Assessment[] {
-  return [...assessments, { id: nextId(assessments), ...input }]
-}
 
 export function updateAssessment(
   assessments: Assessment[],

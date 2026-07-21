@@ -29,6 +29,10 @@ function assessment(overrides: Partial<Assessment> & { id: number }): Assessment
   }
 }
 
+function noop() {
+  return { onAdd: vi.fn(), onUpdate: vi.fn(), onRemove: vi.fn() }
+}
+
 describe('AssessmentSetup', () => {
   it('zeigt nur Prüfungen des übergebenen Fachs, sortiert nach Datum', () => {
     const assessments = [
@@ -36,7 +40,7 @@ describe('AssessmentSetup', () => {
       assessment({ id: 2, course_id: 2, title: 'Anderes Fach' }),
       assessment({ id: 3, course_id: 1, title: 'Früher', date: '2026-10-05' }),
     ]
-    render(<AssessmentSetup course={COURSE} assessments={assessments} onChange={vi.fn()} />)
+    render(<AssessmentSetup course={COURSE} assessments={assessments} {...noop()} />)
 
     expect(screen.queryByText('Anderes Fach')).not.toBeInTheDocument()
     const items = screen.getAllByRole('listitem')
@@ -46,8 +50,8 @@ describe('AssessmentSetup', () => {
 
   it('legt eine neue Prüfung mit den Formularwerten an', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<AssessmentSetup course={COURSE} assessments={[]} onChange={onChange} />)
+    const onAdd = vi.fn()
+    render(<AssessmentSetup course={COURSE} assessments={[]} {...noop()} onAdd={onAdd} />)
 
     await user.click(screen.getByRole('button', { name: 'Prüfung hinzufügen' }))
     await user.type(screen.getByLabelText('Titel'), 'Endklausur')
@@ -55,21 +59,22 @@ describe('AssessmentSetup', () => {
     await user.selectOptions(screen.getByLabelText('Format'), 'freitext')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 
-    const result = onChange.mock.calls[0]![0] as Assessment[]
-    expect(result[0]).toMatchObject({
-      course_id: 1,
-      title: 'Endklausur',
-      date: '2026-10-15',
-      format: 'freitext',
-      open_book: 0,
-      duration_minutes: null,
-    })
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        course_id: 1,
+        title: 'Endklausur',
+        date: '2026-10-15',
+        format: 'freitext',
+        open_book: 0,
+        duration_minutes: null,
+      }),
+    )
   })
 
   it('setzt duration_minutes und open_book korrekt', async () => {
     const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<AssessmentSetup course={COURSE} assessments={[]} onChange={onChange} />)
+    const onAdd = vi.fn()
+    render(<AssessmentSetup course={COURSE} assessments={[]} {...noop()} onAdd={onAdd} />)
 
     await user.click(screen.getByRole('button', { name: 'Prüfung hinzufügen' }))
     await user.type(screen.getByLabelText('Titel'), 'Endklausur')
@@ -78,33 +83,31 @@ describe('AssessmentSetup', () => {
     await user.type(screen.getByLabelText('Dauer (Minuten, optional)'), '90')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 
-    const result = onChange.mock.calls[0]![0] as Assessment[]
-    expect(result[0]).toMatchObject({ open_book: 1, duration_minutes: 90 })
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ open_book: 1, duration_minutes: 90 }))
   })
 
   it('bearbeitet eine bestehende Prüfung', async () => {
     const user = userEvent.setup()
     const assessments = [assessment({ id: 1, title: 'Endklausur' })]
-    const onChange = vi.fn()
-    render(<AssessmentSetup course={COURSE} assessments={assessments} onChange={onChange} />)
+    const onUpdate = vi.fn()
+    render(<AssessmentSetup course={COURSE} assessments={assessments} {...noop()} onUpdate={onUpdate} />)
 
     const item = screen.getByText('Endklausur').closest('li')!
     await user.click(within(item).getByRole('button', { name: 'Bearbeiten' }))
     await user.selectOptions(screen.getByLabelText('Gewicht'), '5')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 
-    const result = onChange.mock.calls[0]![0] as Assessment[]
-    expect(result[0]).toMatchObject({ id: 1, weight: 5, title: 'Endklausur' })
+    expect(onUpdate).toHaveBeenCalledWith(1, expect.objectContaining({ weight: 5, title: 'Endklausur' }))
   })
 
   it('löscht eine Prüfung', async () => {
     const user = userEvent.setup()
     const assessments = [assessment({ id: 1, title: 'Endklausur' })]
-    const onChange = vi.fn()
-    render(<AssessmentSetup course={COURSE} assessments={assessments} onChange={onChange} />)
+    const onRemove = vi.fn()
+    render(<AssessmentSetup course={COURSE} assessments={assessments} {...noop()} onRemove={onRemove} />)
 
     const item = screen.getByText('Endklausur').closest('li')!
     await user.click(within(item).getByRole('button', { name: 'Löschen' }))
-    expect(onChange).toHaveBeenCalledWith([])
+    expect(onRemove).toHaveBeenCalledWith(1)
   })
 })
