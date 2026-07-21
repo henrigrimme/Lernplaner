@@ -36,7 +36,7 @@ Prüfungen im Oktober.
 ## Phase 3 — Alltag · 17.08 – 30.08
 
 - [ ] Heute-Ansicht mit Timer und Schwierigkeits-Feedback — Recherche zu Session-Timing bereits gemacht, siehe CONTEXT.md Abschnitt 8 „Recherche: Pomodoro/Session-Timing (für Phase 3)"
-- [ ] Neuberechnung mit Diff-Ansicht
+- [ ] Neuberechnung mit Diff-Ansicht — Domain-Logik fertig (`domain/replanning.ts`, ADR-005), noch keine UI/DB-Anbindung, siehe CONTEXT.md Abschnitt 8
 - [ ] Fortschrittsanzeige
 - [ ] Lokale Benachrichtigungen
 - [ ] Kalender-Export

@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 20. Juli 2026, laufende Session (Phase 1 + Phase 2 „Ergebnis" erreicht: Planansicht fertig, kompletter Fluss bis Lernplan durchspielbar)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3 begonnen: `domain/replanning.ts` — Neuberechnung + Diff nach ADR-005)
 
 ---
 
@@ -895,9 +895,84 @@ wäre eine sinnvolle Erweiterung, aber kein Muss für die erste Version.
   Ergebnis liefert — dann per Squash-Merge nach `main`, nach Rückfrage
   (Push).
 
+### Phase 3 — Alltag, begonnen
+
+Neuer Branch `feat/replanning` (von `main` abgezweigt — Phase 2 ist gemerged).
+Erster Baustein: `domain/replanning.ts` (`remainingErstdurchgangNeed`,
+`diffPlans`, `replan`) nach ADR-005 („Umplanung als Vorschlag, nie
+automatisch"). Erste Datei des ROADMAP.md-Punkts „Neuberechnung mit
+Diff-Ansicht".
+
+- **Rückstand aus echten Nutzungsdaten berechnet**
+  (`remainingErstdurchgangNeed`): summiert je Thema `planned_minutes` aller
+  nicht gestrichenen `erstdurchgang`-Blöcke als ursprünglichen Bedarf (das
+  ist dieselbe Zahl, die einmal als `SchedulingTopic.neededMinutes` in die
+  erste Planung einging) und zieht das tatsächlich Erledigte ab
+  (`actual_minutes`, Fallback `planned_minutes`, falls noch nicht erfasst).
+  Ein verpasster, nicht erledigter Block aus der Vergangenheit (Status
+  bleibt `offen`) zählt **weiterhin** als Bedarf — genau das bildet den
+  Rückstand ab (CONTRIBUTING.md „Tests": „Rückstand mitten in der Phase").
+  `gestrichen`e Blöcke zählen weder zum Bedarf noch zum Erledigten (Nutzer
+  hat das Thema bewusst abgewählt).
+- **Diff aggregiert je Thema + Art (`kind`), nicht Block für Block**
+  (`diffPlans`) — `scheduleStudyBlocks` zerlegt Bedarf in
+  `sessionChunkMinutes`-Häppchen, deren genaue Anzahl/Reihenfolge keine
+  sinnvolle Diff-Einheit wäre. Vier Fälle: `neu`, `entfernt`, `verschoben`
+  (andere Tage, gleiche Minuten), `dauer_geändert` (gleiche Tage, andere
+  Minuten). Unverändertes taucht **nicht** im Ergebnis auf (kein Rauschen).
+  Die Basis für „vorher" sind alle noch `offen`en `erstdurchgang`-Blöcke —
+  **bewusst ohne Datumsfilter**: ein verpasster Block *vor* `from` muss als
+  „verschoben" auf sein neues Datum erscheinen, nicht als „neu" — sonst
+  würde der Rückstand fälschlich wie frisch hinzugefügter Stoff aussehen
+  (erster Testlauf hat genau das gezeigt, siehe Commit).
+- **`replan()` verbindet beides und wendet nichts an** — reine Funktion,
+  kein Datenbankzugriff, kein „heute" aus der Systemuhr (Aufrufer übergibt
+  `from`), gibt `{ blocks, unscheduled, diff }` als Vorschlag zurück.
+  Persistieren in `study_blocks`/`plan_versions` und die
+  Nutzerbestätigung sind Sache von `data/`/`ui/` — genau die Trennung, die
+  ADR-005 verlangt.
+- **Bewusst nicht Teil dieses Schritts:** Eine bereits abgeschlossene
+  Wiederholung fortführen, wenn der Erstdurchgang vor `from` schon fertig
+  war. `scheduleStudyBlocks` leitet `wiederholung` intern immer aus dem noch
+  offenen `neededMinutes` eines Themas ab (siehe Kommentar dort) — ist der
+  Erstdurchgang bereits vollständig erledigt, taucht das Thema in
+  `remainingErstdurchgangNeed` gar nicht mehr auf, und seine Wiederholung
+  wird von `replan` nicht neu eingeplant. Deshalb vergleicht `diffPlans` in
+  `replan()` bewusst nur `erstdurchgang`-Blöcke — sonst würde eine
+  unverändert weiterlaufende Wiederholung fälschlich als „entfernt"
+  erscheinen. Eine echte Fortführung bräuchte zusätzlich den Tag des
+  abgeschlossenen Erstdurchgangs als Eingabe an `scheduleStudyBlocks` (neues
+  Feld an `SchedulingTopic`) — nicht gebaut, da noch kein echter
+  Anwendungsfall dafür vorliegt; würde `scheduling.ts`/dessen Tests
+  anfassen, nicht nur `replanning.ts`.
+- 15 Tests in `tests/domain/replanning.test.ts`, u. a. exakt das
+  CONTRIBUTING.md-Pflichtszenario „Rückstand mitten in der Phase":
+  ein Thema mit einem erledigten und einem verpassten Block wird ab einem
+  späteren `from` neu berechnet, das Ergebnis bleibt ohne Defizit, und der
+  verpasste Block erscheint im Diff als „verschoben".
+- Kein UI, keine Anbindung an `study_blocks` in der Datenbank — das ist
+  `data/`/`ui/`, kommt mit der Heute-Ansicht (ROADMAP.md Phase 3, erster
+  Punkt, noch offen).
+
+### Nächster Schritt
+
+`domain/replanning.ts` ist fachlich fertig (Rückstandsberechnung, Diff,
+Zusammenspiel), aber noch nicht an eine echte Oberfläche angebunden. Zwei
+mögliche Richtungen, beide aus ROADMAP.md Phase 3, keine hat Vorrang
+festgelegt:
+
+- **Heute-Ansicht mit Timer** (erster Roadmap-Punkt, Recherche zu
+  Session-Timing bereits erledigt, siehe „Recherche:
+  Pomodoro/Session-Timing" oben) — braucht `platform/` (Systembenachrich­
+  tigungen kommen später) nicht zwingend, kann rein `ui/` + `data/` sein.
+- **`domain/progress.ts`** (mastery, Vorbereitungsgrad, nächster Schritt,
+  siehe ARCHITECTURE.md) — würde die grobe Fortführungslücke oben
+  (Wiederholung nach abgeschlossenem Erstdurchgang) mit abdecken, weil
+  Fortschritt dann ohnehin pro Thema nachgehalten wird.
+
 ### Danach (unverändert aus der Roadmap)
 
-Phase 1 ist komplett. Phase 2 „Planung" (siehe oben, „Als Nächstes").
+Phase 1 und Phase 2 sind komplett. Phase 3 „Alltag" begonnen (siehe oben).
 
 Siehe [ROADMAP.md](ROADMAP.md) für die vollständige Phasenplanung.
 
