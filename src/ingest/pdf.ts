@@ -45,6 +45,7 @@ export async function readPages(data: Uint8Array): Promise<Page[]> {
         size: Math.abs(item.transform[3] as number),
         x: item.transform[4] as number,
         y: item.transform[5] as number,
+        width: item.width,
       }]
     })
 

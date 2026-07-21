@@ -12,6 +12,33 @@ import type { BodyLine, Line, Page, TextItem } from './types'
 /** Fragmente auf derselben Grundlinie gelten als eine Zeile. */
 const BASELINE_TOLERANCE = 2.5
 
+/**
+ * Hoch-/Tiefstellung (Formel-Indizes) erkennen: deutlich kleinere Schrift
+ * als die Bezugszeile (ROADMAP.md Phase 4 „Formelextraktion sauber" —
+ * siehe CONTEXT.md Abschnitt 4 „Formelextraktion ist unsauber", „Indizes
+ * lösen sich von der Basis"). PowerPoint exportiert einen Index wie 𝑥₁ als
+ * zwei Textfragmente auf unterschiedlicher Grundlinie ("𝑥" auf der
+ * Hauptzeile, "1" leicht versetzt, kleinere Schrift) — pdf.js liefert
+ * beide einzeln, ohne Zusammenhang.
+ */
+const SUBSCRIPT_SIZE_RATIO = 0.85
+/** Wie weit sich die Grundlinie eines Index verschieben darf, als Anteil der Bezugsschriftgröße. */
+const SUBSCRIPT_Y_TOLERANCE = 0.6
+
+/**
+ * Ab welcher Fragmentlücke ein Leerzeichen eingefügt wird (Anteil der
+ * Schriftgröße plus Mindestwert) — pdf.js trennt ein Wort manchmal an
+ * Schriftwechseln (Fett/Kursiv, Formelzeichen) in mehrere Fragmente OHNE
+ * ein Leerzeichen-Fragment dazwischen, obwohl visuell eine echte Lücke
+ * besteht (siehe CONTEXT.md Abschnitt 4 „Wortabstände fehlen an
+ * Schriftwechseln"). Werte an echtem Material (Consumer-Theory-Folien)
+ * kalibriert: reale Wortlücken lagen bei ~15–25 % der Schriftgröße,
+ * echte Zeichen-an-Zeichen-Übergänge (auch über Fett/Formel-Grenzen) bei
+ * praktisch 0.
+ */
+const SPACE_GAP_RATIO = 0.15
+const MIN_SPACE_GAP = 1.5
+
 /** Der Titel steht im oberen Seitendrittel. */
 const TITLE_ZONE_FROM_TOP = 0.34
 
@@ -61,29 +88,115 @@ export function normalizeForCompare(text: string): string {
     .replace(/[^\p{L}\p{N}]+/gu, '')
 }
 
+interface Bucket {
+  items: TextItem[]
+  /** Grundlinie der Bezugszeile — bleibt beim Anhängen von Indizes unverändert. */
+  y: number
+  /** Größte Schriftgröße der Bezugszeile — bleibt beim Anhängen von Indizes unverändert. */
+  maxSize: number
+}
+
+/** Fragmente nach Grundlinie bucketen (Rohgruppierung, vor der Index-Zusammenführung). */
+function bucketByBaseline(items: TextItem[]): Bucket[] {
+  const buckets: Bucket[] = []
+  for (const item of [...items].sort((a, b) => b.y - a.y)) {
+    const last = buckets[buckets.length - 1]
+    if (last && Math.abs(last.y - item.y) <= BASELINE_TOLERANCE) {
+      last.items.push(item)
+      last.maxSize = Math.max(last.maxSize, item.size)
+    } else {
+      buckets.push({ items: [item], y: item.y, maxSize: item.size })
+    }
+  }
+  return buckets
+}
+
+/** Gilt `small` als Hoch-/Tiefstellung von `ref` (deutlich kleinere Schrift, nahe Grundlinie)? */
+function looksLikeScriptOf(small: Bucket, ref: Bucket): boolean {
+  return (
+    small.maxSize <= ref.maxSize * SUBSCRIPT_SIZE_RATIO &&
+    Math.abs(small.y - ref.y) <= ref.maxSize * SUBSCRIPT_Y_TOLERANCE
+  )
+}
+
+/**
+ * Index-Buckets (Hoch-/Tiefstellungen) an ihre Bezugszeile anhängen, statt
+ * sie als eigene Zeile zu behandeln. Ein Index kann sowohl unterhalb
+ * (tiefgestellt, spätere Grundlinie in Lesereihenfolge) als auch oberhalb
+ * (hochgestellt, frühere Grundlinie) seiner Bezugszeile stehen — deshalb
+ * werden beide Nachbarn im sortierten Bucket-Array geprüft, nicht nur der
+ * vorige.
+ */
+function mergeScriptBuckets(buckets: Bucket[]): Bucket[] {
+  const mergedInto = new Map<number, number>()
+
+  for (let i = 0; i < buckets.length; i++) {
+    const prev: Bucket | null = i > 0 && !mergedInto.has(i - 1) ? buckets[i - 1]! : null
+    const next: Bucket | null = i < buckets.length - 1 ? buckets[i + 1]! : null
+    const prevOk = prev !== null && looksLikeScriptOf(buckets[i]!, prev)
+    const nextOk = next !== null && looksLikeScriptOf(buckets[i]!, next)
+    if (!prevOk && !nextOk) continue
+
+    const targetIdx =
+      prevOk && nextOk
+        ? Math.abs(buckets[i]!.y - prev!.y) <= Math.abs(buckets[i]!.y - next!.y)
+          ? i - 1
+          : i + 1
+        : prevOk
+          ? i - 1
+          : i + 1
+    mergedInto.set(i, targetIdx)
+  }
+
+  const result: Bucket[] = []
+  for (let i = 0; i < buckets.length; i++) {
+    if (mergedInto.has(i)) continue
+    const items = [...buckets[i]!.items]
+    for (const [smallIdx, targetIdx] of mergedInto) {
+      if (targetIdx === i) items.push(...buckets[smallIdx]!.items)
+    }
+    result.push({ items, y: buckets[i]!.y, maxSize: buckets[i]!.maxSize })
+  }
+  return result
+}
+
+/**
+ * Fragmente einer Zeile zusammensetzen, mit Leerzeichen an echten Lücken.
+ * pdf.js liefert vorhandene Leerzeichen meist als eigene Fragmente mit,
+ * trennt ein Wort an Schriftwechseln aber gelegentlich OHNE eines (siehe
+ * `SPACE_GAP_RATIO`-Kommentar) — deshalb zusätzlich über die x-Lücke
+ * zwischen einem Fragmentende und dem nächsten Fragmentanfang geprüft.
+ */
+function joinWithGaps(ordered: TextItem[]): string {
+  let text = ''
+  for (let i = 0; i < ordered.length; i++) {
+    const item = ordered[i]!
+    if (i > 0) {
+      const prev = ordered[i - 1]!
+      const gap = item.x - (prev.x + prev.width)
+      const threshold = Math.max(MIN_SPACE_GAP, SPACE_GAP_RATIO * Math.max(prev.size, item.size))
+      if (gap > threshold) text += ' '
+    }
+    text += item.text
+  }
+  return text
+}
+
 /** Fragmente einer Seite zu Zeilen gruppieren. */
 export function itemsToLines(items: TextItem[]): Line[] {
   const usable = items.filter((it) => it.text.trim().length > 0)
   if (usable.length === 0) return []
 
-  const buckets: TextItem[][] = []
-  for (const item of [...usable].sort((a, b) => b.y - a.y)) {
-    const bucket = buckets[buckets.length - 1]
-    const ref = bucket?.[0]
-    if (ref && Math.abs(ref.y - item.y) <= BASELINE_TOLERANCE) bucket.push(item)
-    else buckets.push([item])
-  }
+  const buckets = mergeScriptBuckets(bucketByBaseline(usable))
 
   return buckets
     .map((bucket) => {
-      const ordered = [...bucket].sort((a, b) => a.x - b.x)
-      // Fragmente ohne Trennzeichen zusammensetzen — pdf.js liefert
-      // vorhandene Leerzeichen als eigene Fragmente mit.
-      const text = tidy(ordered.map((i) => i.text).join(''))
+      const ordered = [...bucket.items].sort((a, b) => a.x - b.x)
+      const text = tidy(joinWithGaps(ordered))
       return {
         text,
-        size: Math.max(...ordered.map((i) => i.size)),
-        y: ordered[0]!.y,
+        size: bucket.maxSize,
+        y: bucket.y,
         x: ordered[0]!.x,
       }
     })
