@@ -1519,24 +1519,91 @@ umgestellte Entität — anders als Fächer/Prüfungen ohne `AUTOINCREMENT`.
   fällt korrekt auf „0" zurück (kein optimistisches Update ohne
   erfolgreichen DB-Write).
 
+### Persistenz-Härtung — Baustein 5: Themen/Themenabschnitte echt in SQLite
+
+Branch `feat/persistence-topics` (von `main` abgezweigt). Vierte
+umgestellte Entität, deutlich komplexer als Bausteine 2-4, weil zwei
+Fragen zugleich zu lösen waren: (a) wie Baum-Operationen auf `topics`
+(nicht nur einzelne Zeilen) in SQL abgebildet werden, (b) dass
+`topic_sections.document_id NOT NULL REFERENCES documents(id)` erzwingt,
+dass jetzt auch `documents`-Metadaten echt persistiert werden — beides war
+vorher nur als vage Option offengehalten.
+
+- **`data/documentsRepo.ts`** (neu): `loadDocuments`, `insertDocument` —
+  nur Insert/Select, kein Update/Delete (Dokumente werden nie bearbeitet,
+  nur neu importiert). Musste gebaut werden, weil `topic_sections` sonst
+  auf eine nicht existierende `document_id` gezeigt hätte — der
+  Fremdschlüssel im Test-Setup (`PRAGMA foreign_keys = ON`) hätte das
+  sofort aufgedeckt. **PDF-Rohbytes bleiben bewusst In-Memory**
+  (`documentBytes` in `App.tsx`, siehe SECURITY.md) — nur die Metadaten
+  (Dateiname, sha256, Seiten-/Folienzahl, Zeichenzahl) landen in der DB;
+  `stored_path` trägt vorerst einen Platzhalter (`in-memory://<filename>`),
+  eine echte Dateisystem-Ablage ist eine spätere Erweiterung.
+- **`data/topicsRepo.ts`** (neu): `loadTopics`, `insertTopic`,
+  `updateTopicRow`, `deleteTopicRow` sowie der zentrale Baustein
+  `syncTopics(conn, before, after)` — vergleicht den alten mit dem neuen
+  `Topic[]`-Stand und wendet nur die Differenz als gezielte
+  `UPDATE`/`DELETE`-Statements an. **Bewusste Entscheidung gegen** das
+  Callback-Muster von Fächern/Prüfungen/Verfügbarkeit: `moveTopic`
+  (`topicTree.ts`) kann bei einer einzigen Nutzeraktion mehrere Zeilen
+  gleichzeitig ändern (Geschwister-Neunummerierung über zwei
+  Elternebenen hinweg) — das als einzelne SQL-Operation nachzubilden hätte
+  `topicTree.ts`s bereits korrekte Logik dupliziert. `ui/TopicTree.tsx`
+  behält deshalb sein ursprüngliches `onChange(gesamtesArray)`-Signatur
+  unverändert bei; `App.tsx` diffed vorher/nachher und persistiert nur die
+  Differenz.
+- **`data/topicSectionsRepo.ts`** (neu): `loadTopicSections`,
+  `insertTopicSection` — nur Insert/Select, `topic_sections` sind
+  import-only und kaskadieren mit ihrem `topic` (Fremdschlüssel).
+- **`data/importTopics.ts`** komplett überarbeitet: die alte, nie
+  tatsächlich angebundene `SqlExecutor`/`importExtractedDocument`-Variante
+  sowie die reine Array-Variante `topicsFromExtractedDocument` entfernt
+  (vor dem Löschen per Grep über `src/`, `tests/`, `scripts/` geprüft —
+  `scripts/preview-import.ts` war ein echter, weiterhin genutzter
+  Verbraucher und musste stattdessen mitgezogen werden). Neu:
+  `computeSha256` (Web-Crypto-API, keine neue Abhängigkeit) und
+  `persistExtractedDocument(conn, courseId, extracted, meta, importedAt)`
+  — legt `document`, dann je Kapitel ein `topic` und (falls Folien
+  vorhanden) eine `topic_section` an, mit den echten, sequenziell von der
+  DB vergebenen IDs. Kein ID-Remapping nötig (anders als beim
+  Kurs-Export/Import), weil hier nichts vorab lokal mit geratenen IDs
+  berechnet wird.
+- **`App.tsx`**: `handleChangeTopics` ruft `syncTopics` auf und zieht
+  `topicSections` entsprechend nach; `importPdfs` ruft jetzt
+  `persistExtractedDocument` auf statt lokal IDs zu vergeben.
+  `nextDocumentId`-State entfernt (nicht mehr nötig). Bestehendes,
+  bekanntes **Lücke, bewusst nicht in diesem Baustein geschlossen**:
+  Kurs-Export/Import (`applyCourseImport`) geht für **keine** Entität
+  durch die Repo-/Persistenzschicht — ein importierter Kurs existiert nur
+  für die laufende Sitzung, nicht dauerhaft in der DB. Diese Lücke
+  besteht seit Baustein 2 (Fächer) und betrifft jetzt auch Themen; sie zu
+  schließen wäre eine eigene, größere Aufgabe (Import müsste transaktional
+  über mehrere Repos hinweg schreiben) und würde diesen Baustein sprengen.
+- **34 neue/umgeschriebene Tests** (`documentsRepo.test.ts` 3,
+  `topicsRepo.test.ts` 10, `topicSectionsRepo.test.ts` 3,
+  `importTopics.test.ts` 6 umgeschrieben, plus bestehende
+  `TopicTree.test.tsx` unverändert) über `tests/data/testConnection.ts`,
+  u. a. Fremdschlüssel-Kaskaden und ein Test, der bestätigt, dass
+  `syncTopics` eine `moveTopic`-Geschwister-Neunummerierung korrekt als
+  mehrere `UPDATE`s anwendet.
+- **Starker Plausibilitätscheck über `npm run preview-import`** (echtes
+  `better-sqlite3`, keine Tauri-IPC-Einschränkung) gegen echtes Material
+  (`Beispiel pdfs/Microeconomics/02 Consumer Theory 01.pdf` und
+  `03 Producer Theory 01.pdf`) — bestätigt korrekte, sequenzielle
+  `documentId`s (1, 2) und unveränderte Kapitel-zu-Thema-Zuordnung
+  gegenüber der bereits validierten Phase-1-Ausgabe.
+- **Im frischen Tab geprüft:** App lädt fehlerfrei (leerer Themenbaum, da
+  frische/leere DB im Dev-Server-Kontext — erwartetes Verhalten, kein
+  Fehler).
+
 ### Nächster Schritt
 
-Persistenz-Härtung Baustein 5: **Themen/Themenabschnitte** — komplexer als
-die bisherigen Bausteine, weil sie am PDF-Import hängen
-(`data/importTopics.ts` hat bereits eine `SqlExecutor`-Variante
-vorbereitet, die jetzt an `data/db.ts`s `SqlConnection` angeglichen bzw.
-darauf umgestellt werden kann) und weil `ui/TopicTree.tsx` Baum-Operationen
-(umbenennen, verschieben inkl. Geschwister-Neunummerierung, löschen mit
-Kaskade) auf dem *gesamten* Baum durchführt, nicht auf einer einzelnen
-Zeile wie bisher — die Umstellung auf einzelne Callbacks ist hier weniger
-offensichtlich als bei den bisherigen Bausteinen; ggf. lohnt sich eine
-kurze Bestandsaufnahme von `topicTree.ts`/`TopicTree.tsx` vor dem
-eigentlichen Umbau. Danach: Lernblöcke → Planversionen. PDF-Rohbytes
-(`documentBytes`) bewusst **nicht** in die DB — bleiben In-Memory oder
-bekommen eine eigene Dateisystem-Lösung (`documents.stored_path`), siehe
-Auftrag des Nutzers. Erst wenn alle Entitäten umgestellt sind, den
-`App.tsx`-Kommentar entsprechend abschließend aktualisieren. Danach:
-ROADMAP.md Phase 4 der Reihe nach, wie vom Nutzer bestätigt.
+Persistenz-Härtung Baustein 6: **Lernblöcke** (`study_blocks`). Danach
+Baustein 7: **Planversionen** (`plan_versions`). Erst wenn alle Entitäten
+umgestellt sind, den `App.tsx`-Kommentar entsprechend abschließend
+aktualisieren (aktuell verweist er noch auf einen „provisorischen
+Rahmen" für die verbleibenden Entitäten). Danach: ROADMAP.md Phase 4 der
+Reihe nach, wie vom Nutzer bestätigt.
 
 ### Danach (unverändert aus der Roadmap)
 

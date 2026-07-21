@@ -1,41 +1,12 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import Database from 'better-sqlite3'
-import { beforeEach, describe, expect, it } from 'vitest'
-import {
-  importExtractedDocument,
-  topicsFromExtractedDocument,
-  type SqlExecutor,
-} from '../../src/data/importTopics'
+import { describe, expect, it } from 'vitest'
+import { createTestConnection } from './testConnection'
+import { persistExtractedDocument } from '../../src/data/importTopics'
+import { insertCourse } from '../../src/data/coursesRepo'
+import { loadDocuments } from '../../src/data/documentsRepo'
 import type { Chapter, ExtractedDocument, Slide } from '../../src/ingest/types'
 
-/**
- * `better-sqlite3` ist reine Testinfrastruktur (siehe schema.test.ts) — die
- * eigentliche Laufzeit-Anbindung ist `tauri-plugin-sql`. Der Adapter zeigt,
- * dass `SqlExecutor` (in `importTopics.ts`) mit einer echten, synchronen
- * Datenbank funktioniert; die async Signatur passt später ebenso zu
- * `tauri-plugin-sql`s Promise-basierter API.
- */
-function sqliteExecutor(db: Database.Database): SqlExecutor {
-  return {
-    run(sql, params) {
-      const result = db.prepare(sql).run(...(params as (string | number | null)[]))
-      return Promise.resolve(Number(result.lastInsertRowid))
-    },
-  }
-}
-
-const MIGRATION_0001 = readFileSync(
-  resolve(__dirname, '../../src/data/migrations/0001_init.sql'),
-  'utf-8',
-)
-
-function freshDb(): Database.Database {
-  const db = new Database(':memory:')
-  db.pragma('foreign_keys = ON')
-  db.exec(MIGRATION_0001)
-  return db
-}
+const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const }
+const META = { storedPath: 'in-memory://a.pdf', sha256: 'abc123', docType: 'folien' as const }
 
 function slide(title: string, pageNumbers: number[], bodyText: string): Slide {
   return {
@@ -71,104 +42,65 @@ function extractedFixture(): ExtractedDocument {
   }
 }
 
-describe('importExtractedDocument', () => {
-  let db: Database.Database
-  let courseId: number
-
-  beforeEach(() => {
-    db = freshDb()
-    db.prepare(
-      `INSERT INTO courses (name, semester, color, priority, difficulty) VALUES (?, ?, ?, ?, ?)`,
-    ).run('Microeconomics', 'WS25', '#000', 3, 3)
-    courseId = 1
-  })
-
+describe('persistExtractedDocument', () => {
   it('legt ein document mit den Umfangsmaßen aus ExtractedDocument an', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
     const extracted = extractedFixture()
-    const exec = sqliteExecutor(db)
 
-    const result = await importExtractedDocument(exec, courseId, extracted, {
-      storedPath: '/x/02 Consumer Theory 01.pdf',
-      sha256: 'abc123',
-      docType: 'folien',
+    const result = await persistExtractedDocument(conn, course.id, extracted, META, '2026-07-21T00:00:00.000Z')
+
+    expect(result.document).toMatchObject({
+      filename: extracted.filename,
+      pdf_pages: 5,
+      slide_count: 3,
+      unique_chars: extracted.uniqueChars,
     })
-
-    const row = db.prepare('SELECT * FROM documents WHERE id = ?').get(result.documentId) as {
-      filename: string
-      pdf_pages: number
-      slide_count: number
-      unique_chars: number
-    }
-    expect(row.filename).toBe(extracted.filename)
-    expect(row.pdf_pages).toBe(5)
-    expect(row.slide_count).toBe(3)
-    expect(row.unique_chars).toBe(extracted.uniqueChars)
+    expect(await loadDocuments(conn)).toEqual([result.document])
   })
 
   it('legt für jedes Kapitel ein Thema an, in Dokumentreihenfolge', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
     const extracted = extractedFixture()
-    const exec = sqliteExecutor(db)
 
-    const result = await importExtractedDocument(exec, courseId, extracted, {
-      storedPath: '/x/a.pdf',
-      sha256: 'abc123',
-      docType: 'folien',
-    })
+    const result = await persistExtractedDocument(conn, course.id, extracted, META, 'x')
 
-    expect(result.topicIds).toHaveLength(2)
-    const rows = db
-      .prepare('SELECT name, sort_order, parent_id, manual_override FROM topics ORDER BY sort_order')
-      .all() as { name: string; sort_order: number; parent_id: number | null; manual_override: number }[]
-    expect(rows.map((r) => r.name)).toEqual(['Consumer Theory', 'Producer Theory'])
-    expect(rows.map((r) => r.sort_order)).toEqual([0, 1])
-    expect(rows.every((r) => r.parent_id === null)).toBe(true)
-    expect(rows.every((r) => r.manual_override === 0)).toBe(true)
+    expect(result.topics.map((t) => t.name)).toEqual(['Consumer Theory', 'Producer Theory'])
+    expect(result.topics.map((t) => t.sort_order)).toEqual([0, 1])
+    expect(result.topics.every((t) => t.parent_id === null && t.manual_override === 0)).toBe(true)
   })
 
   it('legt eine topic_section je Kapitel mit korrektem Seitenbereich und Umfang an', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
     const extracted = extractedFixture()
-    const exec = sqliteExecutor(db)
 
-    const result = await importExtractedDocument(exec, courseId, extracted, {
-      storedPath: '/x/a.pdf',
-      sha256: 'abc123',
-      docType: 'folien',
-    })
+    const result = await persistExtractedDocument(conn, course.id, extracted, META, 'x')
 
-    const firstChapterTopicId = result.topicIds[0]!
-    const section = db
-      .prepare('SELECT * FROM topic_sections WHERE topic_id = ?')
-      .get(firstChapterTopicId) as {
-      page_start: number
-      page_end: number
-      slide_count: number
-      unique_chars: number
-      document_id: number
-    }
+    const [firstSection] = result.topicSections
     // Consumer Theory: Folien auf Seiten [1] und [2,3] -> Bereich 1..3
-    expect(section.page_start).toBe(1)
-    expect(section.page_end).toBe(3)
-    expect(section.slide_count).toBe(2)
-    expect(section.unique_chars).toBe(
-      extracted.chapters[0]!.slides.reduce((sum, s) => sum + s.chars, 0),
-    )
-    expect(section.document_id).toBe(result.documentId)
+    expect(firstSection).toMatchObject({
+      topic_id: result.topics[0]!.id,
+      document_id: result.document.id,
+      page_start: 1,
+      page_end: 3,
+      slide_count: 2,
+    })
+    expect(firstSection!.unique_chars).toBe(extracted.chapters[0]!.slides.reduce((sum, s) => sum + s.chars, 0))
   })
 
-  it('legt kein Dokument ohne zugehörigen Kurs an (Fremdschlüssel greift)', async () => {
+  it('legt kein Dokument ohne zugehöriges Fach an (Fremdschlüssel greift)', async () => {
+    const conn = createTestConnection()
     const extracted = extractedFixture()
-    const exec = sqliteExecutor(db)
-
-    await expect(
-      importExtractedDocument(exec, 999, extracted, {
-        storedPath: '/x/a.pdf',
-        sha256: 'abc123',
-        docType: 'folien',
-      }),
-    ).rejects.toThrow(/FOREIGN KEY constraint failed/)
+    await expect(persistExtractedDocument(conn, 999, extracted, META, 'x')).rejects.toThrow(
+      /FOREIGN KEY constraint failed/,
+    )
   })
 
   it('legt ein Dokument ohne Kapitel an, ohne dass Themen entstehen', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
     const extracted: ExtractedDocument = {
       filename: 'leer.pdf',
       pdfPages: 0,
@@ -178,41 +110,16 @@ describe('importExtractedDocument', () => {
       slides: [],
       diagnostics: { titleCoverage: 0, buildGroups: 0, inflation: 0, dividers: 0, sparsePages: 0 },
     }
-    const exec = sqliteExecutor(db)
 
-    const result = await importExtractedDocument(exec, courseId, extracted, {
-      storedPath: '/x/leer.pdf',
-      sha256: 'abc123',
-      docType: 'folien',
-    })
+    const result = await persistExtractedDocument(conn, course.id, extracted, META, 'x')
 
-    expect(result.topicIds).toEqual([])
-    const count = db.prepare('SELECT COUNT(*) AS n FROM topics').get() as { n: number }
-    expect(count.n).toBe(0)
-  })
-})
-
-describe('topicsFromExtractedDocument', () => {
-  it('erzeugt dieselben Kapitel-Themen wie importExtractedDocument, ohne Datenbank', () => {
-    const extracted = extractedFixture()
-    const { topics, topicSections } = topicsFromExtractedDocument(extracted, 1, 1, [], [])
-
-    expect(topics.map((t) => t.name)).toEqual(['Consumer Theory', 'Producer Theory'])
-    expect(topics.every((t) => t.course_id === 1 && t.parent_id === null && t.manual_override === 0)).toBe(true)
-    expect(topicSections).toHaveLength(2)
-    expect(topicSections[0]).toMatchObject({ topic_id: topics[0]!.id, document_id: 1, page_start: 1, page_end: 3 })
+    expect(result.topics).toEqual([])
+    expect(result.topicSections).toEqual([])
   })
 
-  it('vergibt fortlaufende IDs über mehrere Importe hinweg', () => {
-    const extracted = extractedFixture()
-    const first = topicsFromExtractedDocument(extracted, 1, 1, [], [])
-    const second = topicsFromExtractedDocument(extracted, 1, 2, first.topics, first.topicSections)
-
-    expect(second.topics.map((t) => t.id)).toEqual([1, 2, 3, 4])
-    expect(second.topicSections.map((s) => s.id)).toEqual([1, 2, 3, 4])
-  })
-
-  it('legt kein topic_section für ein kapitel ohne folien an', () => {
+  it('legt kein topic_section für ein Kapitel ohne Folien an', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
     const extracted: ExtractedDocument = {
       filename: 'leer.pdf',
       pdfPages: 0,
@@ -222,8 +129,10 @@ describe('topicsFromExtractedDocument', () => {
       slides: [],
       diagnostics: { titleCoverage: 0, buildGroups: 0, inflation: 0, dividers: 0, sparsePages: 0 },
     }
-    const { topics, topicSections } = topicsFromExtractedDocument(extracted, 1, 1, [], [])
-    expect(topics).toHaveLength(1)
-    expect(topicSections).toEqual([])
+
+    const result = await persistExtractedDocument(conn, course.id, extracted, META, 'x')
+
+    expect(result.topics).toHaveLength(1)
+    expect(result.topicSections).toEqual([])
   })
 })

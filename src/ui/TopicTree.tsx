@@ -17,9 +17,11 @@ import type { Topic } from '../data/schema'
  * Trägt selbst keine Geschäftslogik (ARCHITECTURE.md „ui/ … keine
  * Geschäftslogik") — jede Änderung geht über die reinen Funktionen in
  * `data/topicTree.ts`. Diese Komponente hält keinen eigenen Datenzustand:
- * `topics` kommt von außen (später aus `data/`, aktuell z. B. aus dem
- * Ergebnis von `importExtractedDocument`), `onChange` liefert den neuen
- * Stand zurück — Persistieren ist Sache der aufrufenden Stelle.
+ * `topics` kommt von außen (aus der Datenbank geladen bzw. aus dem
+ * Ergebnis von `persistExtractedDocument`, siehe `data/importTopics.ts`),
+ * `onChange` liefert den neuen Stand zurück — `App.tsx` vergleicht ihn
+ * mit dem vorigen und persistiert nur die Differenz (`data/topicsRepo.ts`
+ * `syncTopics`), diese Komponente kennt davon nichts.
  *
  * Bewegen bewusst über Auf/Ab/Ein-/Ausrücken-Schaltflächen statt
  * Drag & Drop: tastaturbedienbar, ohne zusätzliche Abhängigkeit, und An-
