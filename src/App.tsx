@@ -32,6 +32,7 @@ import { loadTopics, syncTopics } from './data/topicsRepo'
 import { loadTopicSections } from './data/topicSectionsRepo'
 import { loadStudyBlocks, syncStudyBlocks } from './data/studyBlocksRepo'
 import { insertPlanVersion, loadPlanVersions } from './data/planVersionsRepo'
+import { deleteCardRow, insertCard, loadCards, type NewCardInput } from './data/cardsRepo'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
@@ -40,6 +41,7 @@ import type {
   AvailabilityException,
   AvailabilityPattern,
   Blocker,
+  Card,
   Course,
   PlanVersion,
   StudyBlock,
@@ -86,6 +88,7 @@ export function App() {
   const [blockers] = useState<Blocker[]>([])
   const [studyBlocks, setStudyBlocks] = useState<StudyBlock[]>([])
   const [planVersions, setPlanVersions] = useState<PlanVersion[]>([])
+  const [cards, setCards] = useState<Card[]>([])
   const [documentBytes, setDocumentBytes] = useState<Record<number, Uint8Array>>({})
   const [notificationLog, setNotificationLog] = useState<Partial<Record<NotificationKind, string>>>({})
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
@@ -188,6 +191,41 @@ export function App() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => loadCards(db))
+      .then((rows) => {
+        if (!cancelled) setCards(rows)
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const handleCreateCard = async (input: NewCardInput) => {
+    try {
+      const db = await getDb()
+      const card = await insertCard(db, input, new Date().toISOString())
+      setCards((prev) => [...prev, card])
+    } catch (error) {
+      console.error('Karteikarte konnte nicht gespeichert werden', error)
+    }
+  }
+
+  const handleDeleteCard = async (id: number) => {
+    try {
+      const db = await getDb()
+      await deleteCardRow(db, id)
+      setCards((prev) => prev.filter((c) => c.id !== id))
+    } catch (error) {
+      console.error('Karteikarte konnte nicht gelöscht werden', error)
+    }
+  }
 
   const handleAddCourse = async (input: NewCourseInput) => {
     try {
@@ -295,10 +333,11 @@ export function App() {
       await syncTopics(db, topics, nextTopics)
       setTopics(nextTopics)
       // Ein gelöschtes Thema kaskadiert in der DB auf seine topic_sections
-      // (ON DELETE CASCADE) — den lokalen Zustand entsprechend nachziehen,
-      // sonst blieben verwaiste Abschnitte stehen.
+      // UND cards (ON DELETE CASCADE) — den lokalen Zustand entsprechend
+      // nachziehen, sonst blieben verwaiste Abschnitte/Karten stehen.
       const remainingTopicIds = new Set(nextTopics.map((t) => t.id))
       setTopicSections((prev) => prev.filter((s) => remainingTopicIds.has(s.topic_id)))
+      setCards((prev) => prev.filter((c) => remainingTopicIds.has(c.topic_id)))
     } catch (error) {
       console.error('Themenbaum konnte nicht gespeichert werden', error)
     }
@@ -451,7 +490,14 @@ export function App() {
 
       <TopicTree topics={topics} onChange={handleChangeTopics} />
 
-      <SourceViewer topics={topics} topicSections={topicSections} documentBytes={documentBytes} />
+      <SourceViewer
+        topics={topics}
+        topicSections={topicSections}
+        documentBytes={documentBytes}
+        cards={cards}
+        onCreateCard={handleCreateCard}
+        onDeleteCard={handleDeleteCard}
+      />
 
       <PlanView
         topics={topics}

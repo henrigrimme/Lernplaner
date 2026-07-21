@@ -1695,13 +1695,92 @@ erhalten"), nie Update oder Delete.
 ### Nächster Schritt
 
 Persistenz-Härtung ist abgeschlossen. Weiter mit ROADMAP.md Phase 4 der
-Reihe nach, wie vom Nutzer bestätigt: Nachschärfen aus dem Alltag,
-Markieren im Dokument → Karteikarten, Spaced Repetition FSRS,
-Formelextraktion sauber, Quiz-Generierung, Probeklausur-Simulation,
+Reihe nach, wie vom Nutzer bestätigt. **„Nachschärfen aus dem Alltag"
+übersprungen** (auf Rückfrage): setzt echte Nutzungserfahrung voraus, die
+laut Plan erst ab September beginnt (heute: 21.07.2026) — nichts
+Konkretes, an dem sich das festmachen ließe. Stattdessen direkt mit dem
+nächsten Punkt begonnen.
+
+### Phase 4 — Markieren im Dokument → Karteikarten
+
+Branch `feat/highlight-to-flashcards` (von `main` abgezweigt). Erster
+Phase-4-Punkt. `cards` (DATA_MODEL.md „Später befüllt, jetzt schon
+angelegt") wird befüllt — bewusst nur das Anlegen von Karten aus
+markiertem Text, **nicht** die Wiederholung/Bewertung selbst (das ist der
+nächste Roadmap-Punkt „Spaced Repetition FSRS", siehe Abgrenzung weiter
+oben in diesem Abschnitt).
+
+- **`ui/PdfViewer.tsx` bekommt eine echte Textebene:** das bisherige
+  Canvas-Rendering (`page.render`) zeigt nur ein Bild, keinen auswählbaren
+  Text. `pdfjs.TextLayer` (Teil desselben `pdf.mjs`-Bundles wie
+  `getDocument`, **keine neue Abhängigkeit**) legt unsichtbare, exakt
+  positionierte `<span>`s über das Canvas — dieselbe Technik, die pdf.js'
+  eigener Viewer für Textsuche/-markierung nutzt. Minimales CSS dafür
+  selbst geschrieben (`TEXT_LAYER_STYLE`-Konstante), abgeleitet aus
+  `pdfjs-dist/legacy/web/pdf_viewer.css`s `.textLayer`-Regeln — bewusst
+  nur die für Positionierung/Auswahl nötigen Regeln übernommen, nicht das
+  komplette, Annotation-Editor-lastige Stylesheet.
+- **Neue Prop `onSelectionChange(text, page)`:** ein `document`-weiter
+  `selectionchange`-Listener prüft bei jeder Änderung, ob
+  `window.getSelection()`s Anker-Knoten innerhalb der Textebene dieser
+  Seite liegt — nur dann wird der Text gemeldet, sonst ein leerer String
+  (Auswahl aufgehoben oder außerhalb). So bleibt `PdfViewer` eine reine
+  Präsentationskomponente: die Entscheidung, was mit der Auswahl passiert,
+  trifft `SourceViewer`.
+- **`ui/CardCreator.tsx`** (neu): Formular, das erscheint, sobald
+  `SourceViewer` eine nichtleere Auswahl hält. `source_quote` kommt
+  schreibgeschützt aus der Markierung; Vorder-/Rückseite schreibt der
+  Nutzer von Hand — bewusst **kein** automatisches Frage-Antwort-Raten aus
+  dem Zitat (das wäre KI-Gebiet, nicht dieser Baustein). Thema ist mit dem
+  Thema des gerade betrachteten Abschnitts vorbelegt, aber über ein
+  Dropdown änderbar (die Markierung kann fachlich zu einem anderen Thema
+  gehören als der zufällig geöffnete Abschnitt).
+- **`ui/SourceViewer.tsx`**: hält den `selection`-Zustand, zeigt
+  `CardCreator` bei nichtleerer Auswahl, listet bestehende Karten **nach
+  Thema gefiltert** (nicht nach Dokument/Seite — eine Karte gehört
+  fachlich zum Thema). Auswahl wird zurückgesetzt, wenn ein anderer
+  Abschnitt geöffnet wird (sonst bliebe eine Karte vom vorigen Dokument
+  fälschlich stehen).
+- **`data/cardsRepo.ts`** (neu): `loadCards`, `insertCard`,
+  `deleteCardRow` — kein Update (eine falsch angelegte Karte wird
+  gelöscht und neu erstellt, kein Bearbeitungsformular in diesem
+  Baustein).
+- **`App.tsx`**: `cards`-Zustand, sechster `useEffect`-Lader
+  (`loadCards`), `handleCreateCard`/`handleDeleteCard` nach dem
+  etablierten try/catch-Muster. `handleChangeTopics`s Kaskaden-Nachzug
+  (bisher nur `topicSections`) um `cards` erweitert — ein gelöschtes Thema
+  kaskadiert in der DB auch auf seine Karten (`ON DELETE CASCADE`).
+- **14 neue Tests**: `cardsRepo.test.ts` (3, inkl. Fremdschlüssel-Kaskade),
+  `CardCreator.test.tsx` (5), zwei neue Fälle in `PdfViewer.test.tsx`
+  (Auswahl innerhalb/außerhalb der Textebene — über echte, nicht gemockte
+  `document.createRange()`/`window.getSelection()`-APIs, die sich in
+  jsdom für diesen Zweck spezifikationsgetreu verhalten), vier neue Fälle
+  in `SourceViewer.test.tsx` (CardCreator erscheint/verschwindet,
+  `onCreateCard`-Aufruf, Kartenliste je Thema, Auswahl-Reset beim
+  Abschnittswechsel).
+- **Grenze der Plausibilitätsprüfung im Dev-Server, ehrlich festgehalten:**
+  ein echter Ende-zu-Ende-Durchlauf (Fach anlegen → PDF importieren → im
+  Viewer markieren → Karte erstellen) ist im Dev-Server/Browser **nicht**
+  erreichbar — schon das Anlegen eines Fachs scheitert dort ohne echtes
+  Tauri-Fenster (dieselbe, bereits mehrfach dokumentierte IPC-Einschränkung
+  wie bei jedem Persistenz-Baustein), und ohne Fach kein PDF-Import, ohne
+  Import keine Seite zum Markieren. Geprüft wurde stattdessen: App lädt im
+  frischen Tab fehlerfrei (nur der erwartete, abgefangene
+  Fach-Speicherfehler in der Konsole, keine neuen Fehler durch die
+  TextLayer-Änderungen), und die eigentliche Interaktionslogik
+  (`selectionchange`-Listener, `CardCreator`-Formular, Kartenliste) ist
+  über echte (nicht gemockte) DOM-Selection-APIs in den Unit-Tests
+  abgedeckt.
+
+### Nächster Schritt
+
+ROADMAP.md Phase 4, nächster Punkt: **Spaced Repetition (FSRS)** — Recherche
+bereits gemacht (siehe oben „Recherche: Spaced Repetition"). Baut auf den
+jetzt vorhandenen `cards` auf: `reviews`-Tabelle befüllen, FSRS-Algorithmus
+für Erinnerungs-Feedback pro Karte, Wiederholungsansicht. Danach der Reihe
+nach: Formelextraktion sauber, Quiz-Generierung, Probeklausur-Simulation,
 Fehlerhistorie → gezielte Wiederholung, Paper-Workflow, Altklausur-Analyse
-→ automatische Gewichtung — jeweils in eigenen Branches/PRs, mit
-derselben Sorgfalt (Tests, Build, Plausibilitätscheck, CONTEXT.md-Update,
-PR-Merge).
+→ automatische Gewichtung.
 
 ### Danach (unverändert aus der Roadmap)
 
