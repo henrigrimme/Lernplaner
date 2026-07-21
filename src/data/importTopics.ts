@@ -1,143 +1,110 @@
-import type { Chapter, ExtractedDocument } from '../ingest/types'
-import type { DocumentType, Topic, TopicSection } from './schema'
+import type { ExtractedDocument } from '../ingest/types'
+import type { Document, DocumentType, Topic, TopicSection } from './schema'
+import type { SqlConnection } from './db'
+import { insertDocument } from './documentsRepo'
+import { insertTopic } from './topicsRepo'
+import { insertTopicSection } from './topicSectionsRepo'
 
 /**
  * Verbindet `ingest/` (liefert `ExtractedDocument`) mit `data/` (SQLite-Schema,
  * siehe DATA_MODEL.md „Kern"). Schreibt `documents`, `topics`,
  * `topic_sections` — noch nicht `courses` (das entsteht vor dem Import, im
- * Fach-Setup, nicht Teil dieses Schritts).
+ * Fach-Setup).
  *
- * Bewusst keine feste Anbindung an `better-sqlite3` oder `tauri-plugin-sql`:
- * `SqlExecutor` ist die schmale Schnittstelle, die beide erfüllen können
- * (Tests laufen gegen `better-sqlite3`, siehe ARCHITECTURE.md „ai/" für das
- * gleiche Muster bei austauschbaren Anbindungen). Der eigentliche
- * Tauri-Rahmen kommt erst später (siehe CONTEXT.md Abschnitt 8).
+ * Echte SQL-Operationen über `SqlConnection` (siehe `data/db.ts`) — jedes
+ * Kapitel wird sequenziell eingefügt, die dabei von der Datenbank
+ * vergebene echte `id` (`AUTOINCREMENT`) fließt direkt in die zugehörige
+ * `topic_section` ein. Kein separates ID-Remapping nötig (anders als z. B.
+ * beim Kurs-Import in `data/courseExport.ts`), weil hier nichts vorab
+ * lokal mit geratenen IDs berechnet wird.
+ *
+ * **Ersetzt die frühere `SqlExecutor`/`importExtractedDocument`-Variante**
+ * (nie tatsächlich angebunden, siehe CONTEXT.md „Persistenz-Härtung") —
+ * `SqlExecutor` kannte nur `run()` (INSERT), `SqlConnection` kam erst mit
+ * dem echten `tauri-plugin-sql`-Anschluss und bringt auch `select()` mit.
+ * Ebenso ersetzt: die reine Array-Variante `topicsFromExtractedDocument`
+ * (kein DB-Zugriff, geratene IDs) — jetzt, wo eine echte DB-Verbindung
+ * beim Import zur Verfügung steht, braucht es diesen Zwischenschritt nicht
+ * mehr.
  */
-export interface SqlExecutor {
-  /** Führt ein INSERT aus und liefert die neue `id` (AUTOINCREMENT). */
-  run(sql: string, params: unknown[]): Promise<number>
+
+/**
+ * SHA-256 des PDF-Inhalts als Hex-String, für `documents.sha256`
+ * (DATA_MODEL.md „Kern"). Über `crypto.subtle` (Web-Crypto-API,
+ * Browser-Standard, im Tauri-Webview wie im Vite-Dev-Server verfügbar) —
+ * keine neue Abhängigkeit nötig.
+ */
+export async function computeSha256(data: Uint8Array): Promise<string> {
+  // Kopie in einen frischen, garantiert echten ArrayBuffer — data.buffer
+  // könnte laut TS-DOM-Typisierung ein SharedArrayBuffer sein, den
+  // crypto.subtle.digest nicht akzeptiert.
+  const copy = new Uint8Array(data)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', copy)
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 export interface DocumentMeta {
+  /**
+   * Bewusst kein echter Dateisystempfad — siehe `documentsRepo.ts`
+   * `NewDocumentInput.stored_path`-Kommentar (PDF-Bytes bleiben In-Memory,
+   * keine echte Datei-Persistenz in diesem Schritt).
+   */
   storedPath: string
   sha256: string
   docType: DocumentType
 }
 
-export interface ImportResult {
-  documentId: number
+export interface PersistedImport {
+  document: Document
   /** Ein Eintrag pro Kapitel, in Reihenfolge von `extracted.chapters`. */
-  topicIds: number[]
+  topics: Topic[]
+  topicSections: TopicSection[]
 }
 
 /**
  * Jedes Kapitel wird 1:1 zu einem Thema (`topics`, `parent_id = NULL`) —
  * die Ingest-Pipeline erkennt aktuell nur Kapitel, keine Unterthemen. Eine
- * tiefere Gliederung ist eine spätere Erweiterung, kein Teil dieses Schritts.
+ * tiefere Gliederung ist eine spätere Erweiterung.
  */
 const DEFAULT_WEIGHT = 3
 const DEFAULT_DIFFICULTY = 3
 
-/** Legt ein importiertes Dokument samt Themenbaum in der Datenbank an. */
-export async function importExtractedDocument(
-  exec: SqlExecutor,
+/**
+ * Legt ein importiertes Dokument samt Themenbaum in der Datenbank an.
+ * `chapter.slides` enthält nach `detectChapters` nur Inhaltsfolien, keine
+ * Trennfolien (siehe `chapters.ts` `buildChapters`) — Trennfolien tragen
+ * daher korrekt nichts zum Umfang bei, ein Kapitel ohne Folien bekommt
+ * keine `topic_section`.
+ */
+export async function persistExtractedDocument(
+  conn: SqlConnection,
   courseId: number,
   extracted: ExtractedDocument,
   meta: DocumentMeta,
-): Promise<ImportResult> {
-  const documentId = await exec.run(
-    `INSERT INTO documents
-       (course_id, filename, stored_path, sha256, doc_type, pdf_pages, slide_count, unique_chars)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      courseId,
-      extracted.filename,
-      meta.storedPath,
-      meta.sha256,
-      meta.docType,
-      extracted.pdfPages,
-      extracted.slideCount,
-      extracted.uniqueChars,
-    ],
+  importedAt: string,
+): Promise<PersistedImport> {
+  const document = await insertDocument(
+    conn,
+    {
+      course_id: courseId,
+      filename: extracted.filename,
+      stored_path: meta.storedPath,
+      sha256: meta.sha256,
+      doc_type: meta.docType,
+      pdf_pages: extracted.pdfPages,
+      slide_count: extracted.slideCount,
+      unique_chars: extracted.uniqueChars,
+    },
+    importedAt,
   )
 
-  const topicIds: number[] = []
+  const topics: Topic[] = []
+  const topicSections: TopicSection[] = []
+
   for (const [index, chapter] of extracted.chapters.entries()) {
-    topicIds.push(await importChapterAsTopic(exec, courseId, documentId, chapter, index))
-  }
-
-  return { documentId, topicIds }
-}
-
-/**
- * Ein Kapitel als Thema anlegen, plus die zugehörige `topic_section` (Seiten
- * im Dokument, Umfangsmaße). `chapter.slides` enthält nach `detectChapters`
- * nur Inhaltsfolien, keine Trennfolien (siehe `chapters.ts` `buildChapters`)
- * — Trennfolien tragen daher korrekt nichts zum Umfang bei.
- */
-async function importChapterAsTopic(
-  exec: SqlExecutor,
-  courseId: number,
-  documentId: number,
-  chapter: Chapter,
-  sortOrder: number,
-): Promise<number> {
-  const topicId = await exec.run(
-    `INSERT INTO topics
-       (course_id, parent_id, name, normalized_name, weight, difficulty, sort_order)
-     VALUES (?, NULL, ?, ?, ?, ?, ?)`,
-    [courseId, chapter.title, chapter.normalized, DEFAULT_WEIGHT, DEFAULT_DIFFICULTY, sortOrder],
-  )
-
-  if (chapter.slides.length > 0) {
-    const pageNumbers = chapter.slides.flatMap((slide) => slide.pageNumbers)
-    const pageStart = Math.min(...pageNumbers)
-    const pageEnd = Math.max(...pageNumbers)
-    // Summe der Aufbau-bereinigten Zeichen je Folie — konsistent mit
-    // `uniqueCharCount` in slides.ts, das ebenfalls über bereits gruppierte
-    // Folien zählt, nicht über rohe Seiten.
-    const uniqueChars = chapter.slides.reduce((sum, slide) => sum + slide.chars, 0)
-
-    await exec.run(
-      `INSERT INTO topic_sections
-         (topic_id, document_id, page_start, page_end, unique_chars, slide_count)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [topicId, documentId, pageStart, pageEnd, uniqueChars, chapter.slides.length],
-    )
-  }
-
-  return topicId
-}
-
-/**
- * Array-Variante von `importExtractedDocument`, für den Import direkt im
- * Browser vor dem Tauri-Rahmen (kein `tauri-plugin-sql`, `better-sqlite3`
- * ist reine Node-Testinfrastruktur und im Frontend-Bundle nicht nutzbar).
- * Dieselbe Kapitel-→-Thema-Zuordnung wie `importExtractedDocument`, aber
- * gegen lokale Arrays statt `SqlExecutor`, nach dem Muster von
- * `courses.ts`/`topicTree.ts` (`nextId` statt `AUTOINCREMENT`).
- *
- * `documentId` wird vom Aufrufer vergeben (kein `documents`-Zustand nötig,
- * solange die UI keine echte Dokumentenliste zeigt) — muss nur unter den
- * `topicSections` eindeutig sein.
- */
-export function topicsFromExtractedDocument(
-  extracted: ExtractedDocument,
-  courseId: number,
-  documentId: number,
-  topics: Topic[],
-  topicSections: TopicSection[],
-): { topics: Topic[]; topicSections: TopicSection[] } {
-  let nextTopicId = topics.reduce((max, t) => Math.max(max, t.id), 0) + 1
-  let nextSectionId = topicSections.reduce((max, s) => Math.max(max, s.id), 0) + 1
-
-  const newTopics: Topic[] = []
-  const newSections: TopicSection[] = []
-
-  extracted.chapters.forEach((chapter, index) => {
-    const topicId = nextTopicId++
-    newTopics.push({
-      id: topicId,
+    const topic = await insertTopic(conn, {
       course_id: courseId,
       parent_id: null,
       name: chapter.title,
@@ -148,19 +115,23 @@ export function topicsFromExtractedDocument(
       status: 'offen',
       manual_override: 0,
     })
+    topics.push(topic)
 
-    if (chapter.slides.length === 0) return
+    if (chapter.slides.length === 0) continue
     const pageNumbers = chapter.slides.flatMap((slide) => slide.pageNumbers)
-    newSections.push({
-      id: nextSectionId++,
-      topic_id: topicId,
-      document_id: documentId,
+    // Summe der Aufbau-bereinigten Zeichen je Folie — konsistent mit
+    // `uniqueCharCount` in slides.ts, das ebenfalls über bereits gruppierte
+    // Folien zählt, nicht über rohe Seiten.
+    const section = await insertTopicSection(conn, {
+      topic_id: topic.id,
+      document_id: document.id,
       page_start: Math.min(...pageNumbers),
       page_end: Math.max(...pageNumbers),
       unique_chars: chapter.slides.reduce((sum, slide) => sum + slide.chars, 0),
       slide_count: chapter.slides.length,
     })
-  })
+    topicSections.push(section)
+  }
 
-  return { topics: [...topics, ...newTopics], topicSections: [...topicSections, ...newSections] }
+  return { document, topics, topicSections }
 }

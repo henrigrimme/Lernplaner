@@ -12,7 +12,7 @@ import { CourseExportImport } from './ui/CourseExportImport'
 import { NotificationsPanel } from './ui/NotificationsPanel'
 import { CalendarExport } from './ui/CalendarExport'
 import { extractDocument } from './ingest/pdf'
-import { topicsFromExtractedDocument } from './data/importTopics'
+import { computeSha256, persistExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
 import { recordPlanVersion } from './data/planVersions'
 import type { ImportedCourseResult } from './data/courseExport'
@@ -29,6 +29,8 @@ import {
   upsertAvailabilityPatternRow,
 } from './data/availabilityRepo'
 import { removeAvailabilityException, setAvailabilityException, setAvailabilityPattern } from './data/availability'
+import { loadTopics, syncTopics } from './data/topicsRepo'
+import { loadTopicSections } from './data/topicSectionsRepo'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
@@ -49,20 +51,31 @@ import type {
  * `ui/`-Schicht zusammenspielen (ROADMAP.md Phase 1) und dass der
  * komplette Fluss bis zum Lernplan durchspielbar ist (Phase 2). Persistenz
  * wird schrittweise nachgezogen (CONTEXT.md „Persistenz-Härtung"):
- * **Fächer, Prüfungen und Verfügbarkeit sind bereits echt in SQLite
- * gespeichert** (`data/coursesRepo.ts`/`data/assessmentsRepo.ts`/
- * `data/availabilityRepo.ts` über `data/db.ts`/`tauri-plugin-sql`), alle
- * anderen Entitäten (Themen, Lernblöcke, Planversionen) sind weiterhin nur
- * lokaler React-State, geht beim Neuladen verloren — das kommt in den
- * nächsten Schritten. `getDb()`/die Repo-Funktionen
- * funktionieren nur im echten Tauri-Fenster (keine IPC-Bridge im
- * Vite-Dev-Server/Browser, wie bei `platform/notifications.ts`) — die
- * `catch`-Blöcke unten fangen das ab, statt die UI abstürzen zu lassen.
+ * **Fächer, Prüfungen, Verfügbarkeit und Themen/Themenabschnitte sind
+ * bereits echt in SQLite gespeichert** (`data/coursesRepo.ts`/
+ * `data/assessmentsRepo.ts`/`data/availabilityRepo.ts`/
+ * `data/topicsRepo.ts`/`data/topicSectionsRepo.ts`/`data/documentsRepo.ts`
+ * über `data/db.ts`/`tauri-plugin-sql`), nur Lernblöcke und Planversionen
+ * sind weiterhin lokaler React-State, geht beim Neuladen verloren — das
+ * kommt im nächsten Schritt. `getDb()`/die Repo-Funktionen funktionieren
+ * nur im echten Tauri-Fenster (keine IPC-Bridge im Vite-Dev-Server/
+ * Browser, wie bei `platform/notifications.ts`) — die `catch`-Blöcke
+ * unten fangen das ab, statt die UI abstürzen zu lassen.
  *
- * PDF-Import läuft weiterhin direkt im Browser über
- * `topicsFromExtractedDocument` (Array-Variante ohne Datenbank, siehe
- * `data/importTopics.ts`) statt der `SqlExecutor`-Variante — Themen sind
- * noch nicht Teil der Persistenz-Härtung.
+ * PDF-Rohbytes (`documentBytes`) bleiben bewusst **nicht** persistiert
+ * (SECURITY.md: PDFs sind urheberrechtlich geschützt, gehören nicht mal
+ * ins Repo) — nur für die laufende Sitzung im Speicher, wie zuvor.
+ * `documents.stored_path` trägt deshalb noch keinen echten Dateisystempfad
+ * (siehe `data/documentsRepo.ts`-Kommentar).
+ *
+ * **Bekannte Lücke:** Kurs-Export/Import (`applyCourseImport` unten) geht
+ * bewusst **nicht** über die Repo-Schicht — es ist ein eigenständiges,
+ * rein array-basiertes Austauschformat (`data/courseExport.ts`, JSON-Datei
+ * zwischen den beiden Nutzern). Ein importierter Kurs erscheint dadurch
+ * nur für die laufende Sitzung, nicht dauerhaft in der Datenbank — dieselbe
+ * Lücke besteht bereits seit den Fächer-/Prüfungs-Bausteinen, hier nur der
+ * Vollständigkeit halber erneut festgehalten, da sie jetzt auch Themen
+ * betrifft.
  */
 export function App() {
   const [topics, setTopics] = useState<Topic[]>([])
@@ -77,7 +90,6 @@ export function App() {
   const [documentBytes, setDocumentBytes] = useState<Record<number, Uint8Array>>({})
   const [notificationLog, setNotificationLog] = useState<Partial<Record<NotificationKind, string>>>({})
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
-  const [nextDocumentId, setNextDocumentId] = useState(1)
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
@@ -120,6 +132,24 @@ export function App() {
         if (!cancelled) {
           setPattern(patternRows)
           setExceptions(exceptionRows)
+        }
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => Promise.all([loadTopics(db), loadTopicSections(db)]))
+      .then(([topicRows, sectionRows]) => {
+        if (!cancelled) {
+          setTopics(topicRows)
+          setTopicSections(sectionRows)
         }
       })
       .catch(() => {
@@ -230,6 +260,21 @@ export function App() {
     }
   }
 
+  const handleChangeTopics = async (nextTopics: Topic[]) => {
+    try {
+      const db = await getDb()
+      await syncTopics(db, topics, nextTopics)
+      setTopics(nextTopics)
+      // Ein gelöschtes Thema kaskadiert in der DB auf seine topic_sections
+      // (ON DELETE CASCADE) — den lokalen Zustand entsprechend nachziehen,
+      // sonst blieben verwaiste Abschnitte stehen.
+      const remainingTopicIds = new Set(nextTopics.map((t) => t.id))
+      setTopicSections((prev) => prev.filter((s) => remainingTopicIds.has(s.topic_id)))
+    } catch (error) {
+      console.error('Themenbaum konnte nicht gespeichert werden', error)
+    }
+  }
+
   const generateStudyBlocks = () => {
     const schedule = buildSchedule({ topics, topicSections, assessments, courses, pattern, exceptions, blockers, from: today })
     setStudyBlocks(materializeStudyBlocks(schedule.blocks))
@@ -274,24 +319,27 @@ export function App() {
 
   const importPdfs = async (files: FileList) => {
     if (selectedCourseId === null) return
-    let currentTopics = topics
-    let currentSections = topicSections
-    let documentId = nextDocumentId
 
     for (const file of Array.from(files)) {
       const data = new Uint8Array(await file.arrayBuffer())
       const extracted = await extractDocument(data, file.name)
-      const result = topicsFromExtractedDocument(extracted, selectedCourseId, documentId, currentTopics, currentSections)
-      currentTopics = result.topics
-      currentSections = result.topicSections
-      const importedDocumentId = documentId
-      setDocumentBytes((prev) => ({ ...prev, [importedDocumentId]: data }))
-      documentId += 1
+      try {
+        const db = await getDb()
+        const sha256 = await computeSha256(data)
+        const result = await persistExtractedDocument(
+          db,
+          selectedCourseId,
+          extracted,
+          { storedPath: `in-memory://${file.name}`, sha256, docType: 'folien' },
+          new Date().toISOString(),
+        )
+        setTopics((prev) => [...prev, ...result.topics])
+        setTopicSections((prev) => [...prev, ...result.topicSections])
+        setDocumentBytes((prev) => ({ ...prev, [result.document.id]: data }))
+      } catch (error) {
+        console.error('PDF-Import konnte nicht gespeichert werden', error)
+      }
     }
-
-    setTopics(currentTopics)
-    setTopicSections(currentSections)
-    setNextDocumentId(documentId)
   }
 
   return (
@@ -352,7 +400,7 @@ export function App() {
         </label>
       )}
 
-      <TopicTree topics={topics} onChange={setTopics} />
+      <TopicTree topics={topics} onChange={handleChangeTopics} />
 
       <SourceViewer topics={topics} topicSections={topicSections} documentBytes={documentBytes} />
 

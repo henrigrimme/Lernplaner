@@ -15,8 +15,9 @@ import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import Database from 'better-sqlite3'
 import { extractDocument } from '../src/ingest/pdf'
-import { importExtractedDocument, type SqlExecutor } from '../src/data/importTopics'
+import { persistExtractedDocument } from '../src/data/importTopics'
 import { estimateMinutes } from '../src/domain/estimation'
+import type { SqlConnection } from '../src/data/db'
 
 const MIGRATION = readFileSync(
   new URL('../src/data/migrations/0001_init.sql', import.meta.url),
@@ -30,10 +31,13 @@ db.prepare(
   `INSERT INTO courses (name, semester, color, priority, difficulty) VALUES ('Vorschau', 'WS25', '#000', 3, 3)`,
 ).run()
 
-const exec: SqlExecutor = {
-  run(sql, params) {
-    const result = db.prepare(sql).run(...(params as (string | number | null)[]))
-    return Promise.resolve(Number(result.lastInsertRowid))
+const conn: SqlConnection = {
+  async execute(sql: string, params: unknown[] = []) {
+    const info = db.prepare(sql).run(...(params as (string | number | bigint | Buffer | null)[]))
+    return { lastInsertId: Number(info.lastInsertRowid), rowsAffected: info.changes }
+  },
+  async select<T>(sql: string, params: unknown[] = []) {
+    return db.prepare(sql).all(...(params as (string | number | bigint | Buffer | null)[])) as T[]
   },
 }
 
@@ -45,25 +49,19 @@ if (files.length === 0) {
 
 for (const file of files) {
   const doc = await extractDocument(new Uint8Array(readFileSync(file)), basename(file))
-  const result = await importExtractedDocument(exec, 1, doc, {
-    storedPath: file,
-    sha256: 'preview',
-    docType: 'folien',
-  })
+  const result = await persistExtractedDocument(
+    conn,
+    1,
+    doc,
+    { storedPath: file, sha256: 'preview', docType: 'folien' },
+    new Date(0).toISOString(),
+  )
 
-  console.log(`\n=== ${basename(file)} (documentId=${result.documentId}) ===`)
-  const topics = db
-    .prepare('SELECT id, name, sort_order FROM topics WHERE id IN (' + result.topicIds.join(',') + ') ORDER BY sort_order')
-    .all() as { id: number; name: string; sort_order: number }[]
+  console.log(`\n=== ${basename(file)} (documentId=${result.document.id}) ===`)
+  const topics = [...result.topics].sort((a, b) => a.sort_order - b.sort_order)
 
   for (const topic of topics) {
-    const section = db
-      .prepare(
-        'SELECT page_start, page_end, unique_chars, slide_count FROM topic_sections WHERE topic_id = ?',
-      )
-      .get(topic.id) as
-      | { page_start: number; page_end: number; unique_chars: number; slide_count: number }
-      | undefined
+    const section = result.topicSections.find((s) => s.topic_id === topic.id)
 
     if (!section) {
       console.log(`  [${topic.sort_order}] "${topic.name}" — keine Folien`)
