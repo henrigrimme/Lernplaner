@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3: Kurs-Export/Import fertig — nur noch Lokale Benachrichtigungen und Kalender-Export offen, beide brauchen Rückfrage beim Nutzer)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3: Lokale Benachrichtigungen fertig, nach Rückfrage — nur noch Kalender-Export offen, Vorgehen mit dem Nutzer bereits geklärt)
 
 ---
 
@@ -1236,16 +1236,69 @@ Nutzern und als einziges Backup).
   eine echte heruntergeladene Datei zum erneuten Hochladen, was denselben
   Download-Nachweis voraussetzt).
 
+Direkt im Anschluss, Branch `feat/notifications` (von `main` abgezweigt):
+„Lokale Benachrichtigungen" — nach Rückfrage beim Nutzer (siehe oben:
+„Ja, Plugin hinzufügen" für die neue Abhängigkeit).
+
+- **Neue Abhängigkeiten, nach Rückfrage/Freigabe:** `@tauri-apps/plugin-
+  notification` (npm) und `tauri-plugin-notification = "2"` (Cargo),
+  Plugin in `src-tauri/src/lib.rs` registriert (`.plugin(tauri_plugin_
+  notification::init())`), Berechtigung `notification:default` in
+  `src-tauri/capabilities/default.json` ergänzt. `cargo check --locked`
+  (dieselbe Prüfung wie der CI-Job `tauri`, siehe CONTEXT.md „Sonstiges für
+  den Wiedereinstieg") läuft fehlerfrei durch — vollständiger Bundle-Build
+  nicht erneut angestoßen (bekanntes DMG-Problem, siehe Abschnitt 8 oben,
+  irrelevant für diese Prüfung).
+- **`src/platform/` neu angelegt** — erster Baustein dieser bisher nur in
+  ARCHITECTURE.md beschriebenen Schicht („Benachrichtigungen,
+  Dateisystem, Kalender-Export … gekapselt, damit eine spätere
+  iOS-Version nicht die halbe App anfassen muss").
+  `platform/notifications.ts` ist ein dünner Wrapper um das Tauri-Plugin
+  (`ensureNotificationPermission`, `showNotification`) — die einzige
+  Datei, die die neue Abhängigkeit importiert.
+- **`domain/notifications.ts`**: reine Entscheidungslogik, kein
+  Tauri-Bezug. Genau zwei Benachrichtigungsarten
+  (`tagesuebersicht`/`faelligkeit`, je höchstens einmal pro Tag) — erfüllt
+  CONTEXT.md Abschnitt 5s „höchstens zwei Benachrichtigungen pro Tag"
+  **strukturell**, ohne eigene Zähllogik. `buildDailyOverviewNotification`
+  fasst heutige offene Blöcke (Anzahl, Minuten, eindeutige Themennamen)
+  zusammen, `buildDueSoonNotification` meldet Prüfungen innerhalb von
+  `DEFAULT_DUE_SOON_DAYS = 3` (nirgends in den Anforderungen beziffert,
+  erfunden wie `EXAM_FORMAT_MULTIPLIER`/`FEEDBACK_MASTERY_WEIGHT` an
+  anderer Stelle — benannt, auffindbar, überschreibbar). 11 Tests.
+- **`ui/NotificationsPanel.tsx`**: Button „Jetzt prüfen" statt echtem
+  Hintergrund-Trigger — `App.tsx` hat keinen Scheduler
+  (kein `tauri-plugin-cron` o. Ä.), ein täglicher Hintergrund-Check ist
+  eine spätere Erweiterung, kein Teil dieses Schritts. Zeigt gezeigte
+  Benachrichtigungen oder eine Fehlermeldung, falls `onCheckNow` wirft. 3
+  Tests.
+- **`App.tsx`**: neuer `notificationLog`-Zustand (`NotificationKind` →
+  zuletzt gezeigtes Datum, wie das `ai_budget_last_notified_*`-Muster aus
+  ADR-007), `checkNotifications()` verbindet `domain/notifications.ts` mit
+  `platform/notifications.ts`.
+- **Live im Dev-Server geprüft (kein echtes Tauri-Fenster):** Fach +
+  Prüfung 2 Tage in der Zukunft angelegt, „Jetzt prüfen" geklickt — **kein
+  Fehler**, `isPermissionGranted()`/`requestPermission()` lösen sich
+  außerhalb der echten App zu „nicht erteilt" auf statt zu werfen,
+  `checkNotifications` liefert dann `[]`, „Keine neuen Benachrichtigungen"
+  wird angezeigt. Ruhiger als angenommen (siehe Kommentar in
+  `platform/notifications.ts`) — kein Absturz, keine Konsolenfehler.
+  **Noch nicht geprüft:** eine echte Benachrichtigung im tatsächlichen
+  Tauri-Fenster (`npx tauri dev`, System-Dialog zur Erlaubnis bestätigen) —
+  bräuchte eine interaktive macOS-Berechtigung, die diese Sitzung nicht
+  autonom erteilen kann. Bekannte Lücke, wie schon beim PDF-Import/
+  PDF-Rendering zuvor dokumentiert.
+
 ### Nächster Schritt
 
-ROADMAP.md Phase 3 verbleibend: **Lokale Benachrichtigungen** und
-**Kalender-Export** — beide bewusst noch nicht angegangen, siehe oben in
-dieser Session: Benachrichtigungen brauchen vermutlich eine neue
-Abhängigkeit (Tauri-Notification-Plugin), Kalender-Export eine echte
-fachliche Entscheidung (Uhrzeit pro `study_block` fehlt im Schema). **Beide
-brauchen eine Rückfrage beim Nutzer, bevor gebaut wird** — nicht mehr
-autonom ohne Weiteres fortsetzbar, ohne zu raten. Mit Kurs-Export/Import
-ist ROADMAP.md Phase 3 „Alltag" bis auf diese beiden Punkte vollständig.
+ROADMAP.md Phase 3 verbleibend: **Kalender-Export** — nach Rückfrage beim
+Nutzer: feste Startzeit pro Tag (Nutzer stellt sie ein), Blöcke eines Tages
+werden ab dort lückenlos hintereinander gelegt (kein neues Zeit-Feld in
+`study_blocks` nötig — die Uhrzeit ergibt sich aus Tagesstartzeit +
+`planned_order`/`planned_minutes`, on-the-fly beim Export berechnet, nicht
+gespeichert). Braucht keine neue Abhängigkeit — ICS ist ein einfaches
+Textformat, von Hand generierbar wie JSON beim Kurs-Export. Letzter
+verbleibender Punkt aus ROADMAP.md Phase 3.
 
 ### Danach (unverändert aus der Roadmap)
 
