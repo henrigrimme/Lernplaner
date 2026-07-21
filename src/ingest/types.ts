@@ -17,6 +17,8 @@ export interface TextItem {
   y: number
   /** Linke Kante. */
   x: number
+  /** Breite des Fragments — für die Lückenerkennung zwischen Fragmenten (siehe `extract.ts`). */
+  width: number
 }
 
 /** Eine zu einer Zeile zusammengesetzte Folge von Fragmenten. */

@@ -1829,12 +1829,82 @@ bisher leere `reviews`-Tabelle.
   Tauri-Fenster) — die FSRS-Berechnung selbst ist über die
   Eigenschaftstests in `spacedRepetition.test.ts` abgedeckt.
 
+### Phase 4 — Formelextraktion sauber
+
+Branch `feat/formula-extraction`. Dritter Phase-4-Punkt, behebt die
+verbleibenden zwei der drei in Abschnitt 4 „Formelextraktion ist unsauber"
+genannten Probleme (PowerPoint-Doppelzeichen war bereits in Phase 1
+behoben, siehe `collapseDoubledMathChars`). Reine `ingest/`-Änderung,
+keine UI/`App.tsx`-Berührung.
+
+- **Diagnose zuerst am echten Material** (02 Consumer Theory 01.pdf,
+  Seite 4 — Budget-Constraint-Formeln): ein Wegwerf-Skript hat die
+  rohen `pdf.js`-Textfragmente mit Position/Schriftgröße/Breite
+  ausgegeben. Bestätigt beide Probleme konkret: „•𝑥units of commodity 1"
+  + eine separate, bedeutungslose Zeile „1" (der Index 1 von 𝑥₁ landet
+  als eigene Zeile, weil seine Grundlinie leicht versetzt ist — mehr als
+  die 2,5-Einheiten-Toleranz für „gleiche Zeile"); „budget" direkt gefolgt
+  von „is" ohne Leerzeichen, obwohl real eine Lücke von 3,6 pt besteht
+  (pdf.js trennt an einem Schriftwechsel manchmal ohne Leerzeichen-
+  Fragment).
+- **`ingest/types.ts`**: `TextItem` um `width` erweitert (`pdf.js`
+  liefert das bereits mit, wurde bisher nur nicht durchgereicht) — Basis
+  für die Lückenerkennung.
+- **`ingest/extract.ts`**, `itemsToLines` neu aufgebaut:
+  - **Leerzeichen an echten Lücken** (`joinWithGaps`): statt Fragmente
+    einer Zeile bedingungslos mit `''` zu verketten, wird die x-Lücke
+    zwischen Fragmentende und nächstem Fragmentanfang gegen eine
+    Schwelle geprüft (`SPACE_GAP_RATIO = 0,15` der Schriftgröße, Mindest-
+    wert 1,5 pt — an den oben genannten realen Werten kalibriert: echte
+    Wortlücken lagen bei 15–25 % der Schriftgröße, echte
+    Zeichen-Übergänge bei praktisch 0).
+  - **Hoch-/Tiefstellung an die Bezugszeile anhängen** (`mergeScriptBuckets`):
+    ein Bucket (vorläufige Zeile) gilt als Index einer Nachbarzeile, wenn
+    seine Schrift deutlich kleiner ist (`SUBSCRIPT_SIZE_RATIO = 0,85`) UND
+    seine Grundlinie nur leicht versetzt ist (`SUBSCRIPT_Y_TOLERANCE = 0,6`
+    der Bezugsschriftgröße) — dann werden seine Fragmente in die
+    Bezugszeile einsortiert (nach x neu sortiert), statt eine eigene,
+    bedeutungslose Zeile zu bilden. **Bewusst in beide Richtungen
+    geprüft** (voriger UND nächster Bucket in Lesereihenfolge): ein
+    tiefgestellter Index steht in Lesereihenfolge NACH seiner Bezugszeile
+    (spätere, tiefere Grundlinie), ein hochgestellter Exponent DAVOR
+    (frühere, höhere Grundlinie) — nur den vorigen Bucket zu prüfen hätte
+    Exponenten verpasst.
+  - Zeilen-`y`/`size` bleiben nach dem Anhängen die der Bezugszeile, nicht
+    die des angehängten Index — sonst würde nachgelagerte Positionslogik
+    (`isBuildStep` in `slides.ts`) durch die falsche Schriftgröße/Grundlinie
+    verfälscht.
+- **9 neue Tests** (`tests/ingest/itemsToLines.test.ts`, bisher gab es
+  keinen dedizierten Test für diese Funktion) — mit echten Koordinaten aus
+  dem obigen Diagnose-Material, inkl. Tiefstellung, mehrere Indizes einer
+  Formel korrekt verteilt, Hochstellung (Bucket-Reihenfolge umgekehrt),
+  und zwei Fehlalarm-Tests (zwei normale Zeilen bleiben getrennt, eine
+  weit entfernte kleinere Fußzeile verschmilzt nicht mit dem Fließtext).
+- **Am echten Material vorher/nachher verglichen** (stärkere Prüfung als
+  ein Dev-Server-Klickdurchlauf, siehe Baustein-5-Präzedenzfall — diese
+  Änderung berührt ohnehin keine UI): „…up to𝑥units of commoditynis
+  denoted by(𝑥,𝑥, . . . ,𝑥)" + separate Zeile „𝑛12𝑛" wird zu **einer**
+  korrekten Zeile „…up to 𝑥𝑛 units of commodity n is denoted by (𝑥1, 𝑥2,
+  . . . , 𝑥𝑛)". Zusätzlich an einem zweiten, unabhängigen Dokument
+  bestätigt (2 Bonds.pdf, Anleihen-Bewertungsformeln mit Exponenten):
+  „(1 + 𝑃)𝑛" und „9 (1+𝑖)𝑛" — Exponenten korrekt angehängt, keine
+  Fehlalarme bei den echten Zeilenumbrüchen des Dokuments.
+- **Bewusst nicht behoben:** eine unsichtbare Aufzählungszeichen-Glyphe
+  (kein Unicode-Leerzeichen, aber im Terminal nicht sichtbar) erzeugt in
+  seltenen Fällen einen optisch wie ein führendes Leerzeichen wirkenden
+  Zeilenanfang (z. B. „ Bundle is affordable if…") — bestand vorher schon
+  (nur durch das lückenlose Verketten unsichtbar), ist ein reines
+  Aufzählungszeichen-Darstellungsartefakt, kein Formel- oder
+  Leerzeichenproblem, und bleibt außerhalb des Umfangs dieses Bausteins.
+- **`## 9. Bekannte Einschränkungen`**: „Formelextraktion unzureichend"
+  entfernt — die beiden verbliebenen, konkret benannten Probleme sind
+  behoben.
+
 ### Nächster Schritt
 
-ROADMAP.md Phase 4, nächster Punkt der Reihe nach: **Formelextraktion
-sauber**. Danach: Quiz-Generierung, Probeklausur-Simulation,
-Fehlerhistorie → gezielte Wiederholung, Paper-Workflow, Altklausur-Analyse
-→ automatische Gewichtung.
+ROADMAP.md Phase 4, nächster Punkt der Reihe nach: **Quiz-Generierung**.
+Danach: Probeklausur-Simulation, Fehlerhistorie → gezielte Wiederholung,
+Paper-Workflow, Altklausur-Analyse → automatische Gewichtung.
 
 ### Danach (unverändert aus der Roadmap)
 
@@ -1849,8 +1919,6 @@ Siehe [ROADMAP.md](ROADMAP.md) für die vollständige Phasenplanung.
 - **Kein Backup** — Gerätedefekt bedeutet Totalverlust (bewusst)
 - **Zeitschätzung braucht ~10 Datenpunkte pro Fach**, bis sie taugt. Die App
   zeigt das offen an, statt falsche Präzision vorzutäuschen
-- **Formelextraktion unzureichend** — blockiert die spätere Quizgenerierung,
-  nicht die Planung
 - **Trennfolien-Erkennung zu grob** — `isDividerPage` markiert jede
   fast-textleere Folie als Kapitel-Trennfolie, auch reine Diskussionsfragen
   oder Bildfolien ohne Fließtext. Drückt `slideCount`/`uniqueChars`
