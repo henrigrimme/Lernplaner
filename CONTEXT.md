@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Persistenz-Härtung: Fächer und Prüfungen echt in SQLite gespeichert; Verfügbarkeit als Nächstes, danach Phase 4)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Persistenz-Härtung: Fächer, Prüfungen und Verfügbarkeit echt in SQLite gespeichert; Themen/Themenabschnitte als Nächstes, danach Phase 4)
 
 ---
 
@@ -1473,20 +1473,70 @@ umgestellte Entität, exakt nach dem Muster von Baustein 2 (Fächer).
   nach dem `preview_start` einmal neu laden, um nicht versehentlich einen
   alten Fehler für einen neuen zu halten.
 
+### Persistenz-Härtung — Baustein 4: Verfügbarkeit echt in SQLite
+
+Branch `feat/persistence-availability` (von `main` abgezweigt). Dritte
+umgestellte Entität — anders als Fächer/Prüfungen ohne `AUTOINCREMENT`.
+
+- **`availability_pattern`/`availability_exception` tragen ihren
+  fachlichen Schlüssel als Primärschlüssel** (`weekday` bzw. `date`,
+  `0001_init.sql`) — „Anlegen" ist hier immer ein SQL-`UPSERT`
+  (`INSERT … ON CONFLICT DO UPDATE`), kein reines `INSERT`. Deshalb **kein**
+  Analogon zum courses/assessments-Muster nötig: `data/availability.ts`s
+  reine Funktionen (`setAvailabilityPattern`/`setAvailabilityException`/
+  `removeAvailabilityException`) waren schon immer Upserts, kein
+  `addX`/`nextId` zu entfernen — sie bleiben unverändert, `App.tsx` nutzt
+  sie weiterhin fürs lokale Nachziehen nach einem erfolgreichen DB-Write.
+- **`data/availabilityRepo.ts`** (`loadAvailabilityPattern`,
+  `upsertAvailabilityPatternRow`, `loadAvailabilityExceptions`,
+  `upsertAvailabilityExceptionRow`, `deleteAvailabilityExceptionRow`).
+  6 Tests über `tests/data/testConnection.ts`, u. a. dass ein zweiter
+  Upsert auf denselben Wochentag/dasselbe Datum die Zeile ersetzt statt
+  eine zweite anzulegen (Primärschlüssel-Verhalten).
+- **`ui/AvailabilitySetup.tsx`s API geändert:** `onChangePattern`/
+  `onChangeExceptions` (ganzes Array) durch drei Callbacks ersetzt
+  (`onSetPatternMinutes(weekday, minutes)`, `onAddException(date, minutes,
+  note)`, `onRemoveException(date)`) — konsistent mit `CourseSetup`/
+  `AssessmentSetup`, obwohl hier keine `id`-Vergabe im Spiel ist: die
+  Komponente soll `data/availability.ts`/`-Repo.ts` trotzdem nicht direkt
+  kennen. 5 bestehende Tests entsprechend umgeschrieben.
+- **`App.tsx`**: dritter `useEffect` lädt Wochenmuster **und** Ausnahmen
+  parallel beim Start (`Promise.all`), drei Handler nach demselben
+  Fehlerbehandlungs-Muster.
+- **Wichtiger Befund zum Plausibilitätscheck-Vorgehen selbst:** die zuvor
+  dokumentierte Abhilfe „nach `preview_start` einmal mit `force: true`
+  neu laden" hat **nicht** gereicht — dieselbe alte Fehlermeldung aus dem
+  vorigen Baustein blieb auf dem wiederverwendeten Tab „seed" bestehen,
+  trotz Force-Reload. Eine **komplett neue Tab** (`tabs_create`) hat das
+  Problem behoben und sofort den echten, fehlerfreien Zustand gezeigt.
+  **Für künftige Plausibilitätschecks: nach `preview_start` einen neuen
+  Tab anlegen statt den alten „seed"-Tab wiederzuverwenden**, wenn schon
+  einmal ein Fehler in einer früheren Sitzung auf diesem Tab aufgetreten
+  ist — Force-Reload allein reicht nicht zuverlässig.
+- **Live im frischen Tab geprüft:** Wochentag-Minuten geändert — Konsole
+  zeigt exakt die erwartete, abgefangene Fehlermeldung
+  („Wochenmuster konnte nicht gespeichert werden"), kein Absturz, Eingabe
+  fällt korrekt auf „0" zurück (kein optimistisches Update ohne
+  erfolgreichen DB-Write).
+
 ### Nächster Schritt
 
-Persistenz-Härtung Baustein 4: nächste Entität nach demselben Muster
-(Repository + Test-Connection + Prop-API-Umstellung der jeweiligen
-`ui/*Setup.tsx`-Komponente + `App.tsx`-Handler). Reihenfolge laut Plan:
-**Verfügbarkeit** (Wochenmuster/Ausnahmen, `ui/AvailabilitySetup.tsx`) als
-Nächstes — keine Fremdschlüssel auf andere Entitäten, genauso einfach wie
-Fächer/Prüfungen. Danach: Themen/Themenabschnitte (hängt am PDF-Import,
-komplexer) → Lernblöcke → Planversionen. PDF-Rohbytes (`documentBytes`)
-bewusst **nicht** in die DB — bleiben In-Memory oder bekommen eine eigene
-Dateisystem-Lösung (`documents.stored_path`), siehe Auftrag des Nutzers.
-Erst wenn alle Entitäten umgestellt sind, den `App.tsx`-Kommentar
-entsprechend abschließend aktualisieren. Danach: ROADMAP.md Phase 4 der
-Reihe nach, wie vom Nutzer bestätigt.
+Persistenz-Härtung Baustein 5: **Themen/Themenabschnitte** — komplexer als
+die bisherigen Bausteine, weil sie am PDF-Import hängen
+(`data/importTopics.ts` hat bereits eine `SqlExecutor`-Variante
+vorbereitet, die jetzt an `data/db.ts`s `SqlConnection` angeglichen bzw.
+darauf umgestellt werden kann) und weil `ui/TopicTree.tsx` Baum-Operationen
+(umbenennen, verschieben inkl. Geschwister-Neunummerierung, löschen mit
+Kaskade) auf dem *gesamten* Baum durchführt, nicht auf einer einzelnen
+Zeile wie bisher — die Umstellung auf einzelne Callbacks ist hier weniger
+offensichtlich als bei den bisherigen Bausteinen; ggf. lohnt sich eine
+kurze Bestandsaufnahme von `topicTree.ts`/`TopicTree.tsx` vor dem
+eigentlichen Umbau. Danach: Lernblöcke → Planversionen. PDF-Rohbytes
+(`documentBytes`) bewusst **nicht** in die DB — bleiben In-Memory oder
+bekommen eine eigene Dateisystem-Lösung (`documents.stored_path`), siehe
+Auftrag des Nutzers. Erst wenn alle Entitäten umgestellt sind, den
+`App.tsx`-Kommentar entsprechend abschließend aktualisieren. Danach:
+ROADMAP.md Phase 4 der Reihe nach, wie vom Nutzer bestätigt.
 
 ### Danach (unverändert aus der Roadmap)
 
