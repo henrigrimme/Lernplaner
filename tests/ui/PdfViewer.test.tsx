@@ -6,10 +6,14 @@ import { PdfViewer } from '../../src/ui/PdfViewer'
 // pdfjs-dist rendert echt nur im Browser sinnvoll (siehe ingest/pdf.ts-Kommentar
 // zum Worker-Setup) — hier gemockt, damit die Komponente unabhängig von echten
 // PDF-Bytes/Canvas-Unterstützung in jsdom getestet werden kann.
-const { getDocumentMock } = vi.hoisted(() => ({ getDocumentMock: vi.fn() }))
+const { getDocumentMock, TextLayerMock } = vi.hoisted(() => ({
+  getDocumentMock: vi.fn(),
+  TextLayerMock: vi.fn().mockImplementation(() => ({ render: () => Promise.resolve() })),
+}))
 vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({
   GlobalWorkerOptions: {},
   getDocument: getDocumentMock,
+  TextLayer: TextLayerMock,
 }))
 
 function fakeDoc(numPages: number) {
@@ -18,6 +22,7 @@ function fakeDoc(numPages: number) {
     getPage: vi.fn().mockResolvedValue({
       getViewport: () => ({ width: 100, height: 100 }),
       render: () => ({ promise: Promise.resolve() }),
+      getTextContent: () => Promise.resolve({ items: [] }),
     }),
     destroy: vi.fn().mockResolvedValue(undefined),
   }
@@ -72,5 +77,50 @@ describe('PdfViewer', () => {
     render(<PdfViewer data={new Uint8Array()} />)
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/nicht angezeigt werden/i))
+  })
+
+  it('meldet eine Textauswahl innerhalb der Textebene über onSelectionChange', async () => {
+    getDocumentMock.mockReturnValue({ promise: Promise.resolve(fakeDoc(5)) })
+    const onSelectionChange = vi.fn()
+    const { container } = render(
+      <PdfViewer data={new Uint8Array()} initialPage={2} onSelectionChange={onSelectionChange} />,
+    )
+    await waitFor(() => expect(screen.getByDisplayValue('2')).toBeInTheDocument())
+
+    // TextLayer ist gemockt (rendert nichts) — hier wird ein Text-Span
+    // simuliert, wie ihn die echte pdf.js-TextLayer erzeugen würde.
+    const textLayer = container.querySelector('.pdf-text-layer')!
+    const span = document.createElement('span')
+    span.textContent = 'Rationale Präferenzen'
+    textLayer.appendChild(span)
+
+    const range = document.createRange()
+    range.selectNodeContents(span)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith('Rationale Präferenzen', 2))
+  })
+
+  it('meldet eine leere Auswahl (aufgehoben), wenn die Selektion außerhalb der Textebene liegt', async () => {
+    getDocumentMock.mockReturnValue({ promise: Promise.resolve(fakeDoc(5)) })
+    const onSelectionChange = vi.fn()
+    render(<PdfViewer data={new Uint8Array()} initialPage={1} onSelectionChange={onSelectionChange} />)
+    await waitFor(() => expect(screen.getByDisplayValue('1')).toBeInTheDocument())
+
+    const outside = document.createElement('span')
+    outside.textContent = 'Außerhalb'
+    document.body.appendChild(outside)
+    const range = document.createRange()
+    range.selectNodeContents(outside)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith('', 1))
+    document.body.removeChild(outside)
   })
 })
