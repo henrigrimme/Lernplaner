@@ -8,10 +8,12 @@ import { TodayView } from './ui/TodayView'
 import { ReplanView } from './ui/ReplanView'
 import { ProgressView } from './ui/ProgressView'
 import { SourceViewer } from './ui/SourceViewer'
+import { CourseExportImport } from './ui/CourseExportImport'
 import { extractDocument } from './ingest/pdf'
 import { topicsFromExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
 import { recordPlanVersion } from './data/planVersions'
+import type { ImportedCourseResult } from './data/courseExport'
 import { buildSchedule } from './domain/planBuilder'
 import type {
   Assessment,
@@ -64,6 +66,14 @@ export function App() {
   const applyReplan = (blocks: StudyBlock[], reason: string) => {
     setPlanVersions((versions) => recordPlanVersion(versions, reason, studyBlocks, new Date().toISOString()))
     setStudyBlocks(blocks)
+  }
+
+  const applyCourseImport = (result: ImportedCourseResult) => {
+    setCourses(result.courses)
+    setTopics(result.topics)
+    setTopicSections(result.topicSections)
+    setAssessments(result.assessments)
+    setStudyBlocks(result.studyBlocks)
   }
 
   const importPdfs = async (files: FileList) => {
@@ -175,6 +185,16 @@ export function App() {
         onApply={applyReplan}
       />
       {planVersions.length > 0 && <p>{planVersions.length} frühere Fassung(en) gespeichert (ADR-005).</p>}
+
+      <CourseExportImport
+        courses={courses}
+        topics={topics}
+        topicSections={topicSections}
+        assessments={assessments}
+        studyBlocks={studyBlocks}
+        onImport={applyCourseImport}
+        now={() => new Date().toISOString()}
+      />
     </main>
   )
 }

@@ -41,7 +41,7 @@ Prüfungen im Oktober.
 - [ ] Lokale Benachrichtigungen
 - [ ] Kalender-Export
 - [x] PDF-Viewer mit Seitensprung
-- [ ] Kurs-Export/Import
+- [x] Kurs-Export/Import
 
 **Ergebnis: nutzbar.**
 
