@@ -1984,17 +1984,39 @@ Spekulation ohne Vorgabe.
   dokumentierten Grund nicht erreichbar (Fach-Anlegen scheitert ohne
   echtes Tauri-Fenster).
 
+### Zwischenstand: Phase 4 — was geht, ist erledigt
+
+Auf Rückfrage auch **Altklausur-Analyse → automatische Gewichtung**
+zurückgestellt: eine sinnvolle Zuordnung „welche Altklausur-Frage gehört
+zu welchem Thema" bräuchte entweder ein schwaches Stichwortabgleich-Signal
+(die meisten Fragen nennen den Themennamen nicht wörtlich) oder echte
+KI-Klassifikation — also dieselbe Anbieter-Rückfrage wie bei
+Quiz-Generierung. Damit sind alle vier ROADMAP.md-Phase-4-Punkte, die
+**ohne** KI-Anbieter und **ohne** echte Nutzungsdaten (ab 1. September)
+umsetzbar waren, gebaut und gemergt:
+
+- ✅ Markieren im Dokument → Karteikarten
+- ✅ Spaced Repetition (FSRS)
+- ✅ Formelextraktion sauber
+- ✅ Fehlerhistorie → gezielte Wiederholung
+- ✅ Paper-Workflow
+
+Zurückgestellt, jeweils auf Rückfrage:
+- ⏸ Nachschärfen aus dem Alltag — braucht echte Nutzungserfahrung (ab
+  1. September)
+- ⏸ Quiz-Generierung — braucht einen noch nicht gewählten KI-Anbieter
+  (Anthropic/OpenAI)
+- ⏸ Probeklausur-Simulation — im Roadmap nicht näher spezifiziert,
+  vermutlich ebenfalls KI-abhängig
+- ⏸ Altklausur-Analyse → automatische Gewichtung — bräuchte echte
+  Themen-Klassifikation, dieselbe Anbieter-Frage wie Quiz-Generierung
+
 ### Nächster Schritt
 
-ROADMAP.md Phase 4, letzter Punkt der Reihe nach: **Altklausur-Analyse →
-automatische Gewichtung** — im Roadmap nicht näher spezifiziert, vor dem
-Entwurf prüfen, ob eine echte fachliche Entscheidung ansteht, die eine
-Rückfrage braucht (z. B. wie Altklausur-Inhalte auf bestehende Themen
-gemappt werden — Stichwortabgleich wie bei der Kapitelerkennung, oder
-KI-gestützt, was wieder eine Anbieter-Rückfrage wie bei Quiz-Generierung
-bräuchte). Danach: **Quiz-Generierung** und **Probeklausur-Simulation**
-zurückgestellt, bis der Nutzer einen KI-Anbieter wählt bzw.
-Probeklausur-Simulation näher spezifiziert.
+Sobald der Nutzer einen KI-Anbieter wählt (oder der 1. September echte
+Nutzungsdaten liefert), die zurückgestellten Punkte in der Reihenfolge
+oben angehen. Bis dahin: keine offenen, ohne Rückfrage umsetzbaren
+Phase-4-Punkte mehr.
 
 ### Danach (unverändert aus der Roadmap)
 
