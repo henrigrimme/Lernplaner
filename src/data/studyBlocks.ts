@@ -1,5 +1,6 @@
 import type { StudyBlock } from './schema'
 import type { ScheduledBlock } from '../domain/scheduling'
+import type { ReplanResult } from '../domain/replanning'
 
 /**
  * Reine Editierfunktionen für `study_blocks` (wie `courses.ts`/`topicTree.ts`):
@@ -21,11 +22,15 @@ import type { ScheduledBlock } from '../domain/scheduling'
  * Rest neu einplant, ist genau die Aufgabe der echten Neuplanung
  * (`domain/replanning.ts`, ADR-005) — die liefert dafür Diff und verlangt
  * eine Bestätigung. Diese Funktion ist nur der einmalige
- * „Plan übernehmen"-Schritt, bevor überhaupt ein Verlauf existiert.
+ * „Plan übernehmen"-Schritt, bevor überhaupt ein Verlauf existiert — für
+ * den Abgleich danach siehe `applyReplan` weiter unten.
+ *
+ * `startId` erlaubt fortlaufende IDs, wenn diese Funktion nicht auf einen
+ * leeren Bestand trifft (siehe `applyReplan`).
  */
-export function materializeStudyBlocks(scheduled: ScheduledBlock[]): StudyBlock[] {
+export function materializeStudyBlocks(scheduled: ScheduledBlock[], startId = 1): StudyBlock[] {
   return scheduled.map((block, i) => ({
-    id: i + 1,
+    id: startId + i,
     topic_id: block.topic_id,
     assessment_id: block.assessment_id,
     kind: block.kind,
@@ -58,4 +63,24 @@ export function completeStudyBlock(blocks: StudyBlock[], id: number, input: Comp
         }
       : b,
   )
+}
+
+/**
+ * Übernimmt das Ergebnis einer echten Neuplanung (`domain/replanning.ts`,
+ * `replan()`) in den Bestand — erst nach Bestätigung durch den Nutzer
+ * aufrufen (ADR-005), diese Funktion selbst prüft das nicht.
+ *
+ * Ersetzt genau die noch offenen `erstdurchgang`-Blöcke (verpasste wie
+ * zukünftige) durch die neu berechneten — das sind exakt die Blöcke, die
+ * `replan()` betrachtet hat (siehe dortiger Kommentar). Alles andere bleibt
+ * unverändert: erledigte/gestrichene Blöcke (Verlauf), `verschoben`e
+ * Blöcke, sowie **alle** `wiederholung`/`uebung`/`quiz`/`puffer`-Blöcke —
+ * `replan()` fasst Wiederholungen bewusst nicht an (siehe dortiger
+ * Kommentar zur Fortführungslücke), ein Löschen hier würde eine
+ * unveränderte Wiederholung fälschlich verwerfen.
+ */
+export function applyReplan(existing: StudyBlock[], result: ReplanResult): StudyBlock[] {
+  const kept = existing.filter((b) => !(b.kind === 'erstdurchgang' && b.status === 'offen'))
+  const startId = kept.reduce((max, b) => Math.max(max, b.id), 0) + 1
+  return [...kept, ...materializeStudyBlocks(result.blocks, startId)]
 }

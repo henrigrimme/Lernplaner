@@ -1,4 +1,5 @@
 import { buildSchedule } from '../domain/planBuilder'
+import { KIND_LABELS } from './kindLabels'
 import type {
   Assessment,
   AvailabilityException,
@@ -29,14 +30,6 @@ export interface PlanViewProps {
   blockers: Blocker[]
   /** "Heute", ISO-Datum — vom Aufrufer übergeben, keine Systemuhr in `domain/`. */
   from: string
-}
-
-const KIND_LABELS: Record<string, string> = {
-  erstdurchgang: 'Erstdurchgang',
-  wiederholung: 'Wiederholung',
-  uebung: 'Übung',
-  quiz: 'Quiz',
-  puffer: 'Puffer',
 }
 
 /** Montag der Woche, die `dateISO` enthält — nur für die Gruppierung, unabhängig von der Wochentag-Konvention in capacity.ts. */

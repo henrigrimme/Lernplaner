@@ -36,7 +36,7 @@ Prüfungen im Oktober.
 ## Phase 3 — Alltag · 17.08 – 30.08
 
 - [x] Heute-Ansicht mit Timer und Schwierigkeits-Feedback
-- [ ] Neuberechnung mit Diff-Ansicht — Domain-Logik fertig (`domain/replanning.ts`, ADR-005), noch keine UI/DB-Anbindung, siehe CONTEXT.md Abschnitt 8
+- [x] Neuberechnung mit Diff-Ansicht
 - [ ] Fortschrittsanzeige
 - [ ] Lokale Benachrichtigungen
 - [ ] Kalender-Export

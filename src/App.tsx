@@ -5,9 +5,11 @@ import { AssessmentSetup } from './ui/AssessmentSetup'
 import { AvailabilitySetup } from './ui/AvailabilitySetup'
 import { PlanView } from './ui/PlanView'
 import { TodayView } from './ui/TodayView'
+import { ReplanView } from './ui/ReplanView'
 import { extractDocument } from './ingest/pdf'
 import { topicsFromExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
+import { recordPlanVersion } from './data/planVersions'
 import { buildSchedule } from './domain/planBuilder'
 import type {
   Assessment,
@@ -15,6 +17,7 @@ import type {
   AvailabilityPattern,
   Blocker,
   Course,
+  PlanVersion,
   StudyBlock,
   Topic,
   TopicSection,
@@ -43,6 +46,7 @@ export function App() {
   const [exceptions, setExceptions] = useState<AvailabilityException[]>([])
   const [blockers] = useState<Blocker[]>([])
   const [studyBlocks, setStudyBlocks] = useState<StudyBlock[]>([])
+  const [planVersions, setPlanVersions] = useState<PlanVersion[]>([])
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [nextDocumentId, setNextDocumentId] = useState(1)
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
@@ -52,6 +56,11 @@ export function App() {
   const generateStudyBlocks = () => {
     const schedule = buildSchedule({ topics, topicSections, assessments, courses, pattern, exceptions, blockers, from: today })
     setStudyBlocks(materializeStudyBlocks(schedule.blocks))
+  }
+
+  const applyReplan = (blocks: StudyBlock[], reason: string) => {
+    setPlanVersions((versions) => recordPlanVersion(versions, reason, studyBlocks, new Date().toISOString()))
+    setStudyBlocks(blocks)
   }
 
   const importPdfs = async (files: FileList) => {
@@ -145,6 +154,18 @@ export function App() {
         today={today}
         now={() => new Date().toISOString()}
       />
+
+      <ReplanView
+        studyBlocks={studyBlocks}
+        topics={topics}
+        assessments={assessments}
+        pattern={pattern}
+        exceptions={exceptions}
+        blockers={blockers}
+        from={today}
+        onApply={applyReplan}
+      />
+      {planVersions.length > 0 && <p>{planVersions.length} frühere Fassung(en) gespeichert (ADR-005).</p>}
     </main>
   )
 }
