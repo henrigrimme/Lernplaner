@@ -39,7 +39,7 @@ Prüfungen im Oktober.
 - [x] Neuberechnung mit Diff-Ansicht
 - [x] Fortschrittsanzeige
 - [x] Lokale Benachrichtigungen
-- [ ] Kalender-Export
+- [x] Kalender-Export
 - [x] PDF-Viewer mit Seitensprung
 - [x] Kurs-Export/Import
 

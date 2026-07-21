@@ -7,6 +7,7 @@ import {
   type ExistingState,
   type ImportedCourseResult,
 } from '../data/courseExport'
+import { triggerDownload } from './triggerDownload'
 import type { Course } from '../data/schema'
 
 /**
@@ -21,16 +22,6 @@ export interface CourseExportImportProps extends ExistingState {
   onImport: (result: ImportedCourseResult) => void
   /** ISO-Zeitstempel für `exportedAt` — vom Aufrufer, keine Systemuhr in der Komponente. */
   now: () => string
-}
-
-function triggerDownload(filename: string, content: string) {
-  const blob = new Blob([content], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
 }
 
 function filenameFor(course: Course): string {
@@ -54,7 +45,7 @@ export function CourseExportImport({
     const course = courses.find((c) => c.id === selectedCourseId)
     if (!course) return
     const bundle = exportCourse(selectedCourseId, courses, topics, topicSections, assessments, studyBlocks, now())
-    triggerDownload(filenameFor(course), serializeCourseExport(bundle))
+    triggerDownload(filenameFor(course), serializeCourseExport(bundle), 'application/json')
   }
 
   const handleImportFile = async (file: File) => {

@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3: Lokale Benachrichtigungen fertig, nach Rückfrage — nur noch Kalender-Export offen, Vorgehen mit dem Nutzer bereits geklärt)
+**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Phase 3 „Alltag" vollständig abgeschlossen — Kalender-Export als letzter Punkt fertig; vor Phase 4 Rückfrage beim Nutzer nötig, siehe Abschnitt 8)
 
 ---
 
@@ -1289,20 +1289,76 @@ Direkt im Anschluss, Branch `feat/notifications` (von `main` abgezweigt):
   autonom erteilen kann. Bekannte Lücke, wie schon beim PDF-Import/
   PDF-Rendering zuvor dokumentiert.
 
+Direkt im Anschluss, Branch `feat/calendar-export` (von `main` abgezweigt):
+„Kalender-Export" (ADR-006 „Einseitiger Kalenderexport") — nach Rückfrage
+beim Nutzer zur Uhrzeit-Frage: feste, einstellbare tägliche Startzeit,
+Blöcke eines Tages lückenlos hintereinander (siehe Antwort oben). Damit ist
+ROADMAP.md Phase 3 „Alltag" **vollständig abgeschlossen**.
+
+- **`platform/calendarExport.ts`** (`buildCalendarEvents`,
+  `serializeIcs`): reine ICS-Erzeugung (RFC 5545), keine Tauri-Plugin-/
+  OS-Abhängigkeit nötig — anders als `notifications.ts`, aber laut
+  ARCHITECTURE.md trotzdem in `platform/`, nicht `domain/` (dort explizit
+  „Kalender-Export" gelistet). Nur `study_blocks` mit Status `offen`
+  fließen ein — Erledigtes/Gestrichenes braucht keinen Kalendereintrag
+  mehr.
+  - **Uhrzeit-Berechnung:** pro Tag werden die offenen Blöcke nach
+    `planned_order` sortiert und ab der übergebenen Startzeit lückenlos
+    aneinandergereiht (`Ende eines Blocks = Start des nächsten`) — kein
+    neues Schema-Feld, die Uhrzeit ist ein rein abgeleiteter Wert beim
+    Export, analog zu `mastery`/Vorbereitungsgrad in `progress.ts`
+    (DATA_MODEL.md „Abgeleitete Werte": Speichern würde bei jeder
+    Neuplanung veralten).
+  - **Bewusst „floatende" Uhrzeiten** (kein `Z`, keine `TZID`) für
+    `DTSTART`/`DTEND` — beide Nutzer lernen in derselben Zeitzone
+    (CONTEXT.md „Nutzer": WHU), eine echte Zeitzonen-Behandlung wäre reine
+    Komplexität ohne Nutzen. `DTSTAMP` ist die einzige Ausnahme (echter
+    UTC-Zeitpunkt mit `Z`, wie RFC 5545 es für den Erzeugungszeitpunkt
+    verlangt).
+  - 9 Tests, u. a. lückenloses Aneinanderreihen unabhängig von der
+    Eingabe-Reihenfolge, tagesweise getrennte Berechnung, Maskierung von
+    Sonderzeichen (`;`, `,`, Zeilenumbruch) in `SUMMARY`/`DESCRIPTION`.
+- **`ui/CalendarExport.tsx`**: Eingabe für die tägliche Startzeit (lokaler
+  Zustand, Default 09:00) plus „Exportieren" (deaktiviert ohne offene
+  Blöcke) — Download über dasselbe Blob-Verfahren wie Kurs-Export.
+  **`ui/triggerDownload.ts` neu extrahiert** (geteilt mit
+  `CourseExportImport.tsx`, das jetzt ebenfalls darauf zeigt) — zweites
+  Auftreten desselben Download-Musters, gleich zusammengefasst statt
+  auf ein drittes zu warten wie bei `KIND_LABELS`. 3 Tests, davon einer,
+  der den tatsächlichen `Blob`-Inhalt ausliest und prüft, dass eine
+  geänderte Startzeit korrekt im `DTSTART` landet.
+- **`App.tsx`**: `CalendarExport` zwischen `NotificationsPanel` und
+  `CourseExportImport` eingehängt.
+- **Live im Dev-Server geprüft:** „Kalender-Export"-Bereich zeigt korrekt
+  den leeren Zustand („Noch keine offenen Lernblöcke …", „Exportieren"
+  deaktiviert), Startzeit-Feld zeigt „09:00", keine Konsolenfehler. Ein
+  echter Export mit realen Daten war wie beim PDF-Import zuvor nicht über
+  die Browser-Automatisierung möglich (Datei-Sandbox verhindert echtes
+  PDF-Material) — dafür deckt ein Komponententest den `Blob`-Inhalt direkt
+  ab (liest ihn aus, prüft `DTSTART` gegen eine geänderte Startzeit).
+
+**ROADMAP.md Phase 3 „Alltag" ist damit vollständig** (alle sieben Punkte
+erledigt). Vor Phase 4 kurz innehalten, siehe „Danach" unten.
+
 ### Nächster Schritt
 
-ROADMAP.md Phase 3 verbleibend: **Kalender-Export** — nach Rückfrage beim
-Nutzer: feste Startzeit pro Tag (Nutzer stellt sie ein), Blöcke eines Tages
-werden ab dort lückenlos hintereinander gelegt (kein neues Zeit-Feld in
-`study_blocks` nötig — die Uhrzeit ergibt sich aus Tagesstartzeit +
-`planned_order`/`planned_minutes`, on-the-fly beim Export berechnet, nicht
-gespeichert). Braucht keine neue Abhängigkeit — ICS ist ein einfaches
-Textformat, von Hand generierbar wie JSON beim Kurs-Export. Letzter
-verbleibender Punkt aus ROADMAP.md Phase 3.
+ROADMAP.md sieht Phase 4 „parallel zur Nutzung" ab dem 1. September vor,
+mit Reihenfolge „nach Dringlichkeit aus echter Nutzung" — die es vor dem
+Lernbeginn noch nicht geben kann (heute: 21. Juli 2026, sechs Wochen
+vorher, keine echten Kurse/Prüfungstermine importiert). Autonom in Phase 4
+weiterzuarbeiten würde also gegen die eigene Logik der Roadmap verstoßen
+(raten statt aus echter Nutzung ableiten). **Rückfrage beim Nutzer nötig,
+bevor hier weitergemacht wird** — z. B. ob dennoch schon an einem
+Phase-4-Punkt vorgearbeitet werden soll (welchem?), ob es an dieser Stelle
+sinnvoller ist, den Rahmen in Richtung eines echten Tauri-Rahmens zu
+härten (`tauri-plugin-sql`, echte Persistenz — bisher ist der komplette
+Zustand nur In-Memory, siehe `App.tsx`-Kommentar), oder ob die Session hier
+endet, bis mehr Klarheit über die tatsächlichen Kurse im Oktober besteht
+(Abschnitt 10 „Offene Fragen").
 
 ### Danach (unverändert aus der Roadmap)
 
-Phase 1 und Phase 2 sind komplett. Phase 3 „Alltag" in Arbeit (siehe oben).
+Phase 1, Phase 2 und Phase 3 sind komplett.
 
 Siehe [ROADMAP.md](ROADMAP.md) für die vollständige Phasenplanung.
 
