@@ -1900,11 +1900,60 @@ keine UI/`App.tsx`-Berührung.
   entfernt — die beiden verbliebenen, konkret benannten Probleme sind
   behoben.
 
+### Zwischenentscheidung: Quiz-Generierung zurückgestellt
+
+Auf Rückfrage entschieden: **Quiz-Generierung braucht einen echten
+KI-Anbieter** (LLM-API, um Fragen aus Themenabschnitten zu erzeugen) —
+ARCHITECTURE.md nennt `ai/` selbst als „austauschbar", „optional, nach
+Rückfrage". Der Nutzer wollte sich noch nicht auf einen Anbieter
+(Anthropic/OpenAI) festlegen und hat Quiz-Generierung zurückgestellt.
+Stattdessen mit dem nächsten, eindeutig KI-freien Punkt weitergemacht:
+**Fehlerhistorie → gezielte Wiederholung**. **Probeklausur-Simulation**
+ebenfalls zurückgestellt (auf Rückfrage) — im Roadmap nicht näher
+spezifiziert, mögliche KI-Abhängigkeit ungeklärt.
+
+### Phase 4 — Fehlerhistorie → gezielte Wiederholung
+
+Branch `feat/error-history` (von `main` abgezweigt). Baut auf `cards`/
+`reviews` (vorige zwei Bausteine) auf, ohne KI.
+
+- **`domain/errorHistory.ts`** (neu): `rankTroubledCards(cards, reviews)`
+  — Karten mit mindestens einer `Rating.Again`/`Rating.Hard`-Bewertung,
+  absteigend nach Fehlerquote sortiert (Gleichstand nach absoluter Anzahl
+  schwieriger Bewertungen). Bewusst **unabhängig von der FSRS-Fälligkeit**
+  (`isDue`) — der Sinn gezielter Wiederholung ist gerade, Problemkarten
+  VOR ihrem regulären Termin nochmal zu üben, nicht erst wenn FSRS sie
+  ohnehin fällig stellt.
+- **`ui/FlashcardReview.tsx`** (neu, aus `ReviewSession.tsx` extrahiert):
+  die Aufdecken-und-bewerten-Interaktion (Vorderseite → „Antwort zeigen"
+  → Rückseite + vier Bewertungsstufen) war in `ReviewSession` fest
+  eingebaut — jetzt eigene Komponente, da `ErrorHistory` dieselbe
+  Interaktion für eine anders ausgewählte Karte braucht. `ReviewSession`
+  entsprechend gekürzt, bestehende Tests liefen unverändert durch (der
+  gerenderte DOM-Baum bleibt identisch).
+- **`ui/ErrorHistory.tsx`** (neu): listet Problemkarten mit Thema und
+  Fehlerquote, „Gezielt üben" öffnet `FlashcardReview` für die gewählte
+  Karte. Bewertung läuft über denselben `onReview`-Callback wie
+  `ReviewSession` — persistenzseitig ist eine gezielte Wiederholung
+  dieselbe Art Ereignis wie eine reguläre, `App.tsx` braucht keinen neuen
+  Handler.
+- **`App.tsx`**: `<ErrorHistory>` neben `<ReviewSession>` gerendert, mit
+  denselben `cards`/`reviews`/`topics`/`handleReview`.
+- **13 neue Tests**: `errorHistory.test.ts` (6, u. a. Sortierung,
+  Gleichstand-Tiebreaker, „Hard" zählt genauso wie „Again"),
+  `FlashcardReview.test.tsx` (2, die extrahierte Komponente für sich),
+  `ErrorHistory.test.tsx` (5).
+- **Im frischen Tab geprüft:** App lädt fehlerfrei, „Fehlerhistorie —
+  gezielte Wiederholung" zeigt korrekt den leeren Anfangszustand.
+
 ### Nächster Schritt
 
-ROADMAP.md Phase 4, nächster Punkt der Reihe nach: **Quiz-Generierung**.
-Danach: Probeklausur-Simulation, Fehlerhistorie → gezielte Wiederholung,
-Paper-Workflow, Altklausur-Analyse → automatische Gewichtung.
+ROADMAP.md Phase 4: **Quiz-Generierung** und **Probeklausur-Simulation**
+zurückgestellt (siehe oben). Als Nächstes: **Paper-Workflow**, danach
+**Altklausur-Analyse → automatische Gewichtung** — beide im Roadmap nicht
+näher spezifiziert, vor dem Entwurf jeweils prüfen, ob eine echte
+fachliche Entscheidung ansteht, die eine Rückfrage braucht (wie bei
+Quiz-Generierung/Probeklausur-Simulation).
 
 ### Danach (unverändert aus der Roadmap)
 

@@ -36,6 +36,7 @@ import { deleteCardRow, insertCard, loadCards, type NewCardInput } from './data/
 import { insertReview, loadReviews } from './data/reviewsRepo'
 import { scheduleReview, type Grade } from './domain/spacedRepetition'
 import { ReviewSession } from './ui/ReviewSession'
+import { ErrorHistory } from './ui/ErrorHistory'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
@@ -548,6 +549,8 @@ export function App() {
         now={() => new Date().toISOString()}
         onReview={handleReview}
       />
+
+      <ErrorHistory cards={cards} reviews={reviews} topics={topics} onReview={handleReview} />
 
       <PlanView
         topics={topics}
