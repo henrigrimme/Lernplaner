@@ -6,6 +6,7 @@ import { AvailabilitySetup } from './ui/AvailabilitySetup'
 import { PlanView } from './ui/PlanView'
 import { TodayView } from './ui/TodayView'
 import { ReplanView } from './ui/ReplanView'
+import { ProgressView } from './ui/ProgressView'
 import { extractDocument } from './ingest/pdf'
 import { topicsFromExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
@@ -140,6 +141,8 @@ export function App() {
         blockers={blockers}
         from={today}
       />
+
+      <ProgressView assessments={assessments} topics={topics} studyBlocks={studyBlocks} from={today} />
 
       <div>
         <button type="button" onClick={generateStudyBlocks}>
