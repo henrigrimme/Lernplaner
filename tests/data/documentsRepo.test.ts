@@ -3,7 +3,7 @@ import { createTestConnection } from './testConnection'
 import { insertDocument, loadDocuments } from '../../src/data/documentsRepo'
 import { insertCourse } from '../../src/data/coursesRepo'
 
-const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const }
+const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const, language: 'de' as const }
 
 const DOCUMENT_INPUT = {
   filename: '02 Consumer Theory 01.pdf',

@@ -1,4 +1,4 @@
-import type { Course } from './schema'
+import type { Course, CourseLanguage } from './schema'
 
 /**
  * Reine Editierfunktionen für den lokalen Fächer-Zustand (siehe
@@ -19,6 +19,7 @@ export interface NewCourseInput {
   color: string
   priority: 1 | 2 | 3 | 4 | 5
   difficulty: 1 | 2 | 3 | 4 | 5
+  language: CourseLanguage
 }
 
 export function updateCourse(

@@ -65,6 +65,12 @@ pub fn run() {
       sql: include_str!("../../src/data/migrations/0003_document_type_label.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 4,
+      description: "quiz_language_and_options",
+      sql: include_str!("../../src/data/migrations/0004_quiz_language_and_options.sql"),
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

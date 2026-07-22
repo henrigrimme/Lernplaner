@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { NewCourseInput } from '../data/courses'
-import type { Course } from '../data/schema'
+import type { Course, CourseLanguage } from '../data/schema'
 
 /**
  * Fach-Setup: Fächer anlegen, bearbeiten, archivieren, löschen. Voraus-
@@ -30,6 +30,7 @@ interface DraftCourse {
   color: string
   priority: Course['priority']
   difficulty: Course['difficulty']
+  language: CourseLanguage
 }
 
 /** Kuratierte, benannte Fach-Farben statt freier Hex-Eingabe — jede
@@ -47,7 +48,7 @@ export const COURSE_COLORS: { name: string; hex: string }[] = [
   { name: 'Graphit', hex: '#5c5a55' },
 ]
 
-const EMPTY_DRAFT: DraftCourse = { name: '', semester: '', color: '#c9754f', priority: 3, difficulty: 3 }
+const EMPTY_DRAFT: DraftCourse = { name: '', semester: '', color: '#c9754f', priority: 3, difficulty: 3, language: 'de' }
 
 export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: CourseSetupProps) {
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -67,6 +68,7 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
       color: course.color,
       priority: course.priority,
       difficulty: course.difficulty,
+      language: course.language,
     })
     setEditingId(course.id)
   }
@@ -161,6 +163,13 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
                   {n}
                 </option>
               ))}
+            </select>
+          </label>
+          <label>
+            Sprache (für KI-generierte Inhalte: Quiz, Zusammenfassungs-Erkennung, Altklausur-Analyse)
+            <select value={draft.language} onChange={(e) => setDraft({ ...draft, language: e.target.value as CourseLanguage })}>
+              <option value="de">Deutsch</option>
+              <option value="en">Englisch</option>
             </select>
           </label>
           <button type="submit">Speichern</button>

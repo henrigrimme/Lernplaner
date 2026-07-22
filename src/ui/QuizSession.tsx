@@ -70,6 +70,19 @@ export function QuizSession({ questions, topics, durationMinutes, onAnswer, onFi
     onAnswer(question.id, given, correct, secondsSpent())
   }
 
+  // Anklickbare Optionen (Migration 0004 `questions.options`, Nutzerwunsch
+  // 2026-07-22 — vorher musste der Buchstabe getippt werden). Der Klick
+  // wählt UND reicht sofort ein, kein zusätzlicher „Einreichen"-Schritt
+  // nötig — `given` (State) wäre hier noch nicht aktualisiert, deshalb der
+  // Buchstabe direkt statt über `submitMc()`.
+  const selectMcOption = (letter: string) => {
+    if (!question) return
+    setGiven(letter)
+    const correct = isMcAnswerCorrect(letter, question.answer) ? 1 : 0
+    setMcResult(correct)
+    onAnswer(question.id, letter, correct, secondsSpent())
+  }
+
   const reveal = () => setRevealed(true)
 
   const rateFreitext = (correct: 0 | 1) => {
@@ -115,15 +128,39 @@ export function QuizSession({ questions, topics, durationMinutes, onAnswer, onFi
 
       {question!.type === 'mc' ? (
         <>
-          <label>
-            Antwort (Buchstabe)
-            <input value={given} onChange={(e) => setGiven(e.target.value)} disabled={mcResult !== null} />
-          </label>
-          {mcResult === null ? (
-            <button type="button" onClick={submitMc} disabled={given.trim().length === 0}>
-              Antwort einreichen
-            </button>
+          {question!.options !== null ? (
+            <div role="group" aria-label="Antwortoptionen">
+              {question!.options.map((option, i) => {
+                const letter = String.fromCharCode(65 + i) // 0 -> "A", 1 -> "B", …
+                const isGiven = given === letter
+                return (
+                  <button
+                    key={letter}
+                    type="button"
+                    onClick={() => selectMcOption(letter)}
+                    disabled={mcResult !== null}
+                    aria-pressed={isGiven}
+                  >
+                    {letter}) {option}
+                    {mcResult !== null && letter === question!.answer && ' ✓'}
+                  </button>
+                )
+              })}
+            </div>
           ) : (
+            <>
+              <label>
+                Antwort (Buchstabe)
+                <input value={given} onChange={(e) => setGiven(e.target.value)} disabled={mcResult !== null} />
+              </label>
+              {mcResult === null && (
+                <button type="button" onClick={submitMc} disabled={given.trim().length === 0}>
+                  Antwort einreichen
+                </button>
+              )}
+            </>
+          )}
+          {mcResult !== null && (
             <>
               <p>{mcResult === 1 ? 'Richtig!' : `Leider falsch — richtige Antwort: ${question!.answer}`}</p>
               {question!.explanation && <p>{question!.explanation}</p>}

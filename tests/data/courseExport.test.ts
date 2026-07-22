@@ -9,7 +9,17 @@ import {
 import type { Assessment, Course, StudyBlock, Topic, TopicSection } from '../../src/data/schema'
 
 function course(overrides: Partial<Course> & { id: number }): Course {
-  return { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3, difficulty: 3, archived: 0, created_at: 'x', ...overrides }
+  return {
+    name: 'Microeconomics',
+    semester: 'WS26',
+    color: '#000',
+    priority: 3,
+    difficulty: 3,
+    archived: 0,
+    created_at: 'x',
+    language: 'de',
+    ...overrides,
+  }
 }
 
 function topic(overrides: Partial<Topic> & { id: number }): Topic {

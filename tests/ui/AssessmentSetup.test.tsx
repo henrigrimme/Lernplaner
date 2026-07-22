@@ -13,6 +13,7 @@ const COURSE: Course = {
   difficulty: 3,
   archived: 0,
   created_at: 'x',
+  language: 'de',
 }
 
 function assessment(overrides: Partial<Assessment> & { id: number }): Assessment {
@@ -56,7 +57,7 @@ describe('AssessmentSetup', () => {
     await user.click(screen.getByRole('button', { name: 'Prüfung hinzufügen' }))
     await user.type(screen.getByLabelText('Titel'), 'Endklausur')
     await user.type(screen.getByLabelText('Prüfungsdatum'), '2026-10-15')
-    await user.selectOptions(screen.getByLabelText('Format'), 'freitext')
+    await user.click(screen.getByLabelText('Freitext'))
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 
     expect(onAdd).toHaveBeenCalledWith(
@@ -79,7 +80,8 @@ describe('AssessmentSetup', () => {
     await user.click(screen.getByRole('button', { name: 'Prüfung hinzufügen' }))
     await user.type(screen.getByLabelText('Titel'), 'Endklausur')
     await user.type(screen.getByLabelText('Prüfungsdatum'), '2026-10-15')
-    await user.click(screen.getByLabelText('Open Book'))
+    await user.click(screen.getByLabelText('Multiple Choice'))
+    await user.click(screen.getByLabelText('Hilfsmittel erlaubt'))
     await user.type(screen.getByLabelText('Dauer (Minuten, optional)'), '90')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 
@@ -94,6 +96,10 @@ describe('AssessmentSetup', () => {
 
     const item = screen.getByText('Endklausur').closest('li')!
     await user.click(within(item).getByRole('button', { name: 'Bearbeiten' }))
+    // `format: 'mixed'` (siehe assessment()-Fixture) lässt sich nicht in
+    // einzelne Formate zurückübersetzen (AssessmentSetup.tsx "toDraft") —
+    // Checkboxen starten leer, ein Format muss neu gewählt werden.
+    await user.click(screen.getByLabelText('Freitext'))
     await user.selectOptions(screen.getByLabelText('Gewicht'), '5')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 

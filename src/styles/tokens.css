@@ -116,3 +116,72 @@
     --glass-highlight: transparent;
   }
 }
+
+/* Manuelle Hell-/Dunkel-Wahl (ui/AppearanceSetting.tsx, Einstellungen) —
+   überschreibt die reine `prefers-color-scheme`-Systemvorgabe oben.
+   `data-theme` wird von App.tsx auf `<html>` gesetzt; "system" (Default)
+   setzt kein Attribut, dann gilt weiterhin nur die Media Query oben.
+   Attribut-Selektor hat höhere Spezifität als der bloße `:root` in der
+   Media Query, gewinnt also unabhängig von der Deklarationsreihenfolge. */
+:root[data-theme='dark'] {
+  --color-primary: oklch(0.7 0.13 45);
+  --color-primary-hover: oklch(0.75 0.13 45);
+  --color-primary-ink: oklch(0.18 0.012 50);
+
+  --color-accent: oklch(0.68 0.09 200);
+  --color-accent-hover: oklch(0.73 0.09 200);
+  --color-accent-ink: oklch(0.18 0.012 50);
+
+  --color-success: oklch(0.66 0.13 145);
+  --color-warning: oklch(0.8 0.13 95);
+  --color-danger: oklch(0.63 0.18 20);
+  --color-danger-ink: oklch(0.99 0.006 75);
+
+  --color-bg: oklch(0.19 0.012 50);
+  --color-surface: oklch(0.24 0.015 50);
+  --color-surface-2: oklch(0.29 0.017 50);
+  --color-border: oklch(0.35 0.018 50);
+  --color-ink: oklch(0.92 0.014 75);
+  --color-muted: oklch(0.66 0.016 65);
+
+  --glass-bg: oklch(0.26 0.015 50 / 0.58);
+  --glass-border: oklch(1 0.01 75 / 0.08);
+  --glass-highlight: oklch(1 0 0 / 0.12);
+
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-md: 0 4px 16px oklch(0 0 0 / 0.35);
+  --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.45);
+}
+
+/* Erzwingt Hell, auch wenn das System auf Dunkel steht — reine
+   Wiederholung der `:root`-Grundwerte oben, aber mit Attribut-Selektor,
+   damit sie die `@media (prefers-color-scheme: dark)`-Regel schlägt. */
+:root[data-theme='light'] {
+  --color-primary: oklch(0.64 0.13 45);
+  --color-primary-hover: oklch(0.58 0.14 45);
+  --color-primary-ink: oklch(0.99 0.006 75);
+
+  --color-accent: oklch(0.55 0.08 200);
+  --color-accent-hover: oklch(0.49 0.09 200);
+  --color-accent-ink: oklch(0.99 0.006 75);
+
+  --color-success: oklch(0.58 0.13 145);
+  --color-warning: oklch(0.78 0.14 95);
+  --color-danger: oklch(0.55 0.19 20);
+  --color-danger-ink: oklch(0.99 0.006 75);
+
+  --color-bg: oklch(0.97 0.014 75);
+  --color-surface: oklch(0.94 0.017 72);
+  --color-surface-2: oklch(0.895 0.02 68);
+  --color-border: oklch(0.84 0.019 65);
+  --color-ink: oklch(0.26 0.02 50);
+  --color-muted: oklch(0.52 0.02 50);
+
+  --glass-bg: oklch(0.95 0.016 72 / 0.68);
+  --glass-border: oklch(1 0.01 75 / 0.5);
+  --glass-highlight: oklch(1 0 0 / 0.6);
+
+  --shadow-sm: 0 1px 2px oklch(0.26 0.02 50 / 0.08), 0 1px 1px oklch(0.26 0.02 50 / 0.05);
+  --shadow-md: 0 4px 16px oklch(0.26 0.02 50 / 0.1), 0 1px 3px oklch(0.26 0.02 50 / 0.07);
+  --shadow-lg: 0 12px 32px oklch(0.26 0.02 50 / 0.16), 0 2px 8px oklch(0.26 0.02 50 / 0.09);
+}

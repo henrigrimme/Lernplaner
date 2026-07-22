@@ -11,6 +11,9 @@
 
 export type Bit = 0 | 1
 
+/** Sprache der KI-generierten Inhalte für dieses Fach (Migration 0004) — betrifft nur KI-Prompts, nicht die App-Oberfläche selbst. */
+export type CourseLanguage = 'de' | 'en'
+
 export interface Course {
   id: number
   name: string
@@ -20,6 +23,7 @@ export interface Course {
   difficulty: 1 | 2 | 3 | 4 | 5
   archived: Bit
   created_at: string
+  language: CourseLanguage
 }
 
 export type AssessmentType = 'klausur' | 'paper' | 'praesentation'
@@ -203,6 +207,8 @@ export interface Question {
   /** Pflichtfeld — siehe `source_document_id`. */
   source_page: number
   difficulty: 1 | 2 | 3 | 4 | 5 | null
+  /** JSON-Array der Antwortoptionen bei `type = 'mc'` (Migration 0004), sonst `null`. */
+  options: string[] | null
 }
 
 export interface Answer {

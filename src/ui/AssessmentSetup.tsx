@@ -16,7 +16,35 @@ import type { NewAssessmentInput } from '../data/assessments'
  */
 
 const TYPES: AssessmentType[] = ['klausur', 'paper', 'praesentation']
-const FORMATS: AssessmentFormat[] = ['mc', 'freitext', 'essay', 'rechnen', 'fallstudie', 'open_book', 'mixed']
+/** `mixed` fehlt bewusst — das ist keine eigene Auswahl, sondern das
+ * abgeleitete Ergebnis, wenn mehr als eine der Optionen unten angehakt ist
+ * (siehe `deriveFormat`). */
+const SELECTABLE_FORMATS: AssessmentFormat[] = ['mc', 'freitext', 'essay', 'rechnen', 'fallstudie', 'open_book']
+const FORMAT_LABELS: Record<AssessmentFormat, string> = {
+  mc: 'Multiple Choice',
+  freitext: 'Freitext',
+  essay: 'Essay',
+  rechnen: 'Rechnen',
+  fallstudie: 'Fallstudie',
+  open_book: 'Open Book',
+  mixed: 'Gemischt',
+}
+
+/**
+ * `assessments.format` ist eine einzelne Spalte (DATA_MODEL.md), aber der
+ * Nutzer soll mehrere Formate gleichzeitig ankreuzen können (z. B. eine
+ * Klausur mit Rechen- UND Multiple-Choice-Teil) — bewusst kein
+ * Migrations-/Datenmodell-Umbau auf ein Array dafür: bei genau einer
+ * Auswahl wird direkt dieses Format gespeichert, bei mehreren `mixed`
+ * (bereits bestehender Formatwert, `domain/estimation.ts`s
+ * `EXAM_FORMAT_MULTIPLIER.mixed` deckt genau diesen Fall ab). Einzelne
+ * Kombinationen (z. B. „nur Rechnen + Essay") werden dadurch nicht mehr
+ * voneinander unterschieden — für die grobe Aufwandsschätzung reicht das,
+ * eine genauere Abbildung wäre eine eigene, größere Änderung.
+ */
+function deriveFormat(selected: AssessmentFormat[]): AssessmentFormat {
+  return selected.length === 1 ? selected[0]! : 'mixed'
+}
 
 export interface AssessmentSetupProps {
   course: Course
@@ -31,7 +59,7 @@ interface DraftAssessment {
   title: string
   date: string
   weight: Assessment['weight']
-  format: AssessmentFormat
+  formats: AssessmentFormat[]
   openBook: boolean
   durationMinutes: string
 }
@@ -41,7 +69,7 @@ const EMPTY_DRAFT: DraftAssessment = {
   title: '',
   date: '',
   weight: 3,
-  format: 'mixed',
+  formats: [],
   openBook: false,
   durationMinutes: '',
 }
@@ -52,7 +80,10 @@ function toDraft(a: Assessment): DraftAssessment {
     title: a.title,
     date: a.date,
     weight: a.weight,
-    format: a.format,
+    // `mixed` in der DB könnte aus mehreren Formaten entstanden sein, die
+    // hier nicht mehr einzeln bekannt sind (siehe `deriveFormat`-Kommentar)
+    // — Checkboxen starten dann bewusst leer statt zu raten.
+    formats: a.format === 'mixed' ? [] : [a.format],
     openBook: a.open_book === 1,
     durationMinutes: a.duration_minutes === null ? '' : String(a.duration_minutes),
   }
@@ -65,7 +96,7 @@ function fromDraft(courseId: number, d: DraftAssessment): Omit<Assessment, 'id'>
     title: d.title.trim(),
     date: d.date,
     weight: d.weight,
-    format: d.format,
+    format: deriveFormat(d.formats),
     open_book: d.openBook ? 1 : 0,
     duration_minutes: d.durationMinutes.trim() === '' ? null : Number(d.durationMinutes),
   }
@@ -87,9 +118,16 @@ export function AssessmentSetup({ course, assessments, onAdd, onUpdate, onRemove
   }
   const cancel = () => setEditingId(null)
 
+  const toggleFormat = (format: AssessmentFormat, checked: boolean) => {
+    setDraft((prev) => ({
+      ...prev,
+      formats: checked ? [...prev.formats, format] : prev.formats.filter((f) => f !== format),
+    }))
+  }
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (draft.title.trim().length === 0 || draft.date.trim().length === 0) return
+    if (draft.title.trim().length === 0 || draft.date.trim().length === 0 || draft.formats.length === 0) return
 
     if (editingId === -1) {
       onAdd(fromDraft(course.id, draft))
@@ -106,7 +144,7 @@ export function AssessmentSetup({ course, assessments, onAdd, onUpdate, onRemove
       <ul>
         {forCourse.map((a) => (
           <li key={a.id} data-assessment-id={a.id}>
-            <span>{a.title}</span> <span>({a.date})</span> <span>{a.type}</span> <span>{a.format}</span>
+            <span>{a.title}</span> <span>({a.date})</span> <span>{a.type}</span> <span>{FORMAT_LABELS[a.format]}</span>
             <button type="button" onClick={() => startEdit(a)}>
               Bearbeiten
             </button>
@@ -146,19 +184,16 @@ export function AssessmentSetup({ course, assessments, onAdd, onUpdate, onRemove
               ))}
             </select>
           </label>
-          <label>
-            Format
-            <select
-              value={draft.format}
-              onChange={(e) => setDraft({ ...draft, format: e.target.value as AssessmentFormat })}
-            >
-              {FORMATS.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
-            </select>
-          </label>
+          <fieldset>
+            <legend>Format (mehrere möglich)</legend>
+            {SELECTABLE_FORMATS.map((f) => (
+              <label key={f}>
+                <input type="checkbox" checked={draft.formats.includes(f)} onChange={(e) => toggleFormat(f, e.target.checked)} />
+                {FORMAT_LABELS[f]}
+              </label>
+            ))}
+            {draft.formats.length === 0 && <p role="alert">Mindestens ein Format wählen.</p>}
+          </fieldset>
           <label>
             Gewicht
             <select
@@ -178,7 +213,7 @@ export function AssessmentSetup({ course, assessments, onAdd, onUpdate, onRemove
               checked={draft.openBook}
               onChange={(e) => setDraft({ ...draft, openBook: e.target.checked })}
             />
-            Open Book
+            Hilfsmittel erlaubt
           </label>
           <label>
             Dauer (Minuten, optional)

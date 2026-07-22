@@ -5,7 +5,7 @@ import { insertCourse } from '../../src/data/coursesRepo'
 import { insertDocument } from '../../src/data/documentsRepo'
 import { insertTopic } from '../../src/data/topicsRepo'
 
-const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const }
+const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const, language: 'de' as const }
 const DOCUMENT_INPUT = {
   filename: 'a.pdf',
   stored_path: 'documents/x.pdf',

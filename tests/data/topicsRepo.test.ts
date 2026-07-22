@@ -6,7 +6,7 @@ import { renameTopic, moveTopic, deleteTopic, buildTree } from '../../src/data/t
 import type { SqlConnection } from '../../src/data/db'
 import type { Topic } from '../../src/data/schema'
 
-const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const }
+const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const, language: 'de' as const }
 
 function topicInput(courseId: number, overrides: Partial<Topic> = {}) {
   return {

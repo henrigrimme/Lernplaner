@@ -21,8 +21,8 @@ export async function loadCourses(conn: SqlConnection): Promise<Course[]> {
 
 export async function insertCourse(conn: SqlConnection, input: NewCourseInput, createdAt: string): Promise<Course> {
   const result = await conn.execute(
-    'INSERT INTO courses (name, semester, color, priority, difficulty, archived, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)',
-    [input.name, input.semester, input.color, input.priority, input.difficulty, createdAt],
+    'INSERT INTO courses (name, semester, color, priority, difficulty, archived, created_at, language) VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
+    [input.name, input.semester, input.color, input.priority, input.difficulty, createdAt, input.language],
   )
   if (result.lastInsertId === undefined) throw new Error('INSERT hat keine lastInsertId geliefert')
   return { id: result.lastInsertId, ...input, archived: 0, created_at: createdAt }
