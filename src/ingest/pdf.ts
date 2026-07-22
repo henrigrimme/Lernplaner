@@ -17,12 +17,65 @@ import type { BodyLine, Diagnostics, ExtractedDocument, Page, TextItem } from '.
  * Node automatisch auf einen „Fake Worker" zurückfällt. Nur im Browser
  * setzen (`typeof window`-Guard), damit Vitest/`tsx`-Skripte unter Node
  * unverändert funktionieren.
+ *
+ * **Blob-URL-Umweg statt direktem Pfad — Bugfix (2026-07-22, Nutzerbericht
+ * „PDF-/Ordner-Import: Dialog öffnet sich, danach passiert nichts"):**
+ * bekannter, ungelöster Tauri-Bug auf macOS (tauri-apps/tauri#9975) — im
+ * gebauten (nicht dem Dev-Server-)Fenster liefert der eigene, verschachtelte
+ * Modul-Import des Workers über Tauris Asset-Protokoll manchmal fälschlich
+ * `index.html` statt der echten Worker-Datei zurück
+ * („SyntaxError: Unexpected token '<'"), `getDocument()` hängt dadurch
+ * lautlos. Traf im Dev-Server (anderes Protokoll) und in
+ * `scripts/analyze-material.ts` (Node, kein echter Worker, siehe
+ * `readPages`-Kommentar unten) nie auf, deshalb bisher unentdeckt. Umgehung:
+ * die Worker-Datei ganz normal per `fetch` laden (derselbe Mechanismus, über
+ * den auch das Haupt-Bundle zuverlässig lädt) und über eine Blob-URL
+ * bereitstellen, statt pdf.js selbst den betroffenen, verschachtelten
+ * Worker-Import aufzulösen. Schlägt der Fetch/Blob-Weg aus irgendeinem Grund
+ * fehl, fällt es auf den bisherigen direkten Pfad zurück (funktionierte im
+ * Dev-Server ohnehin zuverlässig).
  */
-if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/legacy/build/pdf.worker.mjs',
-    import.meta.url,
-  ).href
+let workerSrcReady: Promise<void> | null = null
+
+/**
+ * Exportiert, weil `ui/PdfViewer.tsx` denselben Worker braucht (eigener
+ * `getDocument()`-Aufruf zum Rendern, nicht nur zur Textextraktion hier) —
+ * beide teilen sich `pdfjs.GlobalWorkerOptions` (Modul-Singleton), aber
+ * ohne gemeinsamen Aufruf dieser Funktion bliebe `PdfViewer.tsx` beim alten,
+ * betroffenen direkten Pfad, falls in der Sitzung noch kein Import über
+ * `readPages` gelaufen ist.
+ */
+// jsdom (Vitest `tests/ui/**`, siehe vitest.config.ts) definiert `window`,
+// ist aber kein echter Browser — der Blob-Umweg unten würde dort einen
+// echten `fetch()` gegen eine `file://`-URL auslösen (schlägt fehl/dauert,
+// bringt in jsdom ohnehin nichts) statt wie im echten Browser nur einmal
+// harmlos zu greifen. Dasselbe `navigator.userAgent`-Erkennungsmuster wie
+// in vielen anderen Projekten, um jsdom von einem echten Fenster zu
+// unterscheiden.
+const isRealBrowser = typeof window !== 'undefined' && !/jsdom/i.test(window.navigator?.userAgent ?? '')
+
+export function configureWorker(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve()
+  const directUrl = new URL('pdfjs-dist/legacy/build/pdf.worker.mjs', import.meta.url).href
+
+  if (!isRealBrowser) {
+    pdfjs.GlobalWorkerOptions.workerSrc = directUrl
+    return Promise.resolve()
+  }
+
+  workerSrcReady ??= (async () => {
+    try {
+      const response = await fetch(directUrl)
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const code = await response.text()
+      const blob = new Blob([code], { type: 'text/javascript' })
+      pdfjs.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob)
+    } catch (error) {
+      console.warn('pdf.js-Worker: Blob-Umgehung fehlgeschlagen, verwende direkten Pfad', error)
+      pdfjs.GlobalWorkerOptions.workerSrc = directUrl
+    }
+  })()
+  return workerSrcReady
 }
 
 /** Unterhalb dieser Zeichenzahl gilt eine Seite als (fast) grafisch. */
@@ -30,6 +83,7 @@ const SPARSE_PAGE_CHARS = 80
 
 /** PDF-Bytes in Seiten mit Zeilen und Titeln zerlegen. */
 export async function readPages(data: Uint8Array): Promise<Page[]> {
+  await configureWorker()
   const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise
   const pages: Page[] = []
 
