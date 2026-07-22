@@ -232,3 +232,46 @@ lassen sich künftige Releases nicht mehr signieren und von bestehenden
 Installationen als vertrauenswürdig akzeptieren. Kein Schlüssel-Backup
 außerhalb dieses Rechners (passt zu ADR-003 „keine Backups", gilt hier
 zusätzlich für den Signierschlüssel selbst).
+
+---
+
+## ADR-009 — In-App-Benachrichtigungsbanner statt native macOS-Benachrichtigung
+**2026-07-22 · angenommen**
+
+**Kontext:** ADR-007 (KI-Budget) und die ursprüngliche Phase-3-Umsetzung
+gingen davon aus, dass `platform/notifications.ts`
+(`@tauri-apps/plugin-notification`) echte macOS-Benachrichtigungen
+zeigt, sobald der Nutzer die Berechtigung erteilt. An echter Nutzung
+entdeckt: macOS' `UNUserNotificationCenter` registriert Apps ohne
+richtige Apple-Entwickler-ID-Signatur beim System nicht — bei unserem
+ad-hoc-signierten Build (kein Team-Identifier, siehe ADR-008) erscheint
+der Berechtigungsdialog nie, egal wie oft die App neu gestartet wird.
+`~/Library/Preferences/com.apple.ncprefs.plist` bestätigte: die App war
+dort nie registriert.
+
+**Geprüft und verworfen:** ein selbstsigniertes Zertifikat lokal erzeugen
+und für Code-Signierung vertrauen. Verworfen aus zwei Gründen: (1) das
+Vertrauenswürdig-Machen eines Zertifikats verändert den systemweiten
+Vertrauensspeicher — eine Aktion, die bewusst nicht ohne Weiteres
+automatisiert werden soll; (2) selbst wenn durchgeführt, prüft macOS'
+Benachrichtigungssystem nicht nur lokales Vertrauen, sondern die
+Zertifikatskette zurück zu Apple selbst — ein selbstsigniertes Zertifikat
+hat diese Kette nie und hätte das Problem sehr wahrscheinlich nicht
+gelöst.
+
+**Entscheidung:** Auf Rückfrage (Alternative: 99 $/Jahr Apple Developer
+ID, damit abgelehnt) — `ui/NotificationBanner.tsx` (In-App, unabhängig von
+jeder nativen Berechtigung) ist der **primäre** Übertragungsweg für
+Tagesübersicht/Fälligkeiten, nicht nur ein Fallback. `showNotification`
+bleibt als Best-Effort-Zusatz bestehen (zeigt zusätzlich eine echte
+System-Benachrichtigung, falls die App je richtig signiert wird), blockt
+aber nicht mehr den In-App-Banner, wenn die Berechtigung fehlt — vorher
+brach `checkNotifications` bei fehlender Berechtigung komplett ab
+(`return []`), wodurch die Information vollständig verloren ging, auch
+für die App selbst.
+
+**Folge:** „Push-Benachrichtigung, auch wenn die App geschlossen ist" (wie
+ursprünglich gewünscht) ist damit **nicht** erfüllt — der Banner
+erscheint nur, wenn die App tatsächlich geöffnet ist. Für echte
+System-Push-Benachrichtigungen bräuchte es eine Apple-Entwickler-ID;
+diese Entscheidung bleibt bei Bedarf revidierbar.

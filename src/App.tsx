@@ -11,6 +11,7 @@ import { ProgressView } from './ui/ProgressView'
 import { SourceViewer } from './ui/SourceViewer'
 import { CourseExportImport } from './ui/CourseExportImport'
 import { NotificationsPanel } from './ui/NotificationsPanel'
+import { NotificationBanner } from './ui/NotificationBanner'
 import { UpdateChecker, type UpdateInfo } from './ui/UpdateChecker'
 import { UpdateBanner } from './ui/UpdateBanner'
 import { CalendarExport } from './ui/CalendarExport'
@@ -44,7 +45,7 @@ import { scheduleReview, type Grade } from './domain/spacedRepetition'
 import { ReviewSession } from './ui/ReviewSession'
 import { ErrorHistory } from './ui/ErrorHistory'
 import { buildSchedule } from './domain/planBuilder'
-import { computeDueNotifications, type NotificationKind } from './domain/notifications'
+import { computeDueNotifications, type NotificationContent, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
 import type {
   Assessment,
@@ -119,26 +120,41 @@ export function App() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [documentBytes, setDocumentBytes] = useState<Record<number, Uint8Array>>({})
   const [notificationLog, setNotificationLog] = useState<Partial<Record<NotificationKind, string>>>({})
+  const [dueNotifications, setDueNotifications] = useState<NotificationContent[]>([])
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
 
-  // Einmaliger automatischer Update-Check beim Start (nicht wiederholend
-  // während der laufenden Sitzung, kein Scheduler — dieselbe bewusste
-  // Einschränkung wie bei `NotificationsPanel`s manuellem "Jetzt prüfen":
-  // kein `tauri-plugin-cron` o. Ä. in dieser App). Ergebnis geht an
+  // Automatischer Update-Check beim Start (nicht wiederholend während der
+  // laufenden Sitzung, kein Scheduler — dieselbe bewusste Einschränkung
+  // wie bei `NotificationsPanel`s manuellem "Jetzt prüfen": kein
+  // `tauri-plugin-cron` o. Ä. in dieser App). Ergebnis geht an
   // `UpdateBanner`; im Dev-Server/Browser (keine echte Tauri-IPC-Bridge)
   // bleibt `updateInfo` einfach `null`, kein Fehler sichtbar.
+  //
+  // **Ein Fehlschlag wird einmal nach 5s wiederholt:** der allererste
+  // Aufruf direkt beim Start kann in ein Zeitfenster fallen, in dem das
+  // Netzwerk nach einem Mac-Neustart/-Aufwachen noch nicht bereit ist —
+  // ein manueller Klick auf "Nach Updates suchen" (Sekunden/Minuten
+  // später) hat diesen Fehler nie gezeigt, was genau zu dieser Erklärung
+  // passt. Kein endloses Nachversuchen, nur dieser eine zusätzliche
+  // Versuch.
   useEffect(() => {
     let cancelled = false
-    checkForUpdate()
-      .then((result) => {
-        if (!cancelled) setUpdateInfo(result)
-      })
-      .catch(() => {
-        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — kein Update-Hinweis.
-      })
+    const attempt = (isRetry: boolean) => {
+      checkForUpdate()
+        .then((result) => {
+          if (!cancelled) setUpdateInfo(result)
+        })
+        .catch(() => {
+          if (!isRetry && !cancelled) {
+            setTimeout(() => attempt(true), 5000)
+          }
+          // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) oder zweiter Versuch ebenfalls fehlgeschlagen.
+        })
+    }
+    attempt(false)
     return () => {
       cancelled = true
     }
@@ -529,18 +545,35 @@ export function App() {
     const due = computeDueNotifications({ today, studyBlocksToday: todaysBlocks, topics, assessments, alreadyShownToday })
     if (due.length === 0) return []
 
-    const granted = await ensureNotificationPermission()
-    if (!granted) return []
-
-    for (const notification of due) {
-      await showNotification(notification.title, notification.body)
-    }
+    // In-App-Banner ist der primäre Übertragungsweg (siehe
+    // ui/NotificationBanner.tsx-Kommentar) — unabhängig davon, ob die
+    // native Berechtigung je erteilt wurde/wird. Native Benachrichtigung
+    // zusätzlich versuchen, aber ihr Fehlschlagen darf den In-App-Banner
+    // nicht verhindern (anders als vorher: `return []` bei fehlender
+    // Berechtigung verlor die Information komplett).
+    setDueNotifications((prev) => [...prev, ...due])
     setNotificationLog((prev) => {
       const next = { ...prev }
       for (const notification of due) next[notification.kind] = today
       return next
     })
+
+    try {
+      const granted = await ensureNotificationPermission()
+      if (granted) {
+        for (const notification of due) {
+          await showNotification(notification.title, notification.body)
+        }
+      }
+    } catch {
+      // Kein echtes Tauri-Fenster oder Berechtigung nicht verfügbar — der In-App-Banner oben zeigt es trotzdem.
+    }
+
     return due
+  }
+
+  const dismissNotification = (kind: NotificationKind) => {
+    setDueNotifications((prev) => prev.filter((n) => n.kind !== kind))
   }
 
   // Automatischer Check statt nur über den "Jetzt prüfen"-Knopf in
@@ -548,13 +581,17 @@ export function App() {
   // Update-Check oben) — läuft, sobald Lernblöcke/Themen/Prüfungen aus der
   // DB geladen sind, und danach erneut bei jeder Änderung daran (z. B.
   // neue Prüfung angelegt). `computeDueNotifications`/`notificationLog`
-  // sorgen dafür, dass jede Art höchstens einmal pro Tag tatsächlich als
-  // native Benachrichtigung gezeigt wird — wiederholtes Auslösen dieses
-  // Effekts ist damit ungefährlich, kein eigener "nur beim allerersten
-  // Laden"-Zustand nötig. `showNotification` (`platform/notifications.ts`)
-  // nutzt bereits die echte macOS-Benachrichtigungszentrale
-  // (`@tauri-apps/plugin-notification`) — erscheint oben rechts wie bei
-  // jeder anderen App, auch wenn Lernplaner nicht im Vordergrund ist.
+  // sorgen dafür, dass jede Art höchstens einmal pro Tag gezeigt wird —
+  // wiederholtes Auslösen dieses Effekts ist damit ungefährlich.
+  //
+  // **Native macOS-Benachrichtigung funktioniert nicht zuverlässig ohne
+  // Apple-Entwickler-ID-Signatur** (an echter Nutzung entdeckt,
+  // 2026-07-22, siehe DECISIONS.md): `UNUserNotificationCenter` registriert
+  // ad-hoc-signierte Apps beim System nicht, die Berechtigungsabfrage
+  // verpufft lautlos. Auf Rückfrage entschieden: `ui/NotificationBanner.tsx`
+  // (In-App, unabhängig von der nativen Berechtigung) ist deshalb der
+  // *primäre* Übertragungsweg, `showNotification` bleibt nur ein
+  // Best-Effort-Zusatz für den Fall einer künftigen echten Signatur.
   useEffect(() => {
     checkNotifications()
   }, [studyBlocks, topics, assessments])
@@ -643,6 +680,7 @@ export function App() {
 
       <main className="app-content">
         <UpdateBanner update={updateInfo} onInstall={installUpdateAndRestart} />
+        <NotificationBanner notifications={dueNotifications} onDismiss={dismissNotification} />
 
         {activeSection === 'faecher' && (
           <>
