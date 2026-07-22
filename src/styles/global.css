@@ -128,19 +128,94 @@ p {
   height: 100vh;
   overflow: hidden;
   background: var(--color-bg);
+  /* `grid-template-columns` wird von App.tsx per Inline-Style überschrieben
+     (Breite/Eingeklappt-Status sind Laufzeitwerte, siehe dortiger
+     Kommentar zu `sidebarWidth`/`sidebarCollapsed`) — der Wert hier ist
+     nur ein Fallback vor dem ersten Render. */
 }
 
 .app-sidebar {
   grid-area: sidebar;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
   padding: var(--space-lg) var(--space-sm) var(--space-sm);
   overflow-y: auto;
+  overflow-x: hidden;
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border-right: 1px solid var(--glass-border);
+  /* Kein `transition: width` — während des Ziehens (`AppSidebar.tsx`
+     `isResizing`) würde jede Transition der laufenden Mausbewegung
+     hinterherhinken und ruckelig wirken. */
+}
+
+.app-sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: col-resize;
+  z-index: 20;
+}
+
+.app-sidebar-resize-handle:hover,
+.app-sidebar-resize-handle--active,
+.app-sidebar-resize-handle:focus-visible {
+  background: oklch(from var(--color-primary) l c h / 0.35);
+}
+
+.app-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.app-sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--duration-fast) var(--ease-out-quart);
+}
+
+.app-sidebar-toggle:hover {
+  background: oklch(from var(--color-ink) l c h / 0.06);
+  color: var(--color-ink);
+}
+
+/* Macos-artiges Sidebar-Symbol: abgerundetes Rechteck mit vertikaler
+   Trennlinie nahe dem linken Rand, rein aus CSS (kein SVG/Icon-Set im
+   Projekt, siehe restliche `app-*`-Klassen). */
+.app-sidebar-toggle-icon {
+  position: relative;
+  width: 16px;
+  height: 12px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+}
+
+.app-sidebar-toggle-icon::after {
+  content: '';
+  position: absolute;
+  top: -1.5px;
+  bottom: -1.5px;
+  left: 5px;
+  border-left: 1.5px solid currentColor;
 }
 
 .app-brand {
