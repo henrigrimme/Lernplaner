@@ -93,6 +93,15 @@ Festplattenverschlüsselung wäre Theater.
 Totalverlust. Der Kurs-Export in den Einstellungen ist die einzige Möglichkeit,
 Arbeit zu sichern.
 
+**Lesezugriff auf `$HOME/**`** (`src-tauri/capabilities/default.json`,
+seit v0.17.0): der Ordner-Import braucht Lesezugriff auf vom Nutzer frei
+gewählte Ordner irgendwo im eigenen Home-Verzeichnis (Vorlesungsmaterial
+liegt nicht zwingend unter `$APPDATA`). Reiner Lesezugriff
+(`fs:allow-read-file`/`-read-dir`/`-exists`), kein Schreibzugriff außerhalb
+von `$APPDATA/documents` — Schreiben bleibt dort beschränkt (siehe oben).
+Ausgelöst nur durch eine bewusste Nutzeraktion (den nativen Ordner-Dialog
+öffnen und einen Ordner bestätigen), kein automatischer Hintergrundzugriff.
+
 ---
 
 ## Vor jedem Commit

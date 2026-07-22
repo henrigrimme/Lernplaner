@@ -25,6 +25,7 @@ import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
 import { extractDocument, extractPageRangeText, readPages } from './ingest/pdf'
 import { DOCUMENT_TYPE_OPTIONS, inferDocType } from './ingest/docType'
 import { loadDocumentFile, saveDocumentFile } from './platform/documentStorage'
+import { pickFolder, readPdfFilesRecursively, type PickedPdfFile } from './platform/folderImport'
 import { computeSha256, ensureFolderTopicPath, persistAiDetectedDocument, persistExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
 import type { ImportedCourseResult } from './data/courseExport'
@@ -887,7 +888,7 @@ export function App() {
   // (`extractDocument`) passt hier nicht. Stattdessen liest die KI den
   // kompletten Seitentext inhaltlich und gruppiert ihn selbst nach Themen
   // (ADR-015 `detectTopicsFromText`).
-  const importSummaryPdf = async (file: File, data: Uint8Array, parentTopicId: number | null) => {
+  const importSummaryPdf = async (fileName: string, data: Uint8Array, parentTopicId: number | null) => {
     const provider = await getConfiguredAIProvider(logAiUsage)
     if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
 
@@ -909,7 +910,7 @@ export function App() {
     return persistAiDetectedDocument(
       db,
       selectedCourseId!,
-      file.name,
+      fileName,
       { storedPath, sha256, docType: 'zusammenfassung', docTypeLabel: null },
       pages.length,
       uniqueCharsByTopic,
@@ -918,9 +919,9 @@ export function App() {
     )
   }
 
-  const importRegularPdf = async (file: File, data: Uint8Array, docType: DocumentType, parentTopicId: number | null) => {
+  const importRegularPdf = async (fileName: string, data: Uint8Array, docType: DocumentType, parentTopicId: number | null) => {
     const db = await getDb()
-    const extracted = await extractDocument(data, file.name)
+    const extracted = await extractDocument(data, fileName)
     const sha256 = await computeSha256(data)
     const storedPath = await saveDocumentFile(sha256, data)
     return persistExtractedDocument(
@@ -941,7 +942,9 @@ export function App() {
       const data = new Uint8Array(await file.arrayBuffer())
       try {
         const result =
-          docType === 'zusammenfassung' ? await importSummaryPdf(file, data, null) : await importRegularPdf(file, data, docType, null)
+          docType === 'zusammenfassung'
+            ? await importSummaryPdf(file.name, data, null)
+            : await importRegularPdf(file.name, data, docType, null)
         setTopics((prev) => [...prev, ...result.topics])
         setTopicSections((prev) => [...prev, ...result.topicSections])
         setDocuments((prev) => [...prev, result.document])
@@ -955,38 +958,51 @@ export function App() {
   }
 
   // Ordner-Import: der Nutzer wählt statt einzelner PDFs einen ganzen
-  // Ordner (z. B. schon nach Unterthemen sortiert). `webkitRelativePath`
-  // (Standard-Browser-API, kein Tauri-spezifischer Zugriff nötig) liefert
-  // je Datei den Pfad relativ zum gewählten Ordner, z. B.
-  // "Microeconomics/Consumer Theory/Budget/folien.pdf". Der erste
-  // Pfadabschnitt (der gewählte Ordner selbst) wird verworfen — das Fach
-  // ist bereits über `selectedCourse` gewählt, keine weitere Themen-Ebene
-  // dafür nötig. Verbleibende Zwischenordner werden 1:1 zu verschachtelten
-  // Themen (`ensureFolderTopicPath`), PDFs direkt im gewählten Ordner
-  // (kein Zwischenordner) verhalten sich wie beim normalen Mehrfach-Import
-  // (`importPdfs`): ihre Kapitel-Themen bekommen `parent_id = null`.
-  const importFolder = async (files: FileList, docType: DocumentType) => {
+  // Ordner (z. B. schon nach Unterthemen sortiert). Läuft über den
+  // nativen Systemdialog + echtes Dateisystem-Lesen
+  // (`platform/folderImport.ts`), nicht über
+  // `<input type="file" webkitdirectory>` — dieses Attribut ist in
+  // WKWebView (Tauris Webview unter macOS) bekannt unzuverlässig, siehe
+  // Kommentar dort. `relativePath` (aus `readPdfFilesRecursively`) enthält
+  // den gewählten Wurzelordner selbst nicht — Zwischenordner werden 1:1 zu
+  // verschachtelten Themen (`ensureFolderTopicPath`), PDFs direkt im
+  // gewählten Ordner (kein Zwischenordner) verhalten sich wie beim
+  // normalen Mehrfach-Import (`importPdfs`): ihre Kapitel-Themen bekommen
+  // `parent_id = null`.
+  const importFolder = async () => {
     if (selectedCourseId === null) return
     setImportError(null)
 
     let db: Awaited<ReturnType<typeof getDb>>
+    let pickedFiles: PickedPdfFile[]
     try {
+      const folder = await pickFolder()
+      if (folder === null) return // Nutzer hat abgebrochen
       db = await getDb()
+      pickedFiles = await readPdfFilesRecursively(folder)
     } catch (error) {
-      console.error('Ordner-Import: Datenbankverbindung fehlgeschlagen', error)
+      console.error('Ordner-Import fehlgeschlagen', error)
       setImportError(`Ordner konnte nicht importiert werden: ${error instanceof Error ? error.message : String(error)}`)
       return
     }
 
-    const pdfFiles = Array.from(files).filter((f) => f.name.toLowerCase().endsWith('.pdf'))
+    if (pickedFiles.length === 0) {
+      setImportError('Der gewählte Ordner enthält keine PDF-Dateien.')
+      return
+    }
+
+    // "folien" gilt als noch nicht bewusst gewählt (Default) — nur dann
+    // übernimmt die Erkennung aus dem ersten Dateinamen die Auswahl
+    // automatisch (analog zum Einzel-/Mehrfach-Import oben).
+    const docType = importDocType === 'folien' ? inferDocType(pickedFiles[0]!.name) : importDocType
+    if (docType !== importDocType) setImportDocType(docType)
+
     let knownTopics = topics
 
-    for (const file of pdfFiles) {
-      const relativePath = file.webkitRelativePath || file.name
-      const segments = relativePath.split('/').filter(Boolean)
-      const folderNames = segments.slice(1, -1) // ohne gewählten Wurzelordner, ohne Dateiname
+    for (const file of pickedFiles) {
+      const segments = file.relativePath.split('/').filter(Boolean)
+      const folderNames = segments.slice(0, -1) // ohne Dateiname
 
-      const data = new Uint8Array(await file.arrayBuffer())
       try {
         let parentTopicId: number | null = null
         if (folderNames.length > 0) {
@@ -1000,17 +1016,17 @@ export function App() {
 
         const result =
           docType === 'zusammenfassung'
-            ? await importSummaryPdf(file, data, parentTopicId)
-            : await importRegularPdf(file, data, docType, parentTopicId)
+            ? await importSummaryPdf(file.name, file.data, parentTopicId)
+            : await importRegularPdf(file.name, file.data, docType, parentTopicId)
         knownTopics = [...knownTopics, ...result.topics]
         setTopics((prev) => [...prev, ...result.topics])
         setTopicSections((prev) => [...prev, ...result.topicSections])
         setDocuments((prev) => [...prev, result.document])
-        setDocumentBytes((prev) => ({ ...prev, [result.document.id]: data }))
+        setDocumentBytes((prev) => ({ ...prev, [result.document.id]: file.data }))
       } catch (error) {
-        console.error(`PDF-Import konnte nicht gespeichert werden (${relativePath})`, error)
+        console.error(`PDF-Import konnte nicht gespeichert werden (${file.relativePath})`, error)
         const message = error instanceof Error ? error.message : String(error)
-        setImportError(`„${relativePath}" konnte nicht importiert werden: ${message}`)
+        setImportError(`„${file.relativePath}" konnte nicht importiert werden: ${message}`)
       }
     }
   }
@@ -1167,31 +1183,9 @@ export function App() {
                     }}
                   />
                 </label>
-                <label>
+                <button type="button" onClick={() => importFolder()}>
                   Oder ganzen Ordner importieren
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    multiple
-                    ref={(el) => {
-                      // `webkitdirectory` ist kein von React typisiertes JSX-Attribut
-                      // (siehe @types/react), aber eine echte, breit unterstützte
-                      // HTMLInputElement-Eigenschaft (lib.dom.d.ts) — direkt am
-                      // DOM-Element gesetzt statt als Prop.
-                      if (el) el.webkitdirectory = true
-                    }}
-                    onChange={(e) => {
-                      const files = e.target.files
-                      if (!files || files.length === 0) return
-                      const firstPdf = Array.from(files).find((f) => f.name.toLowerCase().endsWith('.pdf'))
-                      if (!firstPdf) return
-                      const resolvedType = importDocType === 'folien' ? inferDocType(firstPdf.name) : importDocType
-                      if (resolvedType !== importDocType) setImportDocType(resolvedType)
-                      importFolder(files, resolvedType)
-                      e.target.value = ''
-                    }}
-                  />
-                </label>
+                </button>
                 <p>
                   Unterordner des gewählten Ordners werden 1:1 als verschachtelte Themen übernommen — praktisch, wenn
                   Material schon nach Unterthemen sortiert in Ordnern liegt. PDFs direkt im gewählten Ordner (ohne

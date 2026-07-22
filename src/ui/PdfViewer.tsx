@@ -68,7 +68,12 @@ export function PdfViewer({ data, initialPage = 1, onSelectionChange }: PdfViewe
     async function render() {
       try {
         await configureWorker()
-        const doc = await pdfjs.getDocument({ data }).promise
+        // `data.slice()`: derselbe Grund wie in `ingest/pdf.ts` `readPages` —
+        // pdf.js überträgt den Buffer an den Worker, ohne Kopie wäre `data`
+        // nach dem ersten Seitenaufruf "detached" und jeder Seitenwechsel
+        // (dieser Effekt läuft bei jeder `page`-Änderung erneut mit
+        // demselben `data`) würde ab der zweiten Seite fehlschlagen.
+        const doc = await pdfjs.getDocument({ data: data.slice() }).promise
         if (cancelled) {
           await doc.destroy()
           return

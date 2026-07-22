@@ -84,7 +84,16 @@ const SPARSE_PAGE_CHARS = 80
 /** PDF-Bytes in Seiten mit Zeilen und Titeln zerlegen. */
 export async function readPages(data: Uint8Array): Promise<Page[]> {
   await configureWorker()
-  const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise
+  // `data.slice()`, nicht `data` direkt: pdf.js überträgt den zugrunde
+  // liegenden ArrayBuffer an seinen Worker (Transferable, für
+  // Zero-Copy-Performance) — danach ist `data`s Buffer "detached" und jeder
+  // weitere Lesezugriff auf das Original wirft "Underlying ArrayBuffer has
+  // been detached" (Nutzerbericht 2026-07-22, echter Import in v0.17.0: der
+  // Aufrufer liest `data` nach `extractDocument` noch einmal für
+  // `computeSha256`/`saveDocumentFile`/`setDocumentBytes`). `.slice()`
+  // kopiert in einen neuen, unabhängigen Buffer — nur diese Kopie darf pdf.js
+  // "verbrauchen".
+  const doc = await pdfjs.getDocument({ data: data.slice(), useSystemFonts: true }).promise
   const pages: Page[] = []
 
   for (let n = 1; n <= doc.numPages; n++) {

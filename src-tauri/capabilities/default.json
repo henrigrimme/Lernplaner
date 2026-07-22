@@ -19,7 +19,12 @@
     },
     {
       "identifier": "fs:allow-exists",
-      "allow": [{ "path": "$CACHE/*" }, { "path": "$APPDATA/documents" }, { "path": "$APPDATA/documents/*" }]
+      "allow": [
+        { "path": "$CACHE/*" },
+        { "path": "$APPDATA/documents" },
+        { "path": "$APPDATA/documents/*" },
+        { "path": "$HOME/**" }
+      ]
     },
     {
       "identifier": "fs:allow-mkdir",
@@ -31,8 +36,13 @@
     },
     {
       "identifier": "fs:allow-read-file",
-      "allow": [{ "path": "$APPDATA/documents/*" }]
+      "allow": [{ "path": "$APPDATA/documents/*" }, { "path": "$HOME/**" }]
     },
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [{ "path": "$HOME/**" }]
+    },
+    "dialog:allow-open",
     "opener:default",
     {
       "identifier": "opener:allow-open-path",
