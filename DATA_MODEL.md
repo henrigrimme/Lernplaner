@@ -26,8 +26,11 @@ documents
   id, course_id, filename, stored_path, sha256,
   doc_type,                    -- folien | skript | uebung | altklausur |
                                -- musterloesung | zusammenfassung | sonstiges
+  doc_type_label,              -- nur bei doc_type='sonstiges': freie eigene Bezeichnung
+                               -- (Migration 0003, additiv, siehe ADR-013)
   pdf_pages,                   -- rohe Seitenzahl
-  slide_count,                 -- echte Folien nach Animationsbereinigung
+  slide_count,                 -- echte Folien nach Animationsbereinigung (0 bei KI-erkannten
+                               -- Zusammenfassungs-Themen, siehe ADR-015)
   unique_chars,                -- eindeutiger Textumfang → Basis der Schätzung
   imported_at
 
@@ -120,7 +123,11 @@ aus `ai_usage` für den laufenden Monat) — nicht separat gespeichert, siehe
 
 ---
 
-## Später befüllt, jetzt schon angelegt
+## Phase 4 — inzwischen in Benutzung
+
+Ursprünglich unter „später befüllt, jetzt schon angelegt" geführt — Phase 4
+ist inzwischen (2026-07-22) fast vollständig gebaut, alle sechs Tabellen
+werden aktiv genutzt:
 
 ```sql
 cards                          -- Karteikarten
@@ -129,7 +136,7 @@ cards                          -- Karteikarten
 reviews                        -- Spaced Repetition (FSRS)
   id, card_id, reviewed_at, rating, stability, difficulty, due_at
 
-quizzes
+quizzes                        -- Quiz-Generierung/Probeklausur-Simulation
   id, course_id, config_json, created_at, completed_at, score
 
 questions
@@ -141,7 +148,17 @@ answers
 
 paper_steps                    -- Teilschritte für Abgaben
   id, assessment_id, title, due_date, status, notes
+```
 
+`questions` trägt `source_document_id` und `source_page` als **Pflichtfelder** —
+eine generierte Frage ohne Quellenangabe wird verworfen. Ohne Beleg lässt sich
+ein Fehler nicht nachvollziehen, und das untergräbt den Zweck.
+
+---
+
+## Noch nicht befüllt
+
+```sql
 annotations                    -- Markierungen im Dokument
   id, document_id, page, rect_json, text, note, created_at
 
@@ -149,9 +166,11 @@ settings
   key, value
 ```
 
-`questions` trägt `source_document_id` und `source_page` als **Pflichtfelder** —
-eine generierte Frage ohne Quellenangabe wird verworfen. Ohne Beleg lässt sich
-ein Fehler nicht nachvollziehen, und das untergräbt den Zweck.
+`annotations` ist eine eigene Tabelle für reine PDF-Markierungen (Rechteck +
+Notiz, ohne Karteikarte) — bisher entsteht beim Markieren immer direkt eine
+Karteikarte (`cards`), diese Tabelle bleibt bis auf Weiteres ungenutzt.
+`settings` ist für spätere Nutzer-Einstellungen vorgesehen (z. B.
+`ai_budget_limit_eur`, siehe ADR-007) — noch keine UI dafür.
 
 ---
 

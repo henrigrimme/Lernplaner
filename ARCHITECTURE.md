@@ -63,18 +63,29 @@ Ab dem 1. September nur noch additive Änderungen.
 
 ### `ai/` — austauschbar
 
-Eine Schnittstelle, mehrere Implementierungen:
+Eine Schnittstelle, zwei Implementierungen (Anthropic/Claude,
+OpenAI/ChatGPT — Anbieterwahl in den Einstellungen, siehe ADR-011/013):
 
 ```ts
 interface AIProvider {
   refineTopics(doc: ExtractedDocument): Promise<TopicSuggestion[]>
   estimateDifficulty(topic: Topic, sample: string): Promise<number>
-  // später: generateQuestions, explainAnswer
+  generateQuestions(topicName: string, sourceText: string, count: number): Promise<QuestionSuggestion[]>
+  classifyExamContent(topics: { id: number; name: string }[], examText: string): Promise<ExamTopicMatch[]>
+  detectTopicsFromText(pages: { pageNumber: number; text: string }[]): Promise<TextTopicSuggestion[]>
 }
 ```
 
+`generateQuestions`/`classifyExamContent` tragen Quiz-Generierung/
+Probeklausur-Simulation und Altklausur-Analyse (ADR-012).
+`detectTopicsFromText` liest bei Zusammenfassungen den kompletten
+Seitentext und gruppiert ihn inhaltlich nach Themen, weil diese anders
+als Folien keinen einheitlichen Aufbau haben (ADR-015) — anders als die
+übrigen Methoden liefert sie den Seitenbereich selbst mit, statt eine
+bereits vorhandene Kapitelstruktur nur zu verfeinern.
+
 Anbieterwechsel ist Konfiguration. Jeder Aufruf wird mit Tokenverbrauch
-protokolliert, damit die Kostenanzeige stimmt.
+protokolliert (`ai_usage`, ADR-007), damit die Kostenanzeige stimmt.
 
 ### `platform/` — macOS
 

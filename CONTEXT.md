@@ -24,7 +24,13 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 21. Juli 2026, laufende Session (Persistenz-Härtung: Fächer, Prüfungen und Verfügbarkeit echt in SQLite gespeichert; Themen/Themenabschnitte als Nächstes, danach Phase 4)
+**Letzte Aktualisierung:** 22. Juli 2026 (v0.13.0). Phase 4 komplett bis auf
+„Nachschärfen aus dem Alltag" (wartet auf echte Nutzungsdaten ab 1. September).
+KI-Anbindung (Claude/ChatGPT, umschaltbar), Quiz-Generierung,
+Probeklausur-Simulation, Altklausur-Analyse, automatische Dokumenttyp-
+Erkennung und Zusammenfassungs-Import per KI sind gebaut und released.
+**Keine offene Implementierungsaufgabe** — Details in Abschnitt 8, Ende
+(„Stand: KI-Anbindung und Phase 4 — komplett").
 
 ---
 
@@ -2011,185 +2017,115 @@ Zurückgestellt, jeweils auf Rückfrage:
 - ⏸ Altklausur-Analyse → automatische Gewichtung — bräuchte echte
   Themen-Klassifikation, dieselbe Anbieter-Frage wie Quiz-Generierung
 
-### Nächster Schritt
+### Stand: KI-Anbindung und Phase 4 — komplett (2026-07-22)
 
-**`ai/`-Schicht + Claude-Anbindung aufgesetzt (2026-07-22, siehe ADR-011).**
-Der zuvor hier beschriebene erste Schritt ist erledigt:
+**Kurzfassung für den Wiedereinstieg:** Alle Phase-4-Punkte, die auf einen
+KI-Anbieter gewartet hatten, sind gebaut, getestet und released (aktuell
+v0.13.0). Es gibt **keine offene Implementierungsaufgabe** aus diesem
+Themenblock — die einzige verbleibende Phase-4-Aufgabe
+(„Nachschärfen aus dem Alltag") braucht echte Nutzungsdaten und wartet
+bewusst auf den Echtbetrieb-Start am 1. September 2026. Eine neue Sitzung
+sollte zuerst fragen, ob der Nutzer die neuen Funktionen (Quiz,
+Probeklausur, Altklausur-Analyse, Zusammenfassungs-Import) inzwischen
+ausprobiert hat und Rückmeldung/Bugs mitbringt, statt hier von sich aus
+weiterzubauen.
 
-- `src/ai/types.ts` — `AIProvider`-Schnittstelle exakt wie in
-  ARCHITECTURE.md beschrieben (`refineTopics`, `estimateDifficulty`), plus
-  `AIUsage`/`AIUsageListener` für die Kostenprotokollierung.
-- `src/ai/anthropicProvider.ts` — Implementierung gegen die Claude Messages
-  API (`claude-haiku-4-5`, ausreichend für Themenverfeinerung/
-  Schwierigkeitseinschätzung, passt zum Kostenrahmen aus ADR-002/ADR-007).
-- `src/ai/index.ts` — `getConfiguredAIProvider()`/`testAnthropicApiKey()`,
-  liest den Schlüssel aus der Keychain.
-- `src/platform/keychain.ts` + drei neue Tauri-Commands in
-  `src-tauri/src/lib.rs` (`keychain_set_secret`/`_get_secret`/
-  `_delete_secret`, `keyring`-Crate) — der Schlüssel verlässt nie die
-  Keychain in Richtung Datenbank/Log (SECURITY.md-Versprechen jetzt
-  umgesetzt).
-- `@tauri-apps/plugin-http`/`tauri-plugin-http` statt Browser-`fetch` für
-  den API-Aufruf (umgeht CORS-Fragen bei Direktzugriffen aus dem Webview;
-  Scope auf `https://api.anthropic.com/*` in
-  `src-tauri/capabilities/default.json`).
-- `src/data/aiUsageRepo.ts` — `insertAiUsage`/`loadMonthlyAiCostEur` gegen
-  die bereits bestehende `ai_usage`-Tabelle (Migration `0002_ai_usage.sql`).
-- `src/ui/AiSettings.tsx` — Einstellungen-Sektion zum Eingeben/Prüfen/
-  Löschen des Schlüssels (der Test-Aufruf validiert den Schlüssel, bevor
-  er gespeichert wird).
+**KI-Anbindung** (ADR-011/ADR-013, `src/ai/`):
+- Zwei austauschbare Anbieter, umschaltbar in den Einstellungen
+  (`ui/AiSettings.tsx`): Anthropic (`claude-sonnet-5`) und OpenAI
+  (`gpt-5.6-terra`, Übergangslösung, solange die Anthropic-Zahlung noch
+  nicht lief — jederzeit zurückwechselbar, beide Schlüssel bleiben
+  unabhängig in der Keychain gespeichert).
+- Schlüssel-Speicherung über `platform/keychain.ts` + drei Tauri-Commands
+  (`src-tauri/src/lib.rs`), `keyring`-Crate **mit** `apple-native`-Feature
+  (`Cargo.toml`) — **wichtiger Bugfix:** ohne dieses Feature fällt
+  `keyring` auf einen nicht-persistenten Mock zurück und „speichert"
+  Schlüssel, die beim nächsten Lesen wieder weg sind. Schlüssel, die vor
+  v0.11.0 eingegeben wurden, waren nie echt gespeichert.
+- HTTP-Aufrufe laufen über `@tauri-apps/plugin-http` (nicht Browser-
+  `fetch`, umgeht CORS), Netzwerk-Scope in
+  `src-tauri/capabilities/default.json` auf `api.anthropic.com`/
+  `api.openai.com` begrenzt. OpenAI mit neueren Modellen (`gpt-5.6-terra`)
+  braucht `max_completion_tokens` statt `max_tokens`.
+- Kostenprotokollierung über `data/aiUsageRepo.ts` in die bestehende
+  `ai_usage`-Tabelle — **die Budget-Benachrichtigung selbst (ADR-007)
+  ist noch nicht an `NotificationBanner` angeschlossen**, reine
+  Protokollierung reicht bisher.
+- **Kein Bestätigungsdialog vor jeder KI-Übertragung** (bewusste
+  Entscheidung, SECURITY.md entsprechend korrigiert) — die gezielte
+  Nutzung einer KI-Funktion durch den Nutzer ist die Bestätigung, ein
+  API-Schlüssel ist ohnehin Voraussetzung für jede Übertragung.
 
-**Nachtrag, noch am selben Tag:** Anthropic-Zahlung funktionierte zunächst
-nicht — als Übergang zusätzlich `src/ai/openaiProvider.ts` (OpenAI,
-`gpt-4o-mini`) ergänzt, siehe ADR-011-Nachtrag. `AiSettings.tsx` erlaubt
-jetzt die Wahl zwischen Claude und ChatGPT, beide Schlüssel werden
-getrennt in der Keychain gehalten — ein Rückwechsel zu Claude ist später
-nur ein Klick, kein neuer Schlüssel nötig (sofern nicht gelöscht).
+**Drei gebaute Phase-4-Funktionen** (ADR-012, neuer Navigationspunkt
+„Quiz"):
+- **Quiz-Generierung**: `AIProvider.generateQuestions` erzeugt Fragen aus
+  echtem Belegtext eines Themenabschnitts (`ingest/pdf.ts`
+  `extractPageRangeText`) — nur für Abschnitte wählbar, deren PDF noch
+  geladen ist. Multiple-Choice wird automatisch bewertet
+  (`domain/quiz.ts`), Freitext durch Selbsteinschätzung wie bei
+  Karteikarten.
+- **Probeklausur-Simulation**: dasselbe Quiz-System, nur mit
+  Prüfungs-Zuordnung und Zeit-Countdown (`assessment.duration_minutes`) —
+  kein eigenes Datenmodell, nur ein `quizzes.config_json`-Modus.
+- **Altklausur-Analyse → automatische Gewichtung**:
+  `AIProvider.classifyExamContent` + `domain/examWeighting.ts` schlagen
+  Gewichts-Erhöhungen für häufig geprüfte Themen vor — **immer nur als
+  Vorschlag** (`ui/AltklausurAnalysis.tsx`, Diff wie bei der
+  Neuberechnung, ADR-005-Prinzip), nie automatisch übernommen, rührt nie
+  ein `manual_override`-Thema an.
+- Neu dafür: `domain/quiz.ts`/`domain/examWeighting.ts` (mit Tests),
+  `data/quizzesRepo.ts`/`questionsRepo.ts`/`answersRepo.ts`,
+  `ui/QuizSetup.tsx`/`QuizSession.tsx`/`AltklausurAnalysis.tsx`.
 
-**Noch nicht Teil dieses Schritts:** Die Budget-Benachrichtigung selbst
-(ADR-007 „bei Überschreiten wird benachrichtigt") ist mit
-`loadMonthlyAiCostEur` vorbereitet, aber noch nicht an
-`NotificationBanner`/`domain/notifications.ts` angeschlossen — reine
-Protokollierung reicht für diesen Baustein.
+**Materialien überstehen jetzt Neustart/Rechner-Aus** (ADR-013,
+`platform/documentStorage.ts`): PDFs werden unter
+`$APPDATA/documents/<sha256>.pdf` gespeichert, `documentBytes` wird beim
+App-Start von der Festplatte nachgeladen. Die frühere Annahme „PDF-Bytes
+bleiben bewusst nicht persistiert" war **kein** SECURITY.md-Verbot (das
+verbietet nur, PDFs ins Git-Repo zu committen), nur schlicht noch nicht
+gebaut. Vor v0.11.0 importierte Dokumente tragen noch den alten
+`in-memory://`-Platzhalter und haben ihr PDF unwiederbringlich verloren —
+einmal neu importieren behebt das dauerhaft.
 
-**Nachtrag 3, noch am selben Tag: die drei zuvor auf einen KI-Anbieter
-wartenden Phase-4-Punkte sind jetzt gebaut** (siehe ADR-012) —
-Quiz-Generierung, Probeklausur-Simulation, Altklausur-Analyse →
-automatische Gewichtung, ROADMAP.md entsprechend abgehakt. `AIProvider`
-hat zwei neue Methoden (`generateQuestions`, `classifyExamContent`, beide
-in `anthropicProvider.ts`/`openaiProvider.ts` implementiert). Modellwahl
-präzisiert: `claude-sonnet-5`/`gpt-5.6-terra` (Nutzerwunsch). Neu:
-`domain/quiz.ts`, `domain/examWeighting.ts` (mit Tests),
-`data/quizzesRepo.ts`/`questionsRepo.ts`/`answersRepo.ts`,
-`ui/QuizSetup.tsx`/`QuizSession.tsx`/`AltklausurAnalysis.tsx`, neuer
-Navigationspunkt „Quiz". Dokumenttyp ist beim PDF-Import jetzt wählbar
-(vorher hart auf `folien` codiert) — nötig, damit Dokumente überhaupt als
-`altklausur` markiert werden können.
+**Dokumenttypen — jetzt frei erweiterbar und automatisch erkannt**
+(ADR-013/ADR-014, `ingest/docType.ts`):
+- Beim Import wählbar (vorher hart auf `folien` codiert): `folien`,
+  `skript`, `uebung`, `altklausur`, `musterloesung`, `zusammenfassung`,
+  `sonstiges` (mit freier Bezeichnung, Migration `0003_document_type_
+  label.sql`, `documents.doc_type_label`).
+- `inferDocType()` schlägt den Typ automatisch aus Dateiname/Ordnername
+  vor (kein KI-Aufruf — Namensmuster reichen bei echtem Material fast
+  immer), überschreibt aber **nie** eine bewusste Nutzerauswahl (`folien`
+  gilt als „noch nicht entschieden"-Default). Deckt inzwischen sowohl
+  englische WHU-Begriffe (Slides, Exercise, Solutions, Mock Exam, …) als
+  auch deutsche Mathe-Kurs-Begriffe ab (Vorlesung → Folien, Aufgabenblatt/
+  Assignment → Übung).
+- **Nachträglich korrigierbar:** `ui/DocumentList.tsx` +
+  `documentsRepo.updateDocumentType` — falls die Vermutung danebenliegt.
 
-Quiz-Generierung funktioniert nur für Themenabschnitte, deren PDF noch in
-der laufenden Sitzung im Speicher liegt (`documentBytes`), `ingest/pdf.ts`
-bekam dafür `extractPageRangeText`. Freitext-Fragen werden wie Karteikarten
-durch Selbsteinschätzung bewertet, nur Multiple-Choice automatisch.
-Gewichtsvorschläge aus der Altklausur-Analyse werden nie automatisch
-übernommen (ADR-005-Prinzip) und rühren nie ein `manual_override`-Thema an.
+**Zusammenfassungen bekommen einen eigenen KI-Einlesepfad** (ADR-015):
+Zusammenfassungen sind von Studierenden selbst geschrieben, jede anders
+aufgebaut — manche ganz ohne optische Gliederung (reine Frage-Antwort-
+Listen). Die folienbasierte Kapitelerkennung (`ingest/chapters.ts`) passt
+hier nicht. Stattdessen liest `AIProvider.detectTopicsFromText` den
+kompletten Seitentext und gruppiert **inhaltlich** nach Themen
+(`data/importTopics.ts` `persistAiDetectedDocument`, parallel zum
+bestehenden folienbasierten Pfad). **Bekannte, bewusst nicht behobene
+Grenze:** handschriftliche Notizen (z. B. Tablet-App-Exporte) haben zwar
+oft einen Textlayer, dieser ist aber häufig fehlerhaft/durcheinander-
+gewürfelt (echtes OCR wäre nötig — ROADMAP.md „Später/offen" führt „OCR,
+Handschrift" bereits als eigenen, unterminierten Punkt).
 
-**Nachtrag 4, noch am selben Tag — Bugfix + zwei Nutzerwünsche nach dem
-ersten echten Test (siehe ADR-013):**
-
-- **Bugfix:** API-Schlüssel verschwanden nach Verlassen der Einstellungen
-  wieder. Ursache: `keyring`-Crate ohne Plattform-Feature fällt auf einen
-  nicht-persistenten Mock zurück (`Cargo.toml`: `keyring = "3"` →
-  `keyring = { version = "3", features = ["apple-native"] }`). Bereits
-  eingegebene Schlüssel vor diesem Fix waren nie echt gespeichert und
-  müssen einmalig neu eingegeben werden.
-- **Materialien überstehen jetzt Neustart/Rechner-Aus.** Die Annahme „PDF-
-  Rohbytes bleiben bewusst nicht persistiert" war **kein**
-  SECURITY.md-Verbot, nur noch nicht gebaut — SECURITY.md verbietet nur,
-  PDFs ins Git-Repo zu committen. `platform/documentStorage.ts` schreibt
-  PDFs jetzt unter `$APPDATA/documents/<sha256>.pdf`, `documentBytes` wird
-  beim Start von der Festplatte nachgeladen. Vor diesem Fix importierte
-  Dokumente (`in-memory://`-Platzhalter) bleiben verloren, müssen einmalig
-  neu importiert werden.
-- **Eigene Dokumentkategorien:** Migration `0003_document_type_label.sql`
-  (additiv, `documents.doc_type_label`), Freitextfeld bei „Sonstiges" im
-  Import-Dialog, `<datalist>` mit bereits verwendeten eigenen
-  Bezeichnungen.
-
-**Damit ist Phase 4 komplett bis auf „Nachschärfen aus dem Alltag"** — das
-braucht laut ROADMAP.md echte Nutzungsdaten und wartet auf den
-Echtbetrieb-Start am 1. September 2026.
-
-### Analyse: Beispiel-PDFs (2026-07-22, noch am selben Tag)
-
-Nutzerauftrag: den lokalen Ordner „Beispiel pdfs" (neu befüllt mit
-echtem WHU-BBA-Material aus mehreren Kursen: Microeconomics, Money
-Banking and Financial Markets, Data & Information Management,
-Entrepreneurial Transformation, Nurturing Customer Relationships)
-durchsehen und auswerten, welche Dokumentarten/Aufbauten vorkommen.
-`poppler` (`brew install poppler`) war nötig, damit das `Read`-Tool
-PDF-Seiten rendern kann — jetzt installiert.
-
-**Beobachtete Dokumentarten und ihr Aufbau** (repräsentative Stichprobe,
-nicht jede Datei einzeln gelesen):
-
-- **Folien** (`Slides/`-Ordner, „Slides …"/„BSC - … -"-Dateinamen):
-  Titelseite + ein Konzept pro Seite, wiederkehrende Kopf-/Fußzeile
-  (Seitenzahl, Dozentenname) — strukturell nah an den drei in Phase 1
-  bereits validierten Fächern, die bestehende Erkennung (Titel = größte
-  Schrift oben, wiederkehrende Zeilen entfernen) passt.
-- **Altklausuren** (`Alte Klausuren/`-Ordner, „Final exam …"/„Exam
-  review …"): oft nur eine einzige Seite, reine Fragenliste mit
-  Punktangaben in Klammern, **keine** Kopf-/Fußzeile, **keine**
-  Musterlösung im selben Dokument.
-- **Mock Exam** (eigener, von echten Altklausuren zu unterscheidender
-  Fall): Titelseite + nummerierte Fragen inkl. Multiple-Choice-Optionen
-  **und am Ende ein „Answers:"-Abschnitt mit der Lösung im selben
-  Dokument** — anders als reine Altklausuren.
-- **Übungen/Problem Sets**: nummerierte Aufgaben mit fett gesetztem
-  Themen-Namen als Überschrift je Aufgabe, oft als getrennte
-  `..._exercise_tasks.pdf`/`..._exercise_solutions.pdf`-Dateipaare.
-- **Zusammenfassungen**: farbige „Part"-Abschnittsbalken als
-  Kapitelmarker, dann dichte Stichpunkt-Seiten (teils mit eingebetteten
-  Bildern/handschriftlichen Anmerkungen) — **strukturell klar
-  anders als Folien** (kein Ein-Konzept-pro-Seite-Aufbau, keine
-  Animationsschritte). Die bestehende, auf Folien zugeschnittene
-  Kapitelerkennung (`ingest/chapters.ts`) ist für diesen Dokumenttyp
-  vermutlich nicht gut geeignet — **nicht behoben in diesem Schritt**
-  (bräuchte eine eigene Validierung wie die drei Fächer in Phase 1,
-  außerhalb des Zeitrahmens dieser Änderung). Für die Zukunft vorgemerkt.
-- **Syllabus**: festes WHU-Verwaltungsformular (Code, ECTS, Workload,
-  Prüfungsform) ohne Lerninhalt — eindeutig „sonstiges", kein
-  Grenzfall.
-
-**Umgesetzt:** `ingest/docType.ts` (`inferDocType`) schlägt den
-Dokumenttyp aus dem Dateinamen vor (Muster-Priorität: Altklausur >
-Musterlösung > Zusammenfassung > Übung > Skript > Folien; Ordnername nur
-als Rückfall, falls der Dateiname allein nichts hergibt) — bewusst **kein
-KI-Aufruf**, der Dateiname allein reicht bei den gesichteten echten
-Materialien fast immer. Rückfallwert ohne jedes Signal: `folien` (der
-mit Abstand häufigste Fall). In `App.tsx` übernimmt die automatische
-Vermutung die Dropdown-Auswahl nur, solange sie noch auf dem Default
-`folien` steht (gilt als „noch nicht bewusst gewählt") — eine explizite
-Nutzerauswahl wird nie überschrieben.
-
-**Korrigierbarkeit** (Nutzerwunsch: falsch erkannte Typen müssen sich
-nachträglich ändern lassen): `ui/DocumentList.tsx` zeigt importierte
-Dokumente je Fach mit editierbarem Typ-Dropdown,
-`data/documentsRepo.ts` bekam dafür `updateDocumentType` — die einzige
-Ausnahme von der bisherigen „nur Insert/Select, nie über die UI
-bearbeitet"-Regel für `documents`.
-
-**Nebenbei gefixt:** OpenAI-Aufrufe schlugen mit `gpt-5.6-terra` fehl
-(„Unsupported parameter: 'max_tokens'") — neuere OpenAI-Modelle
-verlangen `max_completion_tokens` statt `max_tokens`
-(`src/ai/openaiProvider.ts`).
-
-**Nachtrag 5, noch am selben Tag — Zusammenfassungen und ein weiterer
-Kurstyp (ADR-015):**
-
-- Vertiefte Prüfung mehrerer Zusammenfassungen (handschriftliche
-  Notizen, eine reine Frage-Antwort-Liste ganz ohne Überschriften)
-  bestätigte: rein formatierungsbasierte Erkennung reicht nicht.
-  `ai/detectTopicsFromText` liest jetzt den kompletten Seitentext einer
-  Zusammenfassung und gruppiert ihn **inhaltlich** nach Themen, statt auf
-  Überschriften/Formatierung zu setzen. Neuer Einlesepfad
-  `data/importTopics.ts` `persistAiDetectedDocument` (parallel zum
-  bestehenden folienbasierten `persistExtractedDocument`). **Bekannte
-  Grenze:** handschriftliche Notizen (Tablet-App-Export) haben zwar
-  einen Textlayer, dieser ist aber oft fehlerhaft/durcheinandergewürfelt
-  (echte OCR-Erkennung wäre nötig, siehe ROADMAP.md „Später/offen —
-  OCR, Handschrift", hier bewusst nicht mitgelöst).
-- **Neuer Kurstyp gesichtet:** ein Mathematik-Kurs („Topic 1"–„Topic 3"
-  im Beispielordner) mit ganz anderer Namenskonvention als die
-  WHU-Kurse — LaTeX-Beamer-Folien heißen „Vorlesung N", Übungsblätter
-  „Aufgabenblatt N"/„assignments N deutsch.pdf". `ingest/docType.ts`
-  kannte diese deutschen Begriffe noch nicht (nur „Übung"/„Skript"/
-  „Folie" u. Ä.) — Muster für `vorlesung` (→ Folien) und
-  `aufgabenblatt`/`assignment` (→ Übung) ergänzt.
-- Kein Bestätigungsdialog vor KI-Übertragung (Rückfrage, siehe
-  SECURITY.md-Korrektur oben) — die gezielte Nutzung der jeweiligen
-  Funktion (Quiz-Generierung, Altklausur-Analyse, jetzt auch
-  Zusammenfassungs-Import) ist die Bestätigung.
+**Material-Analyse durchgeführt** (Nutzerauftrag, Ordner „Beispiel
+pdfs", nicht im Git-Repo, `.gitignore`-geschützt): echtes Material aus
+mehreren WHU-BBA-Kursen (Microeconomics, Money Banking and Financial
+Markets, Data & Information Management, Entrepreneurial Transformation,
+Nurturing Customer Relationships) sowie ein Mathematik-Kurs (Topic 1–3)
+gesichtet. `poppler` (`brew install poppler`) wurde dafür installiert,
+damit PDF-Seiten gerendert werden können. Alle daraus abgeleiteten
+Code-Änderungen sind oben in den jeweiligen Abschnitten eingearbeitet;
+die einzelnen Rohbefunde stehen nicht mehr separat hier, um Wiederholung
+zu vermeiden.
 
 ### Danach (unverändert aus der Roadmap)
 
