@@ -24,36 +24,38 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 22. Juli 2026 (v0.18.0). Phase 4 komplett bis auf
+**Letzte Aktualisierung:** 22./23. Juli 2026 (v0.20.0 — Nachtsitzung, Nutzer
+schlief während der Umsetzung, siehe „Nachtsitzung 22.07.→23.07.2026" ganz am
+Ende von Abschnitt 8 für die vollständige Zusammenfassung + eine Liste
+zurückgestellter Verbesserungsideen). Phase 4 komplett bis auf
 „Nachschärfen aus dem Alltag" (wartet auf echte Nutzungsdaten ab 1. September).
 KI-Anbindung (Claude/ChatGPT, umschaltbar), Quiz-Generierung,
 Probeklausur-Simulation, Altklausur-Analyse, automatische Dokumenttyp-
 Erkennung und Zusammenfassungs-Import per KI sind gebaut und released.
-Neu in v0.14.0: **Ordner-Import** — ganze Ordner (inkl. Unterordner-Struktur)
-lassen sich statt einzelner PDFs importieren. Neu in v0.15.0: **Seitenleiste
-größenverstellbar und einklappbar**. Neu in v0.16.0: **Liquid-Glass-
-Verfeinerung, Dock-Hover-Vergrößerung der Nav-Einträge, Seitenleiste bis auf
-64px ziehbar (Text wird abgeschnitten), Prioritäts-/Schwierigkeits-Richtung
-beim Fach beschriftet, Keychain-Zugriffe werden pro Sitzung gecacht**. Neu in
-v0.17.0: **Sidebar schwebt jetzt wirklich über dem Inhalt** (echte
-`position: fixed`-Glas-Ebene statt Grid-Spalte) **und ein erster
-PDF-Import-Bugfix** (pdf.js-Worker-Ladefehler unter Tauri/macOS). Neu in
-v0.18.0: **zwei weitere Import-Bugfixes** — ein ArrayBuffer-„detached"-Fehler
-beim PDF-Lesen (durch den v0.17.0-Fix erst sichtbar geworden) und ein
-kompletter Umbau des Ordner-Imports auf den echten nativen macOS-Dialog
-(`webkitdirectory` war die eigentliche Ursache für „Ordner-Import tut
-nichts"). **Details zur ganzen Import-Bug-Serie siehe Abschnitt 8, Ende,
-unbedingt lesen vor jeder weiteren Import-bezogenen Änderung.** **Keine
-offene Implementierungsaufgabe** aus Phase 4 — Details in Abschnitt 8
-(„Stand: KI-Anbindung und Phase 4 — komplett"). **Braucht Nutzer-
-Bestätigung:** alle drei Import-Fixes (v0.17.0 + v0.18.0) sind noch nicht im
-echten Tauri-Fenster vom Nutzer bestätigt (nur Ursachenanalyse, Code und
-Dev-Server-Checks sind belastbar) — nächste Sitzung zuerst fragen, ob PDF-
-und Ordner-Import jetzt beide funktionieren. **In Arbeit:** wiederkehrende
-Tages-Blocker in der Verfügbarkeit (Mittagspause, Abendessen, Gym o. ä. als
-feste Zeitfenster an bestimmten
-Wochentagen) — Nutzerwunsch vom 22.07.2026, noch nicht umgesetzt, Details
-sobald die Umsetzung beginnt.
+
+**Import-Bug-Serie (v0.17.0–v0.18.0) — drei unabhängige Root Causes für
+„PDF-/Ordner-Import funktioniert nicht" gefunden und behoben** (pdf.js-
+Worker-Ladefehler unter Tauri/macOS, ArrayBuffer-„detached"-Fehler,
+`webkitdirectory` unzuverlässig in WKWebView → Ordner-Import komplett auf
+nativen Dialog umgebaut). **Immer noch nicht vom Nutzer im echten Fenster
+bestätigt** — das ist die wichtigste offene Frage für die nächste Sitzung,
+ganz oben stellen. Details siehe „Nachtsitzung"-Abschnitt am Ende.
+
+Seit v0.14.0 zusätzlich gebaut (Kurzfassung, Details jeweils im
+„Nachtsitzung"-Abschnitt oder den davorliegenden Abschnitten): Ordner-Import,
+größenverstellbare/einklappbare Seitenleiste, echtes schwebendes
+Liquid-Glass-Material, Dock-Hover-Vergrößerung, Dark Mode, wählbare
+Farbpaletten (inkl. British Racing Green/NATO Olive), Prüfungsformat als
+Mehrfachauswahl, klickbare Quiz-Antworten mit Schwierigkeit/Anzahl/Sprache
+wählbar, verschachtelbare Fach-Ordner, kompaktere Dokumentenliste.
+
+**Keine offene Implementierungsaufgabe** aus Phase 4 — Details weiter unten
+(„Stand: KI-Anbindung und Phase 4 — komplett"). **Offen/zurückgestellt:**
+wiederkehrende Tages-Blocker in der Verfügbarkeit (Mittagspause, Abendessen,
+Gym), volle Word/Excel/PowerPoint-Unterstützung, ein tieferer Quiz-
+Konfigurationsdialog („Rückfragen wie bei Claude"), eine größere
+Sidebar/Detailansicht-Neugestaltung — alle mit Begründung im
+„Nachtsitzung"-Abschnitt, keines blind begonnen.
 
 **Freigaben, die für diese Sitzung gelten (Nutzer, 22.07.2026):** PR-Merges
 und GitHub-Release-Veröffentlichungen sind zusätzlich zur bereits stehenden
@@ -2602,6 +2604,226 @@ beide in derselben Sitzung behoben, `fix/pdf-buffer-detached-and-native-folder-p
   Sitzung: zuerst nachfragen, ob PDF- **und** Ordner-Import beide
   funktionieren, bevor an diesem Bereich weitergearbeitet wird.
 
+### Nachtsitzung 22.07.→23.07.2026 — große Wunschliste, autonom umgesetzt
+
+Der Nutzer hat in einer einzigen Nachricht eine große Zahl an Wünschen
+gegeben und ist dann schlafen gegangen, mit der ausdrücklichen Anweisung,
+komplett autonom weiterzuarbeiten („mache das bitte alles komplett
+selbstständig … arbeite weiter, bis Du der Meinung bist, dass Du nichts
+mehr tun kannst"). **Wichtige Klarstellung, die im Gespräch selbst
+festgehalten wurde:** Claude hat *keinen* Bildschirmzugriff und kann die
+native App nicht klicken/bedienen — das ursprüngliche Nutzerbild („du
+kannst dir doch selbst 10–15 Durchgänge in der App ansehen") war falsch;
+stattdessen wurde die reale Ingest-Pipeline über die Node-Kommandozeilen-
+Werkzeuge (`npm run analyze`/`npm run preview-import`) gegen das echte
+Beispielmaterial (`Beispiel pdfs/`, 92 PDFs über alle Fächer) getestet —
+das ist die einzige Form von „Selbsttest", die tatsächlich möglich war.
+**Für die nächste Sitzung wichtig zu wissen, falls das noch nicht
+angesprochen wurde.**
+
+**Reihenfolge der Nacht** (jeweils eigener Branch → PR → Squash-Merge →
+sofort released, wie in [[feedback_lernplaner_auto_release]]/
+[[feedback_lernplaner_pr_merge_autonomy]] festgelegt — beide Freigaben
+wurden in dieser Sitzung vom Nutzer nochmal ausdrücklich bestätigt, nachdem
+der Auto-Mode-Classifier sie einmal blockiert hatte):
+
+1. **v0.19.0 — Dark Mode, Prüfungsformat-Mehrfachauswahl, Quiz-
+   Verbesserungen** (PR #50):
+   - `ui/AppearanceSetting.tsx` (neu): Hell/Dunkel/System wählbar,
+     `localStorage` + `data-theme`-Attribut auf `<html>`, `tokens.css`
+     bekam `:root[data-theme='dark'/'light']`-Blöcke neben der
+     bestehenden `prefers-color-scheme`-Media-Query.
+   - `AssessmentSetup.tsx`: Prüfungsformat ist jetzt eine Checkbox-Gruppe
+     statt Einzel-Dropdown. **Bewusst kein Schema-Umbau** —
+     `assessments.format` bleibt eine einzelne Spalte
+     (`AssessmentFormat`-Enum unverändert), bei genau einer Auswahl wird
+     sie direkt gespeichert, bei mehreren `'mixed'` (bereits bestehender
+     Wert, `EXAM_FORMAT_MULTIPLIER.mixed` in `domain/estimation.ts` deckt
+     den Fall schon ab). Konsequenz: eine `'mixed'`-Prüfung lässt sich
+     beim Bearbeiten nicht mehr in ihre ursprünglichen Einzelformate
+     zurückübersetzen (Checkboxen starten dann leer) — dokumentiert im
+     Code, kein Datenverlust, nur keine Rekonstruktion.
+   - **Migration 0004** (`quiz_language_and_options.sql`):
+     `questions.options` (JSON-Array der MC-Antwortoptionen, `NULL` bei
+     Freitext oder alten Fragen) + `courses.language` (`'de'`/`'en'`,
+     Default `'de'`). `ai/types.ts` `QuestionSuggestion.options` neu,
+     `generateQuestions` bekommt `difficulty`/`language`-Parameter, beide
+     Provider-Prompts (`anthropicProvider.ts`/`openaiProvider.ts`)
+     angepasst. **Wichtig:** die KI-Sprache ist reine Fach-Eigenschaft
+     (`CourseSetup.tsx` neues Feld) — die App-Oberfläche selbst (Menüs,
+     Planung, Kalender) bleibt immer Deutsch, nur Quiz/Zusammenfassungs-
+     Erkennung/Altklausur-Analyse für dieses Fach laufen in seiner
+     Sprache.
+   - `ui/QuizSession.tsx`: MC-Antworten jetzt anklickbare Buttons
+     (`question.options`), fällt bei `options === null` (alte Fragen) auf
+     das bisherige Texteingabefeld zurück — kein Datenverlust für
+     bestehende Quizze.
+   - `ui/QuizSetup.tsx`: Schwierigkeit (einfach/mittel/schwer) wählbar,
+     „Fragen je Abschnitt"-Obergrenze von 10 auf 20 angehoben, laufende
+     Gesamtzahl-Anzeige. **Deckt einen Teil des Wunsches „mehr
+     Rückfragen vor der Quiz-Erstellung wie bei Claude" ab, aber nicht
+     vollständig** — siehe Ideen-Liste unten.
+   - 14 neue Tests (`AppearanceSetting`, `questionsRepo`-Options-
+     Rückgabe, `QuizSession`-Klick-Verhalten).
+
+2. **v0.20.0, Teil 1 — Fach-Ordner + Farbpaletten** (PR #51):
+   - **Migration 0005** (`course_groups.sql`): neue Tabelle
+     `course_groups` (`id`, `parent_id`, `name`, `sort_order`,
+     `ON DELETE CASCADE` auf sich selbst) + `courses.group_id`
+     (`ON DELETE SET NULL`). **Bewusst eigene Tabelle, nicht
+     `courses.parent_id`** — ein Ordner ist kein Fach (keine
+     Prüfungen/Themen/Priorität/Schwierigkeit), beides im selben Datensatz
+     zu modellieren hätte zwei unterschiedliche Konzepte vermischt.
+   - `data/courseGroups.ts` (reine Baumfunktionen, `buildCourseGroupTree`/
+     `renameCourseGroup`/`moveCourseGroup`/`deleteCourseGroup`, eng an
+     `data/topicTree.ts` angelehnt, aber ohne `weight`/`difficulty`-
+     Vererbung) + `data/courseGroupsRepo.ts` (SQL) + neue
+     `ui/CourseGroups.tsx` (Ordner anlegen/umbenennen/verschieben/löschen,
+     Fach per Dropdown zuweisen — bewusst kein Drag & Drop, gleiche
+     Begründung wie schon bei `TopicTree.tsx`: tastaturbedienbar, keine
+     neue Laufzeit-Abhängigkeit).
+   - **Seitenleiste zeigt jetzt den Ordnerbaum** (`App.tsx`
+     `renderSidebarCourseTree`, neue modulweite Funktion): Ordner als
+     nicht klickbare, eingerückte `app-nav-label`-Zwischenüberschriften,
+     Fächer darunter wie bisher als `app-nav-item`. Nicht zugewiesene
+     Fächer bleiben wie bisher flach oben in der Liste.
+   - **Farbpaletten** (`ui/AppearanceSetting.tsx` erweitert): Terrakotta
+     bleibt Standard, dazu British Racing Green, NATO Olive, Petrol,
+     Bordeaux zur Wahl (Nutzerwunsch, explizit die ersten beiden Namen
+     genannt). `data-palette`-Attribut auf `<html>`, `tokens.css`
+     `[data-palette]`-Blöcke überschreiben **nur** die Primär-Akzentfarbe
+     (Buttons, aktiver Sidebar-Eintrag) — die warmen Papier-/Sand-
+     Neutralfarben und der sekundäre Petrol-Akzent bleiben immer gleich,
+     das ist die eigentliche Markenidentität (DESIGN.md „One Accent
+     Rule"), nicht die Akzentfarbe selbst. Bewusst nicht separat für
+     Hell/Dunkel dupliziert (anders als `[data-theme]`) — Aufwand stand in
+     keinem Verhältnis zum Nutzen, im Screenshot (Dunkel + NATO Olive)
+     bestätigt gut lesbar.
+   - **Vorgeschichte/Lehre aus einem verworfenen Zwischenversuch (noch vor
+     dieser Liste, aber in derselben Sitzung):** ein erster Ansatz für
+     „Sidebar schwebt über Inhalt, mit sichtbarem Glaseffekt" ließ echten
+     Text unter der Glasleiste verschwinden (negativer Versatz war
+     kleiner als der Innenabstand des Containers, siehe Abschnitt weiter
+     oben „Sidebar schwebt über dem Inhalt + PDF-Worker-Bugfix (v0.17.0)"
+     für die volle Analyse) — sofort per `git restore` verworfen, bevor
+     committet. Der zweite, tatsächlich umgesetzte und released
+     Versuch (`.grouped-list--bleed-left`) rechnet den Versatz exakt
+     gegen, siehe dort. Bei jeder künftigen Layout-Änderung an diesem
+     Bereich: Box-Versatz und Text-Innenabstand müssen sich exakt
+     gegenläufig um denselben Betrag ändern, nicht nur grob geschätzt
+     werden.
+   - 12 neue Tests (`courseGroups`, `courseGroupsRepo`).
+
+3. **v0.20.0, Teil 2 — Dokumentenliste kompakter** (PR #52):
+   - `ui/DocumentList.tsx`: kleines CSS-gezeichnetes Dokument-Symbol
+     (Seite mit umgeknickter Ecke, wie `.app-sidebar-toggle-icon` kein
+     Icon-Set im Projekt) + einzeiliger, bei Bedarf abgeschnittener
+     Dateiname statt langer Textzeile. Überschrift von „Importierte
+     Dokumente — {Fach}" auf „Dokumente" verkürzt (Fach steht ohnehin
+     schon im Toolbar-Kontext). Direkte Reaktion auf den Nutzerwunsch
+     „PDF-Icons und kurze Beschreibung statt komplett ausgeschriebenem
+     Text".
+
+4. **v0.20.0, Teil 3 — Ordner-Import meldet übersprungene Dateien**
+   (PR #53) — **direkt aus einem echten Nutzerbericht entstanden:**
+   „Ordner hochgeladen, aber nicht alle Dokumente wurden komplett
+   übernommen." Ursache am echten Beispielmaterial bestätigt:
+   `Beispiel pdfs/4. Semester Kopie/` enthält u. a. `.docx`/`.xlsx`/
+   `.pptx`/`.csv`/`.html`-Dateien (Paper, Case-Study-Foliensätze, Excel-
+   Gruppeneinteilung, SQL-Workshop-Daten) — der Ordner-Import
+   unterstützt bisher nur PDF (CONTEXT.md „Anforderungen", bestätigt) und
+   hat alles andere bisher **lautlos** übersprungen. `platform/
+   folderImport.ts` `readPdfFilesRecursively` liefert jetzt zusätzlich
+   die Liste übersprungener Dateien (ignoriert `.DS_Store`/`Thumbs.db`),
+   `App.tsx` zeigt sie sichtbar an (neuer `importInfo`-State,
+   `role="status"`, oder als Teil der Fehlermeldung, falls der Ordner gar
+   keine PDFs enthält). **Löst nicht** das eigentliche „Word/Excel
+   importieren" — siehe Ideen-Liste unten, das ist eine bewusste
+   Grenze, keine vergessene Aufgabe.
+
+**Selbsttest gegen echtes Material** (`npm run analyze`/
+`--detail`, gegen alle 92 PDFs in `Beispiel pdfs/`, inkl. der bisher nie
+geprüften `4. Semester Kopie/`-Fächer Business Mediation/Data & Information
+Management/Money Banking/Entrepreneurial Transformation/Nurturing Customer
+Relationships): **keine Abstürze, keine neuen Auffälligkeiten.** Titel-
+Erkennung durchgehend 53–100 % (niedrigster Wert bei einem Gastvortrags-
+Foliensatz mit unüblichem Format, kein Fehler). Eine einzige echte
+Auffälligkeit: `Data & Information Management/Mock Exam.pdf` liefert 0
+Zeichen auf allen 16 Seiten (`--detail` zeigt „TRENN S.1…16, 0z" durchgängig)
+— ein **gescanntes/bildbasiertes PDF ohne Text-Layer**, deckt sich exakt mit
+der bereits in Abschnitt 9 dokumentierten Einschränkung „Kein OCR" — **keine
+neue Regression**, nur die erste konkrete Bestätigung dieses bekannten Falls
+an echtem Material.
+
+**Zurückgestellte Ideen — bewusst nicht blind gebaut, für ein Gespräch mit
+dem Nutzer vorgemerkt (dessen eigene Anweisung: „bei Verbesserungen, die Du
+noch nicht super findest, schreib sie auf, damit ich morgen fragen kann"):**
+
+1. **Volle Word/Excel/PowerPoint-Unterstützung beim Import.** Reversiert die
+   bisher bestätigte Anforderung „nur PDF" (CONTEXT.md Abschnitt 3). Bräuchte
+   neue Parser-Abhängigkeiten (z. B. `mammoth` für `.docx`, `exceljs`/`xlsx`
+   für `.xlsx`, eine `.pptx`-Bibliothek) und vor allem ein anderes
+   Kapitelerkennungs-Konzept — die bestehende `ingest/chapters.ts`-Heuristik
+   basiert komplett auf „Folien" (Titel im oberen Drittel, Trennfolien,
+   Build-Schritte), das existiert bei einem Word-Dokument oder einer
+   Excel-Tabelle nicht. Realistischste Route: denselben KI-Textanalyse-Pfad
+   wie bei Zusammenfassungen nutzen (`ai/detectTopicsFromText`,
+   ADR-015) — bräuchte aber jedes Mal einen KI-Aufruf (Kosten, Sprachwahl)
+   statt der bisher kostenlosen, deterministischen PDF-Erkennung. Sollte vor
+   dem Bauen abgestimmt werden: reicht „zumindest den Text lesbar machen",
+   oder wird eine echte Themenerkennung wie bei PDFs erwartet? Auch zu
+   klären: CSV/HTML zählen vermutlich nicht als Lernmaterial (Datendateien
+   eines SQL-Workshops) — absichtlich draußen lassen?
+2. **Tieferer Quiz-Konfigurationsdialog mit Rückfragen** („wie bei Claude,
+   wenn man einen Prompt gibt"). Aktuell (v0.19.0) sind Schwierigkeit, Anzahl
+   und Sprache (über die Fach-Einstellung) bereits vorab wählbar — das deckt
+   einen Teil des Wunsches ab. Nicht gebaut: eine echte mehrstufige
+   Rückfrage-Erfahrung („nur Rechenfragen?", „ungefähre Zieldauer?" als
+   eigene, gezielt nachgefragte Schritte statt eines einzigen Formulars).
+   Wäre ein neues UI-Interaktionsmuster (Konversation statt Formular) —
+   bewusst nicht in derselben Nacht wie das Datenmodell-Update riskiert,
+   da es eine eigene, in Ruhe getroffene UX-Entscheidung verdient.
+3. **Größere Sidebar-/Detailansicht-Neugestaltung** in Richtung „ganz
+   modernes Apple-Design, komplett intuitiv, wenig Text, viel Regler/
+   Dropdown/Anklicken" (wörtlicher Nutzerwunsch). Diese Nacht bereits in
+   diese Richtung bewegt (schwebendes Glas, Dark Mode, Farbpaletten,
+   kompaktere Dokumentenliste, Fach-Ordner reduzieren die Listenlänge) —
+   aber die „Fächer & Themen"-Seite zeigt weiterhin sehr viel auf einmal
+   (Fach-Setup, Ordner-Verwaltung, Prüfungen, Paper-Schritte, Import,
+   Dokumentenliste, Altklausur-Analyse, Themenbaum, Quellen-Betrachter,
+   alles untereinander). Eine echte Lösung (z. B. eine fokussierte
+   Detailansicht pro gewähltem Fach statt einer langen Ein-Seiten-Liste)
+   ist ein eigener Design-Durchgang mit dem `impeccable`-Skill (Shape-Brief,
+   ggf. Mockups), nicht etwas, das man nachts nebenbei umbaut, ohne das
+   Ergebnis mit dem Nutzer abzustimmen — genau der Fehler, der beim
+   verworfenen Sidebar-Zwischenversuch schon einmal passiert ist (siehe
+   oben). „base44" (vom Nutzer als möglicher Design-Helfer genannt) ist
+   eine No-Code-Plattform, für diesen nativen Tauri/Rust-Code nicht direkt
+   anwendbar — stattdessen weiter mit dem vorhandenen `impeccable`-Skill
+   und DESIGN.md arbeiten.
+4. **Wiederkehrende Tages-Blocker in der Verfügbarkeit** (Mittagspause,
+   Abendessen, Gym o. ä. als feste Zeitfenster an bestimmten Wochentagen,
+   die automatisch von der verfügbaren Lernzeit abgezogen werden) — vom
+   Nutzer selbst als „Priorität 1" zurückgestuft, als kurz danach der
+   Upload-Bug gemeldet wurde. Nicht angefangen. Sauberster Ansatz: neue
+   Tabelle `recurring_blockers` (`weekday`, `starts_at`, `ends_at`, `label`)
+   + `domain/`-Funktion, die ein Zeitfenster minus überlappende Blocker zu
+   Minuten verrechnet (Intervall-Überlappung, keine Doppelzählung bei sich
+   überschneidenden Blockern) — plus eine Entscheidung, ob das bestehende
+   direkte Minuten-Eingabefeld in `AvailabilitySetup.tsx` ersetzt oder nur
+   ergänzt wird.
+
+**Freigaben, die für diese Sitzung weiterhin gelten** (nochmal bestätigt,
+siehe „Freigaben" ganz oben in dieser Datei): PR-Merges und GitHub-Release-
+Veröffentlichungen laufen ohne erneute Rückfrage, auch wenn der
+Auto-Mode-Classifier einzelne Aktionen technisch blockiert — dann kurz
+nachfragen/erneut bestätigen lassen, nicht stillschweigend überspringen.
+
+**Releases dieser Nacht:** v0.19.0 → v0.20.0, jeweils signiert, `latest.json`
+aktualisiert, letztes Zip per `SendUserFile` verschickt. `npx tsc --noEmit`,
+`npm test` (415 Tests am Ende, +100 gegenüber Sitzungsbeginn), `npm run
+build`, `cargo check` liefen vor jedem Release fehlerfrei.
+
 ---
 
 ## 9. Bekannte Einschränkungen
@@ -2613,7 +2835,15 @@ beide in derselben Sitzung behoben, `fix/pdf-buffer-detached-and-native-folder-p
   fast-textleere Folie als Kapitel-Trennfolie, auch reine Diskussionsfragen
   oder Bildfolien ohne Fließtext. Drückt `slideCount`/`uniqueChars`
   künstlich. Gehört zur Kapitelerkennung (nächste Phase), siehe Abschnitt 8
-- **Kein OCR** — gescannte Dokumente werden nicht unterstützt
+- **Kein OCR** — gescannte Dokumente werden nicht unterstützt. Am echten
+  Material bestätigt (22.07.2026): `Data & Information Management/Mock
+  Exam.pdf` liefert 0 Zeichen auf allen Seiten
+- **Nur PDF, kein Word/Excel/PowerPoint** — bewusste, bestätigte
+  Einschränkung (Abschnitt 3), am echten Material konkret sichtbar
+  geworden (`.docx`/`.xlsx`/`.pptx` in `4. Semester Kopie/`, siehe
+  „Nachtsitzung"-Abschnitt, Ideen-Liste Punkt 1). Ordner-Import meldet
+  seit v0.20.0 wenigstens sichtbar, welche Dateien deswegen übersprungen
+  wurden, statt es stillschweigend zu tun
 
 ---
 
