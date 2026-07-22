@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 22. Juli 2026 (v0.16.0). Phase 4 komplett bis auf
+**Letzte Aktualisierung:** 22. Juli 2026 (v0.17.0). Phase 4 komplett bis auf
 „Nachschärfen aus dem Alltag" (wartet auf echte Nutzungsdaten ab 1. September).
 KI-Anbindung (Claude/ChatGPT, umschaltbar), Quiz-Generierung,
 Probeklausur-Simulation, Altklausur-Analyse, automatische Dokumenttyp-
@@ -34,11 +34,21 @@ lassen sich statt einzelner PDFs importieren. Neu in v0.15.0: **Seitenleiste
 größenverstellbar und einklappbar**. Neu in v0.16.0: **Liquid-Glass-
 Verfeinerung, Dock-Hover-Vergrößerung der Nav-Einträge, Seitenleiste bis auf
 64px ziehbar (Text wird abgeschnitten), Prioritäts-/Schwierigkeits-Richtung
-beim Fach beschriftet, Keychain-Zugriffe werden pro Sitzung gecacht**.
-Details siehe Abschnitt 8, Ende. **Keine offene Implementierungsaufgabe** aus
-Phase 4 — Details in Abschnitt 8 („Stand: KI-Anbindung und Phase 4 —
-komplett"). **In Arbeit:** wiederkehrende Tages-Blocker in der Verfügbarkeit
-(Mittagspause, Abendessen, Gym o. ä. als feste Zeitfenster an bestimmten
+beim Fach beschriftet, Keychain-Zugriffe werden pro Sitzung gecacht**. Neu in
+v0.17.0: **Sidebar schwebt jetzt wirklich über dem Inhalt** (echte
+`position: fixed`-Glas-Ebene statt Grid-Spalte) **und ein wichtiger
+Bugfix: PDF-/Ordner-Import hing lautlos** (pdf.js-Worker-Ladefehler unter
+Tauri/macOS, bislang unentdeckt, da nie im echten gebauten Fenster
+getestet — Details siehe Abschnitt 8, Ende, unbedingt lesen vor
+Import-bezogenen Änderungen). Details zu allem siehe Abschnitt 8, Ende.
+**Keine offene Implementierungsaufgabe** aus Phase 4 — Details in Abschnitt 8
+(„Stand: KI-Anbindung und Phase 4 — komplett"). **Braucht Nutzer-
+Bestätigung:** der PDF-Worker-Fix wurde noch nicht im echten Tauri-Fenster
+verifiziert (nur die Ursachenanalyse + der Fix-Mechanismus sind belastbar,
+siehe Abschnitt 8) — nächste Sitzung sollte zuerst fragen, ob der Import in
+v0.17.0 jetzt funktioniert. **In Arbeit:** wiederkehrende Tages-Blocker in
+der Verfügbarkeit (Mittagspause, Abendessen, Gym o. ä. als feste Zeitfenster
+an bestimmten
 Wochentagen) — Nutzerwunsch vom 22.07.2026, noch nicht umgesetzt, Details
 sobald die Umsetzung beginnt.
 
@@ -2394,6 +2404,121 @@ freigegeben).
   `npm run build` liefen vor dem Release fehlerfrei.
 - **Keine weitere offene Aufgabe aus diesen vier Wünschen** — vollständig
   umgesetzt.
+
+### Sidebar schwebt über dem Inhalt + PDF-Worker-Bugfix (v0.17.0)
+
+Zwei Teile in einem Release gebündelt: das eigentliche Liquid-Glass-Redesign
+(Fortsetzung des v0.16.0-Wunsches, „genau wie bei Apple, aber Farben/
+Hintergrund unverändert lassen") und ein davon unabhängiger, vom Nutzer als
+**Priorität 1** gemeldeter Bug beim PDF-/Ordner-Import. Branches
+`feat/floating-glass-sidebar` ([PR #47](https://github.com/henrigrimme/Lernplaner/pull/47))
+und `fix/pdf-worker-import-not-working`
+([PR #48](https://github.com/henrigrimme/Lernplaner/pull/48)), beide
+gemergt, gemeinsam released.
+
+**Vorgeschichte des Redesigns:** Ein erster Versuch in derselben Sitzung
+(Sidebar-Inhalt per negativem Innenabstand überlappen lassen) hat
+tatsächlich lesbaren Text unter der Glasleiste verschwinden lassen
+(„Lernplaner" wurde zu „…ner") — sofort per `git restore` zurückgesetzt,
+bevor er committet wurde. Ursache war ein Rechenfehler: der Überlappungs-
+Betrag war kleiner als `.app-content`s eigener linker Innenabstand, wodurch
+die Box nie wirklich unter die Sidebar reichte, aber der Container-weite
+Versatz trotzdem den gesamten Text mitgezogen hat. Der zweite, tatsächlich
+umgesetzte Versuch behebt das strukturell (siehe unten) — **wichtige Lehre
+für künftige Layout-Änderungen an diesem Bereich:** jede Verschiebung, die
+Text betrifft, muss exakt gegengerechnet werden (Box-Versatz und
+Text-Innenabstand ändern sich gegenläufig um denselben Betrag), nicht nur
+grob geschätzt.
+
+**Sidebar-Umbau** (`global.css`, `App.tsx`):
+- `.app-sidebar` ist jetzt `position: fixed` (vorher Grid-Spalte neben dem
+  Inhalt) — entspricht PRODUCT.md's eigener, bis dahin nicht wirklich
+  umgesetzter Vorgabe „Sidebar ... schweben mit spürbarer Vibrancy über dem
+  Inhalt". Dazu ein echter, jetzt gerechtfertigter Schlagschatten am
+  rechten Rand (DESIGN.md „Glass-Not-Shadow Rule" galt für Spalten
+  nebeneinander, nicht für eine wirklich erhöhte, schwebende Ebene).
+- Neuer Wrapper `.app-main` (Toolbar+Inhalt, volle Breite) mit
+  Custom-Property `--main-inset` (von `App.tsx` gesetzt, Laufzeitwert
+  `sidebarWidth`/`sidebarCollapsed`) — hält Text an **exakt** derselben
+  Position wie vorher die Grid-Spalte, keine Verschiebung.
+- **Einzige bewusste Ausnahme:** neue Opt-in-Klasse
+  `.grouped-list--bleed-left`, nur in `ui/CourseSetup.tsx`s Fach-Liste
+  eingesetzt (Pilot „Fächer & Themen"). Lässt die dekorative Box (Fläche,
+  Rand, abgerundete Ecken) 24px unter das Glas reichen (`--bleed: 72px` —
+  muss größer sein als `.app-content`s 48px-Innenabstand, sonst reicht sie
+  nie wirklich hinüber, siehe „Vorgeschichte" oben), während `li`-Text um
+  denselben Betrag zusätzlich eingerückt wird und dadurch exakt an seiner
+  ursprünglichen Position bleibt. `overflow-x: hidden` auf `.app-content`
+  fängt ab, dass diese Box bei eingeklappter Sidebar über den linken
+  Fensterrand hinausragt.
+- Visuell dezent (Box-Fläche `--color-surface` vs. App-Hintergrund
+  `--color-bg` liegen bewusst nah beieinander, „Ruhe vor Reichtum"), aber
+  ein echter, im Screenshot bestätigter Glaseffekt (abgerundete Ecke
+  sichtbar durchs Glas), nicht nur eine Lichtkante wie in v0.16.0. Bei
+  Bedarf auf weitere Ansichten übertragbar — bewusst nicht pauschal
+  gemacht, jede Anwendung ist eine eigene, geprüfte Entscheidung.
+- Mit dem `impeccable`-Skill erarbeitet (Nutzerwunsch, kompakter
+  Shape-Brief statt vollem Ablauf, da PRODUCT.md/DESIGN.md Umfang und
+  visuelle Richtung schon eindeutig beantworteten).
+
+**PDF-/Ordner-Import-Bugfix — der eigentlich wichtige Teil:**
+- **Symptom (Nutzerbericht):** Dateiauswahl-Dialog öffnet sich normal,
+  nach der Auswahl passiert nichts — kein neues Fach/Dokument, keine
+  Fehlermeldung, einfach still. Betraf sowohl einzelne PDFs als auch den
+  Ordner-Import gleichermaßen.
+- **Root Cause gefunden** (nach Ausschluss von SQL-Migrationen,
+  Tauri-Capabilities/Berechtigungen, CSP — alle unauffällig): ein
+  bekannter, beim Mozilla/Tauri-Projekt selbst noch ungelöster Bug
+  (`tauri-apps/tauri#9975`, reproduziert explizit auf macOS). pdf.js lädt
+  seinen Worker über einen verschachtelten Modul-Import; im **gebauten**
+  (nicht dem Dev-Server-)Tauri-Fenster liefert Tauris Asset-Protokoll dafür
+  manchmal fälschlich `index.html` statt der echten Worker-Datei zurück
+  („SyntaxError: Unexpected token '<'"), wodurch `getDocument()` lautlos
+  hängt.
+- **Warum das nie vorher auffiel:** `scripts/analyze-material.ts`
+  (Node-Diagnosewerkzeug, mit dem die Extraktion ausführlich an echtem
+  Material validiert wurde, siehe Abschnitt 4/8 oben) läuft unter Node,
+  wo pdf.js automatisch auf einen synchronen „Fake Worker" zurückfällt —
+  nie einen echten Worker lädt, der betroffen sein könnte. Die
+  Dev-Server-Playwright-Checks (viele Male in dieser Datei dokumentiert)
+  laufen über ein anderes Protokoll (`http://localhost:1420`), ebenfalls
+  nicht betroffen. **Ein echter Ende-zu-Ende-Import im tatsächlich
+  gebauten `.app` wurde bis zu diesem Bugreport nie verifiziert** — jede
+  frühere „Im frischen Tab geprüft"-Notiz in dieser Datei bezog sich
+  explizit auf den Dev-Server, mit der bekannten Einschränkung „echter
+  Durchlauf nicht erreichbar (kein Tauri-Fenster)". Diese Lücke selbst ist
+  die eigentliche Lehre: eine Funktion, die nur im echten gebauten Fenster
+  läuft, kann einen Fehler tragen, der durch keinen der bisherigen
+  Testwege auffällt.
+- **Fix** (`ingest/pdf.ts`, neue `configureWorker()`-Funktion, jetzt
+  geteilt mit `ui/PdfViewer.tsx` statt dort dupliziert — betraf auch das
+  reine PDF-**Anzeigen**, nicht nur den Import, aus demselben Grund): die
+  Worker-Datei ganz normal per `fetch()` laden (funktioniert zuverlässig,
+  derselbe Mechanismus, über den auch das Haupt-Bundle lädt) und über eine
+  `Blob`-URL bereitstellen, statt pdf.js selbst den betroffenen Pfad
+  auflösen zu lassen. Fällt bei Fetch-Fehlern auf den bisherigen direkten
+  Pfad zurück. Per `navigator.userAgent`-Erkennung in jsdom (Vitest-UI-
+  Tests) deaktiviert (dort sonst ein echter, sinnloser Netzwerk-Fetch
+  gegen eine `file://`-URL, der `tests/ui/PdfViewer.test.tsx` durch
+  Zeitüberschreitung hat scheitern lassen, bevor der Guard ergänzt wurde).
+- **Zusätzlich, unabhängig von der eigentlichen Ursache:** Import-Fehler
+  landen jetzt sichtbar in der App (`App.tsx`, neuer `importError`-State,
+  `role="alert"`) statt nur in `console.error` — in einem Release-Build
+  ohnehin unsichtbar, da `tauri_plugin_log` nur bei
+  `cfg!(debug_assertions)` (Debug-Builds) aktiv ist. Macht künftige
+  Import-Fehler sofort diagnostizierbar, unabhängig vom Grund.
+- **Noch nicht verifiziert:** der eigentliche Fix wurde **nicht** im
+  echten gebauten Tauri-Fenster getestet (nur die Ursachenanalyse und der
+  Fix-Mechanismus sind durch die Recherche/den Code belastbar, plus
+  Dev-Server-Konsolencheck ohne Fehler, `npm test`/`npx tsc --noEmit`/
+  `npm run build` fehlerfrei) — der Nutzer wurde gebeten, v0.17.0 zu
+  testen und zurückzumelden. **Nächste Sitzung: zuerst fragen, ob der
+  Import jetzt funktioniert**, bevor an diesem Bereich weitergearbeitet
+  wird. Falls nicht: die neue sichtbare Fehlermeldung sollte die exakte
+  Fehlerursache zeigen, das ist jetzt der schnellste nächste
+  Diagnoseschritt.
+- **Release v0.17.0 veröffentlicht** (signiert, `latest.json`
+  aktualisiert, Zip zusätzlich per SendUserFile geschickt).
 
 ---
 
