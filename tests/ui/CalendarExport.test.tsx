@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CalendarExport } from '../../src/ui/CalendarExport'
+import * as calendarExportPlatform from '../../src/platform/calendarExport'
 import type { StudyBlock, Topic } from '../../src/data/schema'
 
 function block(overrides: Partial<StudyBlock> & { id: number }): StudyBlock {
@@ -58,7 +59,7 @@ describe('CalendarExport', () => {
     expect(screen.getByRole('button', { name: 'Exportieren' })).toBeDisabled()
   })
 
-  it('exportiert offene Lernblöcke als Datei-Download', async () => {
+  it('fällt auf einen Datei-Download zurück, wenn Kalender.app nicht direkt geöffnet werden kann (z. B. Dev-Server-Browser)', async () => {
     const user = userEvent.setup()
     render(
       <CalendarExport
@@ -74,6 +75,27 @@ describe('CalendarExport', () => {
     expect(createObjectURLSpy).toHaveBeenCalledTimes(1)
     expect(clickSpy).toHaveBeenCalledTimes(1)
     expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url')
+    expect(screen.getByRole('alert')).toHaveTextContent(/heruntergeladen/i)
+  })
+
+  it('öffnet den Export direkt in Kalender.app, wenn verfügbar (echtes Tauri-Fenster) — ohne Datei-Download-Rückfall', async () => {
+    const user = userEvent.setup()
+    const openInCalendarAppSpy = vi.spyOn(calendarExportPlatform, 'openInCalendarApp').mockResolvedValue(undefined)
+
+    render(
+      <CalendarExport
+        studyBlocks={[block({ id: 1 })]}
+        topics={[topic({ id: 1, name: 'Consumer Theory' })]}
+        now={() => '2026-07-21T12:00:00.000Z'}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Exportieren' }))
+
+    expect(openInCalendarAppSpy).toHaveBeenCalledTimes(1)
+    expect(createObjectURLSpy).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    openInCalendarAppSpy.mockRestore()
   })
 
   it('übernimmt eine geänderte Startzeit in den Export', async () => {
