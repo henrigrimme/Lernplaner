@@ -77,6 +77,12 @@ const DEFAULT_DIFFICULTY = 3
  * Trennfolien (siehe `chapters.ts` `buildChapters`) — Trennfolien tragen
  * daher korrekt nichts zum Umfang bei, ein Kapitel ohne Folien bekommt
  * keine `topic_section`.
+ *
+ * `parentTopicId`: beim Ordner-Import (`App.tsx` `importFolder`,
+ * `ensureFolderTopicPath` unten) hängen die aus den PDF-Kapiteln
+ * entstehenden Themen unter dem Ordner-Thema des Unterordners, in dem die
+ * Datei lag — sonst (Einzeldatei-Import) bleibt es wie bisher bei
+ * `parent_id = null`.
  */
 export async function persistExtractedDocument(
   conn: SqlConnection,
@@ -84,6 +90,7 @@ export async function persistExtractedDocument(
   extracted: ExtractedDocument,
   meta: DocumentMeta,
   importedAt: string,
+  parentTopicId: number | null = null,
 ): Promise<PersistedImport> {
   const document = await insertDocument(
     conn,
@@ -107,7 +114,7 @@ export async function persistExtractedDocument(
   for (const [index, chapter] of extracted.chapters.entries()) {
     const topic = await insertTopic(conn, {
       course_id: courseId,
-      parent_id: null,
+      parent_id: parentTopicId,
       name: chapter.title,
       normalized_name: chapter.normalized,
       weight: DEFAULT_WEIGHT,
@@ -157,6 +164,7 @@ export async function persistAiDetectedDocument(
   pdfPages: number,
   uniqueCharsByTopic: { suggestion: TextTopicSuggestion; uniqueChars: number }[],
   importedAt: string,
+  parentTopicId: number | null = null,
 ): Promise<PersistedImport> {
   const document = await insertDocument(
     conn,
@@ -180,7 +188,7 @@ export async function persistAiDetectedDocument(
   for (const [index, { suggestion, uniqueChars }] of uniqueCharsByTopic.entries()) {
     const topic = await insertTopic(conn, {
       course_id: courseId,
-      parent_id: null,
+      parent_id: parentTopicId,
       name: suggestion.name,
       normalized_name: normalizeForCompare(suggestion.name),
       weight: suggestion.weight,
@@ -203,4 +211,75 @@ export async function persistAiDetectedDocument(
   }
 
   return { document, topics, topicSections }
+}
+
+/**
+ * Löst eine Ordner-Pfadkette (z. B. `["Consumer Theory", "Budget"]`, aus
+ * `File.webkitRelativePath` beim Ordner-Import — siehe `App.tsx`
+ * `importFolder`) in eine Kette verschachtelter Themen auf: jeder
+ * Ordnername wird zu einem Thema, `parent_id` bildet die Verschachtelung
+ * ab. Der vom Nutzer bereits angelegte Ordner wird damit wörtlich als
+ * Themenbaum übernommen — anders als die folienbasierte Kapitelerkennung
+ * (`persistExtractedDocument`), die nur eine Ebene kennt, ist hier durch
+ * `topics.parent_id` (DATA_MODEL.md) beliebige Tiefe bereits vorgesehen.
+ *
+ * Wiederverwendet ein bereits vorhandenes Thema mit demselben Namen unter
+ * demselben Elternthema (`normalizeForCompare`, wie bei der
+ * Kapitel-Fuzzy-Zusammenführung in `ingest/chapters.ts`) — sonst würde
+ * jede Datei im selben Unterordner (oder ein späterer erneuter
+ * Ordner-Import über denselben Kursordner) ein eigenes Duplikat-Thema
+ * anlegen. `existingTopics` muss dafür sowohl die bereits in der DB
+ * stehenden als auch die in diesem Import-Durchlauf schon neu angelegten
+ * Ordner-Themen enthalten (`App.tsx` reicht dafür laufend die erweiterte
+ * Liste durch).
+ *
+ * `manual_override = 0`: der Ordnername kommt zwar vom Nutzer (er hat den
+ * Ordner so benannt), ist aber eine automatische Import-Entscheidung,
+ * keine nachträgliche Bearbeitung im Themenbaum — dieselbe Konvention wie
+ * bei den übrigen Import-Themen oben (`data/topicTree.ts`
+ * „manual_override" markiert ausschließlich UI-Bearbeitungen).
+ */
+export async function ensureFolderTopicPath(
+  conn: SqlConnection,
+  courseId: number,
+  existingTopics: Topic[],
+  folderNames: string[],
+): Promise<{ topicId: number; createdTopics: Topic[] }> {
+  if (folderNames.length === 0) throw new Error('ensureFolderTopicPath erwartet mindestens einen Ordnernamen')
+
+  const createdTopics: Topic[] = []
+  let pool = existingTopics
+  let parentId: number | null = null
+  let topicId: number | null = null
+
+  for (const name of folderNames) {
+    const normalized = normalizeForCompare(name)
+    const existing = pool.find(
+      (t) => t.course_id === courseId && t.parent_id === parentId && t.normalized_name === normalized,
+    )
+    if (existing) {
+      topicId = existing.id
+      parentId = existing.id
+      continue
+    }
+
+    const siblingCount = pool.filter((t) => t.course_id === courseId && t.parent_id === parentId).length
+    const topic = await insertTopic(conn, {
+      course_id: courseId,
+      parent_id: parentId,
+      name,
+      normalized_name: normalized,
+      weight: DEFAULT_WEIGHT,
+      difficulty: DEFAULT_DIFFICULTY,
+      sort_order: siblingCount,
+      status: 'offen',
+      manual_override: 0,
+    })
+    createdTopics.push(topic)
+    pool = [...pool, topic]
+    topicId = topic.id
+    parentId = topic.id
+  }
+
+  return { topicId: topicId!, createdTopics }
 }
