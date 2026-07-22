@@ -13,6 +13,7 @@ function courseFixture(overrides: Partial<Course> = {}): Course {
     archived: 0,
     created_at: 'x',
     language: 'de',
+    group_id: null,
     ...overrides,
   }
 }

@@ -19,6 +19,7 @@ const COURSE: Course = {
   archived: 0,
   created_at: 'x',
   language: 'de',
+  group_id: null,
 }
 
 const ASSESSMENT: Assessment = {

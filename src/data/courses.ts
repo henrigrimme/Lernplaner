@@ -34,6 +34,11 @@ export function setCourseArchived(courses: Course[], id: number, archived: boole
   return courses.map((c) => (c.id === id ? { ...c, archived: archived ? 1 : 0 } : c))
 }
 
+/** Weist ein Fach einem Ordner zu (Migration 0005) — `null` entfernt es aus jedem Ordner (oberste Ebene wie bisher). */
+export function setCourseGroup(courses: Course[], id: number, groupId: number | null): Course[] {
+  return courses.map((c) => (c.id === id ? { ...c, group_id: groupId } : c))
+}
+
 /** Entfernt ein Fach vollständig (z. B. eine Fehleingabe korrigieren) — kein sanftes Archivieren. */
 export function removeCourse(courses: Course[], id: number): Course[] {
   return courses.filter((c) => c.id !== id)

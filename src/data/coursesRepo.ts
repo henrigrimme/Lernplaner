@@ -25,7 +25,7 @@ export async function insertCourse(conn: SqlConnection, input: NewCourseInput, c
     [input.name, input.semester, input.color, input.priority, input.difficulty, createdAt, input.language],
   )
   if (result.lastInsertId === undefined) throw new Error('INSERT hat keine lastInsertId geliefert')
-  return { id: result.lastInsertId, ...input, archived: 0, created_at: createdAt }
+  return { id: result.lastInsertId, ...input, archived: 0, created_at: createdAt, group_id: null }
 }
 
 export async function updateCourseRow(conn: SqlConnection, id: number, changes: Partial<NewCourseInput>): Promise<void> {
