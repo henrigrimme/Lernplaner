@@ -24,12 +24,14 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 22. Juli 2026 (v0.13.0). Phase 4 komplett bis auf
+**Letzte Aktualisierung:** 22. Juli 2026 (v0.14.0). Phase 4 komplett bis auf
 „Nachschärfen aus dem Alltag" (wartet auf echte Nutzungsdaten ab 1. September).
 KI-Anbindung (Claude/ChatGPT, umschaltbar), Quiz-Generierung,
 Probeklausur-Simulation, Altklausur-Analyse, automatische Dokumenttyp-
 Erkennung und Zusammenfassungs-Import per KI sind gebaut und released.
-**Keine offene Implementierungsaufgabe** — Details in Abschnitt 8, Ende
+Neu in v0.14.0: **Ordner-Import** — ganze Ordner (inkl. Unterordner-Struktur)
+lassen sich statt einzelner PDFs importieren, Details siehe Abschnitt 8, Ende.
+**Keine offene Implementierungsaufgabe** aus Phase 4 — Details in Abschnitt 8
 („Stand: KI-Anbindung und Phase 4 — komplett").
 
 ---
@@ -2178,6 +2180,67 @@ aber für jede künftige Sitzung wichtig zu wissen:
   Moodle, kein Selbstbedienungs-Token verfügbar — der einzig verbleibende
   Weg (Browser-SSO-Login-Flow) wäre deutlich aufwendiger und im Ausgang
   ungewiss. Auf Rückfrage nicht verfolgt. Prüfungstermine bleiben manuell.
+
+### Ordner-Import (v0.14.0)
+
+Nutzerwunsch: nicht nur einzelne PDFs, sondern einen ganzen (bereits nach
+Unterthemen sortierten) Ordner auf einmal importieren können, inkl.
+Übernahme der Unterordner-Struktur als Themenbaum. Branch
+`feat/folder-import`, [PR #44](https://github.com/henrigrimme/Lernplaner/pull/44)
+(Squash-Merge nach Nutzer-Bestätigung — Auto-Mode-Classifier hatte den
+ersten Merge-Versuch trotz der stehenden Autorisierung blockiert, Nutzer hat
+daraufhin für diese Sitzung alle künftigen Merges ausdrücklich freigegeben).
+
+- **`data/importTopics.ts`**: `persistExtractedDocument`/
+  `persistAiDetectedDocument` bekommen einen neuen, optionalen
+  `parentTopicId`-Parameter (Default `null`, bestehende Aufrufe
+  unverändert) — die aus PDF-Kapiteln entstehenden Themen hängen damit
+  wahlweise unter einem Ordner-Thema statt immer auf oberster Ebene.
+  Technisch möglich, ohne das Schema zu ändern: `topics.parent_id` war
+  von Anfang an für beliebige Tiefe angelegt (bisher nur ungenutzt, siehe
+  „Jedes Kapitel wird zu einem Thema, parent_id NULL" weiter oben in
+  diesem Abschnitt).
+- **`ensureFolderTopicPath`** (neu, `data/importTopics.ts`): löst eine
+  Ordner-Pfadkette (aus `File.webkitRelativePath`) in eine Kette
+  verschachtelter Themen auf. Wiederverwendet ein bestehendes Thema mit
+  gleichem Namen unter gleichem Elternthema (`normalizeForCompare`, wie
+  bei der Kapitel-Fuzzy-Zusammenführung in `ingest/chapters.ts`) statt es
+  zu duplizieren — wichtig sowohl für mehrere Dateien im selben
+  Unterordner innerhalb eines Imports als auch für einen späteren
+  erneuten Ordner-Import über denselben Kursordner. `manual_override = 0`
+  (Ordnername kommt vom Nutzer, ist aber eine automatische
+  Import-Entscheidung, keine UI-Bearbeitung — dieselbe Konvention wie bei
+  den übrigen Import-Themen).
+- **`App.tsx`**: zweiter Datei-Input „Oder ganzen Ordner importieren"
+  neben dem bestehenden Mehrfach-PDF-Import, mit `webkitdirectory` (kein
+  von React/TS typisiertes JSX-Attribut, daher per `ref`-Callback direkt
+  am DOM-Element gesetzt, nicht als Prop). Neue Funktion `importFolder`:
+  der erste Pfadabschnitt aus `webkitRelativePath` (der gewählte
+  Wurzelordner selbst) wird verworfen — das Fach ist bereits über
+  `selectedCourse` gewählt, keine weitere Themen-Ebene dafür nötig. PDFs
+  direkt im Wurzelordner (kein Unterordner) verhalten sich wie beim
+  bisherigen Mehrfach-Import (`parent_id = null`). `knownTopics` wird
+  während des Imports laufend um neu angelegte Ordner- und
+  Kapitel-Themen erweitert, damit `ensureFolderTopicPath` sie sofort für
+  nachfolgende Dateien desselben Imports wiederverwenden kann, ohne
+  zwischendurch aus der DB neu zu laden.
+- **14 neue Tests** (`tests/data/importTopics.test.ts`): `parentTopicId`
+  wird korrekt gesetzt, `ensureFolderTopicPath` legt verschachtelte
+  Themen an, dedupliziert (auch über Groß-/Kleinschreibung und
+  Sonderzeichen hinweg), hält gleichnamige Ordner unter verschiedenen
+  Elternthemen auseinander, vergibt fortlaufende `sort_order` unter
+  Geschwistern, wirft bei leerer Pfadkette.
+- **Im frischen Tab geprüft:** App lädt fehlerfrei, keine neuen
+  Konsolenfehler. Ein echter Ende-zu-Ende-Durchlauf (Fach anlegen →
+  Ordner importieren) ist im Dev-Server aus dem bekannten Grund nicht
+  erreichbar (Fach-Anlegen scheitert ohne echtes Tauri-Fenster, wie bei
+  jedem Persistenz-Baustein) — die eigentliche Logik ist über die 14
+  Unit-Tests gegen eine echte In-Memory-SQLite-Datenbank abgedeckt.
+- **Release v0.14.0 veröffentlicht** (signiert, `latest.json` aktualisiert,
+  Auto-Updater greift). `npx tsc --noEmit`, `npm test` (381 Tests) und
+  `npm run build` liefen vor dem Release fehlerfrei.
+- **Keine weitere offene Aufgabe aus diesem Wunsch** — vollständig
+  umgesetzt.
 
 ---
 
