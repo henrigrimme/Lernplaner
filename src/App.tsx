@@ -11,7 +11,9 @@ import { ProgressView } from './ui/ProgressView'
 import { SourceViewer } from './ui/SourceViewer'
 import { CourseExportImport } from './ui/CourseExportImport'
 import { NotificationsPanel } from './ui/NotificationsPanel'
+import { UpdateChecker } from './ui/UpdateChecker'
 import { CalendarExport } from './ui/CalendarExport'
+import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
 import { extractDocument } from './ingest/pdf'
 import { computeSha256, persistExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
@@ -716,6 +718,8 @@ export function App() {
 
         {activeSection === 'einstellungen' && (
           <>
+            <UpdateChecker onCheckNow={checkForUpdate} onInstall={installUpdateAndRestart} />
+
             <NotificationsPanel onCheckNow={checkNotifications} />
 
             <CalendarExport studyBlocks={studyBlocks} topics={topics} now={() => new Date().toISOString()} />

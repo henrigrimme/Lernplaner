@@ -184,3 +184,51 @@ separat gespeichert (siehe DATA_MODEL.md „Abgeleitete Werte").
 KI-Anbindung bzw. Phase 3 „Lokale Benachrichtigungen"). Diese Entscheidung
 legt nur Verhalten und Datenmodell vorab fest, damit später nichts
 nachträglich umgebaut werden muss.
+
+---
+
+## ADR-008 — Repository public, Auto-Updater über GitHub Releases
+**2026-07-22 · angenommen**
+
+**Kontext:** Mit dem neuen macOS-Design (Sidebar, Liquid Glass, PR #32)
+sollte die App erstmals an beide Nutzer verteilt werden, inkl. eines Wegs,
+künftige Änderungen ohne manuelles erneutes Herunterladen zu bekommen.
+Tauris `tauri-plugin-updater` prüft dafür automatisch einen Release-Endpunkt
+(`https://github.com/henrigrimme/Lernplaner/releases/latest/download/latest.json`).
+
+**Problem:** Der Update-Check der App läuft unauthentifiziert im
+Hintergrund — er hat keinen GitHub-Login und kann sich nicht als
+Collaborator ausweisen. Bei einem privaten Repository sind Release-Assets
+aber nur für eingeloggte Browser-Sessions abrufbar, nicht per einfachem
+HTTP-Request. Eine Collaborator-Einladung löst das nicht — sie hilft nur
+Menschen, die Datei manuell im Browser herunterzuladen, nicht der App
+selbst.
+
+**Entscheidung:** Repository auf public gestellt (auf Rückfrage, mit vollem
+Bild der Konsequenz entschieden). Signierschlüsselpaar lokal erzeugt
+(`~/.tauri/lernplaner-updater.key`, privat, nicht im Repo), öffentlicher
+Schlüssel in `tauri.conf.json` (`plugins.updater.pubkey`) hinterlegt. Jedes
+`tauri build` mit gesetztem `TAURI_SIGNING_PRIVATE_KEY` erzeugt signierte
+Update-Artefakte (`createUpdaterArtifacts: true`), die per GitHub Release
+verteilt werden; die App prüft und installiert Updates selbst
+(`platform/updater.ts`, `ui/UpdateChecker.tsx`).
+
+**Begründung:**
+- Die Alternative (Token fest in die App einbetten, um sich gegenüber
+  einem privaten Repo zu authentifizieren) ist bei einer weiterverteilten
+  Binärdatei kein echter Schutz — der Token ließe sich aus der App wieder
+  auslesen. Bei zwei Nutzern kein sinnvoller Kompromiss.
+- Öffentlich wird nur der **Quellcode und die Dokumentation** — private
+  Lerninhalte (PDFs, Klausuren, eigene Notizen) waren laut SECURITY.md
+  ohnehin nie im Repository (`.gitignore` schließt sie aus), die
+  Sichtbarkeitsänderung betrifft sie nicht.
+- Ohne diese Änderung bliebe nur der rein manuelle Weg (Zip-Datei bei jeder
+  Änderung erneut direkt teilen) — bei aktiver Design-Arbeit mit mehreren
+  Iterationsrunden ein wiederkehrender manueller Aufwand für beide Nutzer.
+
+**Bekannte Einschränkung:** Der Signierschlüssel liegt nur lokal
+(`~/.tauri/lernplaner-updater.key`) — ohne ihn (oder ein Backup davon)
+lassen sich künftige Releases nicht mehr signieren und von bestehenden
+Installationen als vertrauenswürdig akzeptieren. Kein Schlüssel-Backup
+außerhalb dieses Rechners (passt zu ADR-003 „keine Backups", gilt hier
+zusätzlich für den Signierschlüssel selbst).
