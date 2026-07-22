@@ -126,37 +126,43 @@ export function App() {
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
 
-  // Automatischer Update-Check beim Start (nicht wiederholend während der
-  // laufenden Sitzung, kein Scheduler — dieselbe bewusste Einschränkung
-  // wie bei `NotificationsPanel`s manuellem "Jetzt prüfen": kein
-  // `tauri-plugin-cron` o. Ä. in dieser App). Ergebnis geht an
-  // `UpdateBanner`; im Dev-Server/Browser (keine echte Tauri-IPC-Bridge)
-  // bleibt `updateInfo` einfach `null`, kein Fehler sichtbar.
-  //
-  // **Ein Fehlschlag wird einmal nach 5s wiederholt:** der allererste
-  // Aufruf direkt beim Start kann in ein Zeitfenster fallen, in dem das
-  // Netzwerk nach einem Mac-Neustart/-Aufwachen noch nicht bereit ist —
-  // ein manueller Klick auf "Nach Updates suchen" (Sekunden/Minuten
-  // später) hat diesen Fehler nie gezeigt, was genau zu dieser Erklärung
-  // passt. Kein endloses Nachversuchen, nur dieser eine zusätzliche
-  // Versuch.
+  // Automatischer Update-Check: beim Start, ein Retry nach 5s bei
+  // Fehlschlag (Verdacht: Netzwerk nach Mac-Neustart/-Aufwachen noch nicht
+  // bereit — ein manueller Klick Sekunden/Minuten später zeigte diesen
+  // Fehler nie), und danach ein wiederkehrender Check alle 45 Minuten für
+  // den Rest der Sitzung (Nutzerwunsch, 2026-07-22) — bewusst anders als
+  // der Notification-Check unten, der ohne eigenen Scheduler auskommt:
+  // hier soll ein während einer langen Sitzung neu erschienenes Release
+  // auch ohne Neustart bemerkt werden. 45 Minuten als Mittelweg: oft genug
+  // für eine mehrstündige Lernsitzung, selten genug, um nicht unnötig zu
+  // pollen. Ergebnis geht an `UpdateBanner`; im Dev-Server/Browser (keine
+  // echte Tauri-IPC-Bridge) bleibt `updateInfo` einfach `null`.
   useEffect(() => {
     let cancelled = false
-    const attempt = (isRetry: boolean) => {
+    const PERIODIC_CHECK_MS = 45 * 60 * 1000
+    let retryTimeout: ReturnType<typeof setTimeout> | undefined
+
+    const runCheck = (isRetry: boolean) => {
       checkForUpdate()
         .then((result) => {
           if (!cancelled) setUpdateInfo(result)
         })
         .catch(() => {
           if (!isRetry && !cancelled) {
-            setTimeout(() => attempt(true), 5000)
+            retryTimeout = setTimeout(() => runCheck(true), 5000)
           }
-          // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) oder zweiter Versuch ebenfalls fehlgeschlagen.
+          // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) oder Netzwerk noch nicht bereit —
+          // der nächste periodische Check (alle 45 Minuten) versucht es ohnehin erneut.
         })
     }
-    attempt(false)
+
+    runCheck(false)
+    const periodicInterval = setInterval(() => runCheck(false), PERIODIC_CHECK_MS)
+
     return () => {
       cancelled = true
+      clearTimeout(retryTimeout)
+      clearInterval(periodicInterval)
     }
   }, [])
 
