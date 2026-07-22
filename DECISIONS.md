@@ -607,3 +607,107 @@ durcheinandergewürfelte Wortfetzen). Für solches Material bräuchte es
 echte Bilderkennung/OCR, was ROADMAP.md „Später / offen" bereits als
 eigenen, noch nicht terminierten Punkt führt („OCR, Handschrift") — hier
 bewusst nicht mitgelöst.
+
+---
+
+## ADR-016 — Drei Ursachen für „PDF-/Ordner-Import funktioniert nicht" (Worker, ArrayBuffer, `webkitdirectory`)
+**2026-07-22 · angenommen**
+
+**Kontext:** Erster echter Nutzerbericht zum Import, nachdem die Funktion
+seit Phase 1 nie im tatsächlich gebauten `.app` (nur im Dev-Server bzw. via
+Node-Skripten) end-to-end getestet worden war. Drei unabhängige, sich
+gegenseitig verdeckende Ursachen, jede erst sichtbar, nachdem die vorige
+behoben war:
+
+1. **pdf.js-Worker lädt in Tauri-Produktionsbuilds auf macOS manchmal
+   nicht** (bekannter, bei Tauri selbst noch offener Bug,
+   `tauri-apps/tauri#9975`) — der verschachtelte Modul-Import des Workers
+   bekommt über Tauris Asset-Protokoll gelegentlich `index.html` statt der
+   echten Datei zurück, `getDocument()` hängt lautlos. **Entscheidung:**
+   Worker-Skript per `fetch` laden (funktioniert zuverlässig, derselbe Weg
+   wie das Haupt-Bundle) und über eine `Blob`-URL bereitstellen
+   (`ingest/pdf.ts` `configureWorker`), statt pdf.js den betroffenen Pfad
+   selbst auflösen zu lassen.
+2. **ArrayBuffer wird nach der Worker-Übergabe „detached"** — pdf.js
+   überträgt den Buffer als `Transferable`, jeder weitere Lesezugriff auf
+   das Original (Prüfsumme, Speichern, spätere Seiten beim Anzeigen)
+   scheitert danach. **Entscheidung:** `data.slice()` statt `data` an
+   `pdfjs.getDocument()` übergeben — eine unabhängige Kopie, die pdf.js
+   „verbrauchen" darf.
+3. **`<input type="file" webkitdirectory">` ist in WKWebView (Tauris
+   macOS-Webview) unzuverlässig** — der „Auswählen"-Button im
+   Systemdialog kann beim Navigieren in einen Ordner deaktiviert bleiben,
+   unabhängig von den ersten beiden Ursachen. **Entscheidung:** Ordner-
+   Import komplett auf native Mechanismen umgestellt
+   (`@tauri-apps/plugin-dialog`s `open({directory: true})` +
+   `@tauri-apps/plugin-fs`s `readDir`/`readFile`, selbst geschriebene
+   Rekursion, `platform/folderImport.ts`) statt einen Workaround für die
+   Browser-API zu suchen. Neue Berechtigung `fs:allow-read-file`/
+   `-read-dir`/`-exists` auf `$HOME/**` (SECURITY.md dokumentiert, reiner
+   Lesezugriff, nur nach bewusster Nutzeraktion).
+
+**Begründung für „Fix statt Workaround" bei Punkt 3:** ein Workaround für
+die Browser-API (z. B. wiederholtes Öffnen des Dialogs, Nutzerhinweise)
+hätte das eigentliche Problem nicht gelöst und wäre bei jeder zukünftigen
+WKWebView-Version erneut ein Risiko gewesen. Der native Weg ist außerdem
+konsistent mit `platform/documentStorage.ts`, das bereits echte
+Tauri-Dateisystem-APIs für `$APPDATA/documents` nutzt.
+
+**Zusätzlich, unabhängig von den drei Ursachen:** Import-Fehler landen
+jetzt sichtbar in der App (`App.tsx` `importError`/`importInfo`-States,
+`role="alert"`/`role="status"`) statt nur in `console.error` — in einem
+Release-Build ohnehin unsichtbar, da `tauri_plugin_log` nur im
+Debug-Build aktiv ist. Macht künftige Import-Fehler sofort
+diagnostizierbar, unabhängig vom Grund. Der Ordner-Import meldet außerdem
+sichtbar, welche Dateien mangels PDF-Unterstützung übersprungen wurden
+(direkt aus einem Nutzerbericht mit `.docx`/`.xlsx`/`.pptx`-Dateien
+entstanden, siehe CONTEXT.md „Nachtsitzung").
+
+**Lehre für künftige Sitzungen:** jede Funktion, die sich zwischen „Node-
+Skript", „Vite-Dev-Server" und „das tatsächlich gebaute Tauri-Fenster"
+unterschiedlich verhält, hat genau diesen blinden Fleck — weder die
+Vitest-Suite noch die Dev-Server-Playwright-Checks dieses Projekts können
+Fehler in Asset-Protokoll-Auflösung, IPC-Eigenheiten oder Worker-/Modul-
+Laden im Produktionsbuild fangen. Bei „funktioniert bei mir nicht"-
+Berichten diese Kategorie zuerst prüfen, nicht nur die Fachlogik.
+
+**Noch nicht vom Nutzer im echten Fenster bestätigt** — siehe CONTEXT.md
+„Braucht Nutzer-Bestätigung".
+
+---
+
+## ADR-017 — Prüfungsformat-Mehrfachauswahl ohne Schema-Umbau; Kurssprache; wählbare Farbpaletten
+**2026-07-22 · angenommen**
+
+**Prüfungsformat-Mehrfachauswahl:** `assessments.format` bleibt eine
+einzelne Spalte (`AssessmentFormat`-Enum unverändert). `AssessmentSetup.tsx`
+zeigt Checkboxen statt eines Einzel-Dropdowns; bei genau einer Auswahl wird
+sie direkt gespeichert, bei mehreren `'mixed'` — ein bereits bestehender
+Wert, dessen Multiplikator (`EXAM_FORMAT_MULTIPLIER.mixed`,
+`domain/estimation.ts`) den Fall „mehrere Formate" schon abdeckt.
+**Begründung:** ein echtes Array (neue Spalte oder Join-Tabelle) hätte auch
+`domain/estimation.ts`s Kalibrierung anfassen müssen, ohne dass eine
+feinere Unterscheidung („nur Rechnen + Essay" vs. „nur MC + Freitext") für
+die grobe Aufwandsschätzung tatsächlich etwas gebracht hätte.
+**Konsequenz:** eine `'mixed'`-Prüfung lässt sich beim Bearbeiten nicht in
+ihre ursprünglichen Einzelformate zurückübersetzen (Checkboxen starten
+leer) — kein Datenverlust, nur keine Rekonstruktion, im Code dokumentiert.
+
+**Kurssprache:** neue Spalte `courses.language` (`'de'`/`'en'`, Migration
+0004, Default `'de'`) steuert ausschließlich die Sprache KI-generierter
+Inhalte für dieses Fach (Quiz, Zusammenfassungs-Erkennung,
+Altklausur-Analyse) — die App-Oberfläche selbst (Menüs, Planung, Kalender)
+bleibt unabhängig davon immer Deutsch. Kein allgemeines
+Internationalisierungs-Feature, sondern ein reiner Prompt-Parameter.
+
+**Wählbare Farbpaletten:** Terrakotta bleibt Standard, dazu vier
+kuratierte Alternativen (British Racing Green, NATO Olive, Petrol,
+Bordeaux) über `data-palette` auf `<html>`. **Bewusst überschreiben die
+Paletten nur `--color-primary`/`-hover`/`-ink`**, nicht die warmen
+Papier-/Sand-Neutralfarben oder den sekundären Petrol-Akzent — die sind
+laut DESIGN.md „One Accent Rule" die eigentliche Markenidentität der App,
+nicht die Akzentfarbe selbst. Ebenfalls bewusst: keine separaten
+Palettenwerte für Hell/Dunkel (anders als `data-theme`) — der
+Pflegeaufwand einer zweiten Wertetabelle pro Palette stand in keinem
+Verhältnis zum Nutzen; im Test (Dunkel + NATO Olive) blieb die Lesbarkeit
+gut.

@@ -14,7 +14,17 @@ denkbare Störung.
 ```sql
 courses
   id, name, semester, color, priority (1–5), difficulty (1–5),
-  archived, created_at
+  archived, created_at,
+  language,                    -- de | en (Migration 0005, Default 'de') — Sprache
+                               -- KI-generierter Inhalte für dieses Fach (Quiz,
+                               -- Zusammenfassungs-Erkennung, Altklausur-Analyse);
+                               -- die App-Oberfläche selbst bleibt immer Deutsch
+  group_id                     -- Migration 0005, NULL = kein Ordner (oberste Ebene)
+
+course_groups                  -- frei benannte Ordner für die Seitenleiste (Migration 0005)
+  id, parent_id, name, sort_order
+                               -- kein eigenes Fach: keine Prüfungen/Themen/Priorität/
+                               -- Schwierigkeit, rein organisatorisch, beliebig verschachtelbar
 
 assessments                    -- Klausur, Paper, Präsentation
   id, course_id, type, title, date, weight,
@@ -59,6 +69,13 @@ verhindern.
 umbenennt, verschiebt oder gewichtet, darf kein Re-Import das überschreiben.
 Ohne dieses Flag wäre jede Korrektur beim nächsten Import verloren — und die
 App damit unbrauchbar.
+
+**Warum `course_groups` eine eigene Tabelle ist, nicht `courses.parent_id`:**
+ein Ordner (z. B. „3. Semester" > „Q1") ist kein Fach — er hat keine
+Prüfungen, Themen, Priorität oder Schwierigkeit. Das im selben Datensatz wie
+ein echtes Fach zu modellieren hätte zwei unterschiedliche Konzepte
+vermischt und jede Abfrage über „echte" Fächer hätte Ordner explizit
+ausschließen müssen.
 
 ---
 
@@ -141,7 +158,11 @@ quizzes                        -- Quiz-Generierung/Probeklausur-Simulation
 
 questions
   id, quiz_id, topic_id, type, prompt, answer, explanation,
-  source_document_id, source_page, difficulty
+  source_document_id, source_page, difficulty,
+  options                      -- Migration 0004: JSON-Array der MC-Antwortoptionen
+                               -- (type='mc'), NULL bei Freitext oder älteren Fragen
+                               -- vor dieser Migration — ui/QuizSession.tsx fällt dann
+                               -- auf ein Texteingabefeld zurück statt anklickbarer Buttons
 
 answers
   id, question_id, given, correct, answered_at, seconds

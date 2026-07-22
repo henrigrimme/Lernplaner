@@ -77,3 +77,15 @@ Nach Dringlichkeit aus echter Nutzung, grobe Reihenfolge:
 - Übungsblatt-Zerlegung in Einzelaufgaben
 - OCR, Handschrift
 - iOS-Version zum Wiederholen unterwegs
+- Wiederkehrende Tages-Blocker in der Verfügbarkeit (Mittagspause, Abendessen,
+  Gym o. ä. als feste Zeitfenster an bestimmten Wochentagen) — Nutzerwunsch
+  22.07.2026, zurückgestuft zugunsten des Import-Bugs, Details CONTEXT.md
+- Word/Excel/PowerPoint-Import (bräuchte neue Parser + anderes
+  Kapitelerkennungs-Konzept ohne „Folien", siehe DECISIONS.md/CONTEXT.md
+  „Nachtsitzung" — nicht blind begonnen, braucht Abstimmung)
+- Tieferer Quiz-Konfigurationsdialog mit echten Rückfragen (Konversation
+  statt Formular) — Schwierigkeit/Anzahl/Sprache sind seit v0.19.0 schon
+  vorab wählbar, das ist der nächste, größere Schritt
+- Größere Neugestaltung der „Fächer & Themen"-Seite (fokussierte
+  Detailansicht pro Fach statt einer langen Ein-Seiten-Liste) — eigener
+  Design-Durchgang mit dem `impeccable`-Skill, siehe CONTEXT.md
