@@ -385,3 +385,77 @@ gespeichert, ein späterer Rückwechsel zu Claude braucht keinen neu
 eingegebenen Schlüssel, sofern der Nutzer ihn nicht zwischenzeitlich
 löscht. `AiSettings.tsx` hat dafür eine Anbieter-Auswahl (Radiobuttons)
 bekommen. HTTP-Capability-Scope erweitert um `https://api.openai.com/*`.
+
+**Nachtrag 2 (2026-07-22, noch am selben Tag):** Modellwahl auf Nutzerwunsch
+präzisiert — `claude-sonnet-5` für Anthropic (vorher testweise
+`claude-haiku-4-5`), `gpt-5.6-terra` für OpenAI (vorher testweise
+`gpt-4o-mini`, exakte ID vom Nutzer bestätigt, da nicht sicher aus dem
+eigenen Wissensstand ableitbar). Beide Provider-Preise entsprechend
+angepasst (Schätzwerte, siehe Kommentar in den jeweiligen Dateien).
+
+---
+
+## ADR-012 — Quiz-Generierung/Probeklausur-Simulation/Altklausur-Analyse: Belegpflicht, Selbsteinschätzung bei Freitext, Gewichtung als Vorschlag
+**2026-07-22 · angenommen**
+
+**Kontext:** Mit einem funktionierenden KI-Zugang (ADR-011) ließen sich die
+drei zuvor auf einen KI-Anbieter wartenden Phase-4-Punkte umsetzen:
+Quiz-Generierung, Probeklausur-Simulation, Altklausur-Analyse →
+automatische Gewichtung (ROADMAP.md). Jeder Punkt brauchte eine
+Design-Entscheidung, die nicht aus dem bestehenden Schema/den ADRs
+automatisch folgte.
+
+**Entscheidungen:**
+
+1. **Fragen brauchen echten Belegtext, nie freie KI-Erfindung.** `questions.
+   source_document_id`/`source_page` sind laut DATA_MODEL.md Pflichtfelder
+   („eine generierte Frage ohne Quellenangabe wird verworfen"). Da PDF-
+   Rohbytes bewusst nicht persistiert werden (SECURITY.md, `App.tsx`
+   „documentBytes"-Kommentar), kann ein Quiz nur aus Themenabschnitten
+   erzeugt werden, deren Dokument noch in der laufenden Sitzung im Speicher
+   liegt — `ingest/pdf.ts` bekam dafür `extractPageRangeText`, das echten
+   Fließtext einer Seitenspanne liefert, der als Kontext an die KI geht.
+   Ohne geladenes PDF zeigt `ui/QuizSetup.tsx` den betroffenen
+   Themenabschnitt gar nicht erst als wählbar an.
+2. **Multiple-Choice wird automatisch bewertet, Freitext durch
+   Selbsteinschätzung.** Ein automatischer Textvergleich für freie
+   Antworten wäre unzuverlässig (unterschiedliche Formulierung, Abkürzungen
+   etc.) — Freitext-Fragen zeigen die Musterantwort und lassen den Nutzer
+   selbst „richtig"/„falsch" markieren, exakt wie die bestehenden
+   Karteikarten (`ui/FlashcardReview.tsx`). MC-Fragen kodieren die
+   Antwortoptionen als Text im `prompt`-Feld (kein eigenes Schema für
+   Optionen nötig), `answer` ist der Buchstabe der richtigen Option
+   (`domain/quiz.ts` `isMcAnswerCorrect`).
+3. **Probeklausur ist kein eigenes Datenmodell, nur ein `quizzes.
+   config_json`-Modus.** Der einzige inhaltliche Unterschied zu einem
+   normalen Quiz ist eine optionale Prüfungs-Zuordnung, aus der
+   `assessment.duration_minutes` einen Countdown in `ui/QuizSession.tsx`
+   speist — läuft er ab, wird nur gewarnt, nichts automatisch beendet
+   (passt zu ADR-005 „nie automatisch").
+4. **Gewichtungsvorschläge aus der Altklausur-Analyse werden nie
+   automatisch angewendet und rühren nie ein `manual_override`-Thema an**
+   — dieselbe „Vorschlag, nie automatisch"-Leitlinie wie ADR-005, hier
+   erstmals auf Themengewichte statt Planänderungen übertragen
+   (`domain/examWeighting.ts`, `ui/AltklausurAnalysis.tsx` zeigt einen
+   Diff wie `ui/ReplanView.tsx`). Schwelle bewusst konservativ (mindestens
+   drei erkannte Fragen zu einem Thema, bevor eine Anhebung vorgeschlagen
+   wird) — eine einzelne KI-Fehlklassifikation soll kein Gewicht ändern.
+   Ein Thema ohne Treffer wird nie abgewertet: Abwesenheit in den
+   analysierten Altklausuren ist kein Beleg für Unwichtigkeit, es könnte
+   in noch nicht importierten Altklausuren vorkommen.
+5. **Dokumenttyp jetzt beim Import wählbar.** Vorher hart auf `'folien'`
+   codiert (`App.tsx` `importPdfs`) — ohne eine Möglichkeit, ein Dokument
+   als `altklausur` zu kennzeichnen, hätte die Altklausur-Analyse nie
+   Material gefunden. Einfaches `<select>` vor dem Datei-Upload, Default
+   bleibt `folien` (der häufigste Fall).
+
+**Begründung:** Alle fünf Punkte vermeiden, dass eine KI-Ausgabe unbelegt
+oder unwiderruflich in die Datenbank fließt — konsistent mit der
+bestehenden Linie des Projekts (ADR-005 für Pläne, `manual_override` für
+Themen, `source_document_id`/`source_page`-Pflicht für Fragen).
+
+**Neue Dateien:** `domain/quiz.ts`, `domain/examWeighting.ts` (beide mit
+Tests, `tests/domain/quiz.test.ts`/`examWeighting.test.ts`),
+`data/quizzesRepo.ts`/`questionsRepo.ts`/`answersRepo.ts`,
+`ui/QuizSetup.tsx`/`QuizSession.tsx`/`AltklausurAnalysis.tsx`. Neuer
+Navigationspunkt „Quiz" in `App.tsx`.

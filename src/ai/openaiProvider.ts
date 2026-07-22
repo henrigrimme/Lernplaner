@@ -1,7 +1,7 @@
 import { fetch } from '@tauri-apps/plugin-http'
 import type { ExtractedDocument } from '../ingest/types'
 import type { Topic } from '../data/schema'
-import type { AIProvider, AIUsage, AIUsageListener, TopicSuggestion } from './types'
+import type { AIProvider, AIUsage, AIUsageListener, ExamTopicMatch, QuestionSuggestion, TopicSuggestion } from './types'
 
 /**
  * Übergangslösung, bis die Zahlung für den Anthropic-API-Zugang klappt
@@ -11,14 +11,16 @@ import type { AIProvider, AIUsage, AIUsageListener, TopicSuggestion } from './ty
  * `AnthropicProvider` angeboten — ein späterer Rückwechsel zu Claude ist
  * reine Konfiguration (Anbieter-Auswahl in den Einstellungen), kein Umbau.
  *
- * Modell: `gpt-4o-mini` — günstigster gängiger Tarif, passend zum in
- * ADR-002/ADR-007 angenommenen Kostenrahmen. Preise sind Schätzwerte
- * (OpenAI ändert sie ohne Vorankündigung) — reicht für die grobe
- * Budget-Anzeige (ADR-007), ist aber keine exakte Abrechnung.
+ * Modell: `gpt-5.6-terra` (Nutzerwunsch, 2026-07-22 — vorher testweise
+ * `gpt-4o-mini`). Preise sind Schätzwerte (OpenAI ändert sie ohne
+ * Vorankündigung, und für dieses Modell lag zum Zeitpunkt dieser Änderung
+ * keine gesicherte Preisliste vor) — reicht für die grobe Budget-Anzeige
+ * (ADR-007), ist aber keine exakte Abrechnung. Bei Abweichung von der
+ * echten `Billing`-Seite dort nachjustieren.
  */
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions'
-const MODEL = 'gpt-4o-mini'
+const MODEL = 'gpt-5.6-terra'
 
 const PRICE_PER_MTOK_INPUT_EUR = 0.14
 const PRICE_PER_MTOK_OUTPUT_EUR = 0.55
@@ -41,7 +43,7 @@ async function callOpenAi(apiKey: string, prompt: string): Promise<{ text: strin
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{ role: 'user', content: prompt }],
     }),
   })
@@ -117,5 +119,50 @@ export class OpenAIProvider implements AIProvider {
       throw new Error(`Ungültige Schwierigkeitsangabe von OpenAI: "${text}"`)
     }
     return value
+  }
+
+  async generateQuestions(topicName: string, sourceText: string, count: number): Promise<QuestionSuggestion[]> {
+    const prompt = [
+      `Erzeuge ${count} Quizfragen zum Thema "${topicName}" ausschließlich auf Basis des folgenden`,
+      'Textauszugs aus dem Vorlesungsmaterial — erfinde keine Inhalte, die dort nicht stehen:',
+      '',
+      sourceText,
+      '',
+      'Mische Multiple-Choice- und Freitext-Fragen. Antworte ausschließlich mit einem JSON-Array von',
+      'Objekten der Form {"type": "mc"|"freitext", "prompt": string, "answer": string, "explanation": string,',
+      '"difficulty": 1|2|3|4|5} — kein weiterer Text. Bei "mc" enthält "prompt" die Antwortoptionen als Text',
+      '(z. B. "…\\nA) …\\nB) …\\nC) …\\nD) …") und "answer" ist der Buchstabe der richtigen Option.',
+    ].join('\n')
+
+    const { text, usage } = await callOpenAi(this.apiKey, prompt)
+    this.report('generate_questions', usage)
+    const parsed = extractJson(text)
+    if (!Array.isArray(parsed)) throw new Error('OpenAI-Antwort war kein JSON-Array')
+    return parsed as QuestionSuggestion[]
+  }
+
+  async classifyExamContent(topics: { id: number; name: string }[], examText: string): Promise<ExamTopicMatch[]> {
+    const topicList = topics.map((t) => `${t.id}: ${t.name}`).join('\n')
+    const prompt = [
+      'Hier ist der Text einer Altklausur. Ordne jede darin gestellte Frage/Aufgabe einem der folgenden',
+      'Themen zu (per ID) — mehrfache Zuordnung derselben ID ist normal, wenn mehrere Fragen zum selben',
+      'Thema gehören. Passt eine Frage zu keinem Thema, lass sie aus.',
+      '',
+      'Themen:',
+      topicList,
+      '',
+      'Altklausur-Text:',
+      examText,
+      '',
+      'Antworte ausschließlich mit einem JSON-Array von Objekten der Form',
+      '{"topicId": number, "occurrences": number} — ein Eintrag pro Thema mit mindestens einer Frage,',
+      '"occurrences" ist die Anzahl der Fragen zu diesem Thema. Kein weiterer Text.',
+    ].join('\n')
+
+    const { text, usage } = await callOpenAi(this.apiKey, prompt)
+    this.report('classify_exam_content', usage)
+    const parsed = extractJson(text)
+    if (!Array.isArray(parsed)) throw new Error('OpenAI-Antwort war kein JSON-Array')
+    return parsed as ExamTopicMatch[]
   }
 }

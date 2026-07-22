@@ -64,6 +64,24 @@ export async function readPages(data: Uint8Array): Promise<Page[]> {
   return pages
 }
 
+/**
+ * Reiner Fließtext einer Seitenspanne (inklusive `pageEnd`) — Grundlage für
+ * KI-Aufrufe, die echten Belegtext brauchen (ROADMAP.md Phase 4:
+ * Quiz-Generierung, Altklausur-Analyse). Nutzt `readPages` erneut statt
+ * `Page.bodyLines` wiederzuverwenden, weil Letztere nur während eines
+ * laufenden Imports existieren (`extractDocument` setzt sie, aber nur
+ * `topics`/`topic_sections` werden persistiert, siehe
+ * `data/importTopics.ts`) — die PDF-Rohbytes selbst bleiben ohnehin nur
+ * für die laufende Sitzung im Speicher (`documentBytes` in `App.tsx`).
+ */
+export async function extractPageRangeText(data: Uint8Array, pageStart: number, pageEnd: number): Promise<string> {
+  const pages = await readPages(data)
+  return pages
+    .filter((p) => p.number >= pageStart && p.number <= pageEnd)
+    .map((p) => p.lines.map((l) => l.text).join(' '))
+    .join('\n')
+}
+
 /** Vollständige Import-Pipeline für ein Dokument. */
 export async function extractDocument(
   data: Uint8Array,

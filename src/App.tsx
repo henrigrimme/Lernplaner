@@ -16,8 +16,11 @@ import { UpdateChecker, type UpdateInfo } from './ui/UpdateChecker'
 import { UpdateBanner } from './ui/UpdateBanner'
 import { CalendarExport } from './ui/CalendarExport'
 import { AiSettings } from './ui/AiSettings'
+import { QuizSetup, type GenerateQuizInput } from './ui/QuizSetup'
+import { QuizSession } from './ui/QuizSession'
+import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
 import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
-import { extractDocument } from './ingest/pdf'
+import { extractDocument, extractPageRangeText } from './ingest/pdf'
 import { computeSha256, persistExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
 import type { ImportedCourseResult } from './data/courseExport'
@@ -48,15 +51,28 @@ import { ErrorHistory } from './ui/ErrorHistory'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationContent, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
+import { loadDocuments } from './data/documentsRepo'
+import { completeQuiz, insertQuiz, loadQuizzes } from './data/quizzesRepo'
+import { insertQuestion, loadQuestions } from './data/questionsRepo'
+import { insertAnswer, loadAnswers } from './data/answersRepo'
+import { insertAiUsage } from './data/aiUsageRepo'
+import { getActiveProvider, getConfiguredAIProvider, type AIUsage } from './ai'
+import { computeQuizScore } from './domain/quiz'
+import { suggestWeightAdjustments, type WeightSuggestion } from './domain/examWeighting'
 import type {
+  Answer,
   Assessment,
   AvailabilityException,
   AvailabilityPattern,
   Blocker,
   Card,
   Course,
+  Document,
+  DocumentType,
   PaperStep,
   PlanVersion,
+  Question,
+  Quiz,
   Review,
   StudyBlock,
   Topic,
@@ -92,7 +108,7 @@ import type {
  * Fächer-/Prüfungs-Bausteinen, hier nur der Vollständigkeit halber erneut
  * festgehalten, da sie jetzt auch Themen und Lernblöcke betrifft.
  */
-type NavSection = 'faecher' | 'verfuegbarkeit' | 'plan' | 'heute' | 'wiederholen' | 'fortschritt' | 'einstellungen'
+type NavSection = 'faecher' | 'verfuegbarkeit' | 'plan' | 'heute' | 'wiederholen' | 'quiz' | 'fortschritt' | 'einstellungen'
 
 const NAV_ITEMS: { key: NavSection; label: string }[] = [
   { key: 'faecher', label: 'Fächer & Themen' },
@@ -100,8 +116,19 @@ const NAV_ITEMS: { key: NavSection; label: string }[] = [
   { key: 'plan', label: 'Planung' },
   { key: 'heute', label: 'Heute' },
   { key: 'wiederholen', label: 'Wiederholen' },
+  { key: 'quiz', label: 'Quiz' },
   { key: 'fortschritt', label: 'Fortschritt' },
   { key: 'einstellungen', label: 'Einstellungen' },
+]
+
+const DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
+  { value: 'folien', label: 'Vorlesungsfolien' },
+  { value: 'skript', label: 'Skript' },
+  { value: 'uebung', label: 'Übungsblatt' },
+  { value: 'altklausur', label: 'Altklausur' },
+  { value: 'musterloesung', label: 'Musterlösung' },
+  { value: 'zusammenfassung', label: 'Zusammenfassung' },
+  { value: 'sonstiges', label: 'Sonstiges' },
 ]
 
 export function App() {
@@ -119,10 +146,18 @@ export function App() {
   const [planVersions, setPlanVersions] = useState<PlanVersion[]>([])
   const [cards, setCards] = useState<Card[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
+  const [documents, setDocuments] = useState<Document[]>([])
   const [documentBytes, setDocumentBytes] = useState<Record<number, Uint8Array>>({})
   const [notificationLog, setNotificationLog] = useState<Partial<Record<NotificationKind, string>>>({})
   const [dueNotifications, setDueNotifications] = useState<NotificationContent[]>([])
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
+  const [importDocType, setImportDocType] = useState<DocumentType>('folien')
+  const [quizzes, setQuizzes] = useState<Quiz[]>([])
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [answers, setAnswers] = useState<Answer[]>([])
+  const [activeQuiz, setActiveQuiz] = useState<{ quiz: Quiz; questions: Question[]; durationMinutes: number | null } | null>(
+    null,
+  )
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
@@ -313,6 +348,40 @@ export function App() {
       .then((db) => loadReviews(db))
       .then((rows) => {
         if (!cancelled) setReviews(rows)
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => loadDocuments(db))
+      .then((rows) => {
+        if (!cancelled) setDocuments(rows)
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => Promise.all([loadQuizzes(db), loadQuestions(db), loadAnswers(db)]))
+      .then(([quizRows, questionRows, answerRows]) => {
+        if (!cancelled) {
+          setQuizzes(quizRows)
+          setQuestions(questionRows)
+          setAnswers(answerRows)
+        }
       })
       .catch(() => {
         // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
@@ -611,6 +680,141 @@ export function App() {
     setStudyBlocks(result.studyBlocks)
   }
 
+  // Best-Effort-Protokollierung (ADR-007) — ein fehlgeschlagener
+  // Log-Versuch (z. B. kein echtes Tauri-Fenster) darf das eigentliche
+  // KI-Ergebnis nicht verwerfen, deshalb hier bewusst nicht geworfen.
+  const logAiUsage = async (usage: AIUsage) => {
+    try {
+      const db = await getDb()
+      const providerKind = await getActiveProvider()
+      await insertAiUsage(db, providerKind, usage, new Date().toISOString())
+    } catch (error) {
+      console.error('KI-Nutzung konnte nicht protokolliert werden', error)
+    }
+  }
+
+  // Quiz-Generierung/Probeklausur-Simulation (ROADMAP.md Phase 4): pro
+  // ausgewähltem Themenabschnitt wird echter Belegtext aus den noch im
+  // Speicher gehaltenen PDF-Bytes extrahiert (siehe `ingest/pdf.ts`
+  // `extractPageRangeText`-Kommentar) und an die KI übergeben — nie frei
+  // erfundener Text, sonst ließe sich `questions.source_page` nicht
+  // rechtfertigen (DATA_MODEL.md).
+  const handleGenerateQuiz = async (input: GenerateQuizInput) => {
+    const provider = await getConfiguredAIProvider(logAiUsage)
+    if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
+
+    const generated: { sectionId: number; suggestion: Awaited<ReturnType<typeof provider.generateQuestions>>[number] }[] = []
+    for (const sectionId of input.sectionIds) {
+      const section = topicSections.find((s) => s.id === sectionId)
+      const topic = section ? topics.find((t) => t.id === section.topic_id) : undefined
+      const bytes = section ? documentBytes[section.document_id] : undefined
+      if (!section || !topic || !bytes) continue
+
+      const sourceText = await extractPageRangeText(bytes, section.page_start, section.page_end)
+      const suggestions = await provider.generateQuestions(topic.name, sourceText, input.questionsPerSection)
+      for (const suggestion of suggestions) generated.push({ sectionId, suggestion })
+    }
+
+    if (generated.length === 0) throw new Error('Es konnten keine Fragen erzeugt werden.')
+
+    const db = await getDb()
+    const configJson = JSON.stringify({ mode: input.mode, assessmentId: input.assessmentId, sectionIds: input.sectionIds })
+    const quiz = await insertQuiz(db, { course_id: input.courseId, config_json: configJson }, new Date().toISOString())
+
+    const newQuestions: Question[] = []
+    for (const { sectionId, suggestion } of generated) {
+      const section = topicSections.find((s) => s.id === sectionId)!
+      const question = await insertQuestion(db, {
+        quiz_id: quiz.id,
+        topic_id: section.topic_id,
+        type: suggestion.type,
+        prompt: suggestion.prompt,
+        answer: suggestion.answer,
+        explanation: suggestion.explanation,
+        source_document_id: section.document_id,
+        source_page: section.page_start,
+        difficulty: suggestion.difficulty,
+      })
+      newQuestions.push(question)
+    }
+
+    setQuizzes((prev) => [...prev, quiz])
+    setQuestions((prev) => [...prev, ...newQuestions])
+
+    const assessment = input.assessmentId !== null ? assessments.find((a) => a.id === input.assessmentId) : undefined
+    setActiveQuiz({ quiz, questions: newQuestions, durationMinutes: assessment?.duration_minutes ?? null })
+  }
+
+  const handleAnswerQuestion = async (questionId: number, given: string, correct: 0 | 1, seconds: number) => {
+    try {
+      const db = await getDb()
+      const answer = await insertAnswer(db, {
+        question_id: questionId,
+        given,
+        correct,
+        answered_at: new Date().toISOString(),
+        seconds,
+      })
+      setAnswers((prev) => [...prev, answer])
+    } catch (error) {
+      console.error('Antwort konnte nicht gespeichert werden', error)
+    }
+  }
+
+  const handleFinishQuiz = async () => {
+    if (!activeQuiz) return
+    const questionIds = new Set(activeQuiz.questions.map((q) => q.id))
+    const relevantAnswers = answers.filter((a) => questionIds.has(a.question_id))
+    const score = computeQuizScore(relevantAnswers.map((a) => ({ correct: a.correct }))) ?? 0
+    const completedAt = new Date().toISOString()
+    try {
+      const db = await getDb()
+      await completeQuiz(db, activeQuiz.quiz.id, score, completedAt)
+      setQuizzes((prev) => prev.map((q) => (q.id === activeQuiz.quiz.id ? { ...q, completed_at: completedAt, score } : q)))
+    } catch (error) {
+      console.error('Quiz konnte nicht abgeschlossen werden', error)
+    }
+    setActiveQuiz(null)
+  }
+
+  // Altklausur-Analyse → automatische Gewichtung (ROADMAP.md Phase 4),
+  // nach ADR-005-Prinzip als Vorschlag: dieser Handler liefert nur eine
+  // Vorschau (`domain/examWeighting.ts`), angewendet wird sie erst über
+  // `handleApplyWeightSuggestions` nach ausdrücklicher Bestätigung in
+  // `ui/AltklausurAnalysis.tsx`.
+  const handleAnalyzeAltklausur = async (documentIds: number[]): Promise<WeightSuggestion[]> => {
+    const provider = await getConfiguredAIProvider(logAiUsage)
+    if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
+    if (documentIds.length === 0) throw new Error('Keine Altklausur ausgewählt.')
+
+    const courseId = documents.find((d) => d.id === documentIds[0])?.course_id
+    const courseTopics = topics.filter((t) => t.course_id === courseId)
+    if (courseTopics.length === 0) throw new Error('Keine Themen für dieses Fach vorhanden.')
+
+    const textParts: string[] = []
+    for (const docId of documentIds) {
+      const doc = documents.find((d) => d.id === docId)
+      const bytes = documentBytes[docId]
+      if (!doc || !bytes) continue
+      textParts.push(await extractPageRangeText(bytes, 1, doc.pdf_pages))
+    }
+    if (textParts.length === 0) throw new Error('Keine der ausgewählten Altklausuren ist noch im Speicher verfügbar.')
+
+    const matches = await provider.classifyExamContent(
+      courseTopics.map((t) => ({ id: t.id, name: t.name })),
+      textParts.join('\n\n'),
+    )
+    return suggestWeightAdjustments(courseTopics, matches)
+  }
+
+  const handleApplyWeightSuggestions = async (suggestions: WeightSuggestion[]) => {
+    const nextTopics = topics.map((t) => {
+      const suggestion = suggestions.find((s) => s.topicId === t.id)
+      return suggestion ? { ...t, weight: suggestion.suggestedWeight } : t
+    })
+    await handleChangeTopics(nextTopics)
+  }
+
   const importPdfs = async (files: FileList) => {
     if (selectedCourseId === null) return
 
@@ -624,11 +828,12 @@ export function App() {
           db,
           selectedCourseId,
           extracted,
-          { storedPath: `in-memory://${file.name}`, sha256, docType: 'folien' },
+          { storedPath: `in-memory://${file.name}`, sha256, docType: importDocType },
           new Date().toISOString(),
         )
         setTopics((prev) => [...prev, ...result.topics])
         setTopicSections((prev) => [...prev, ...result.topicSections])
+        setDocuments((prev) => [...prev, result.document])
         setDocumentBytes((prev) => ({ ...prev, [result.document.id]: data }))
       } catch (error) {
         console.error('PDF-Import konnte nicht gespeichert werden', error)
@@ -720,15 +925,38 @@ export function App() {
             )}
 
             {selectedCourse && (
-              <label>
-                PDFs für {selectedCourse.name} importieren
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  multiple
-                  onChange={(e) => e.target.files && importPdfs(e.target.files)}
-                />
-              </label>
+              <>
+                <label>
+                  Dokumenttyp
+                  <select value={importDocType} onChange={(e) => setImportDocType(e.target.value as DocumentType)}>
+                    {DOCUMENT_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  PDFs für {selectedCourse.name} importieren
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    multiple
+                    onChange={(e) => e.target.files && importPdfs(e.target.files)}
+                  />
+                </label>
+              </>
+            )}
+
+            {selectedCourse && (
+              <AltklausurAnalysis
+                course={selectedCourse}
+                topics={topics.filter((t) => t.course_id === selectedCourse.id)}
+                documents={documents}
+                documentBytes={documentBytes}
+                onAnalyze={handleAnalyzeAltklausur}
+                onApply={handleApplyWeightSuggestions}
+              />
             )}
 
             <TopicTree topics={topics} onChange={handleChangeTopics} />
@@ -810,6 +1038,43 @@ export function App() {
             <ErrorHistory cards={cards} reviews={reviews} topics={topics} onReview={handleReview} />
           </>
         )}
+
+        {activeSection === 'quiz' &&
+          (activeQuiz ? (
+            <QuizSession
+              questions={activeQuiz.questions}
+              topics={topics}
+              durationMinutes={activeQuiz.durationMinutes}
+              onAnswer={handleAnswerQuestion}
+              onFinish={handleFinishQuiz}
+            />
+          ) : (
+            <>
+              <QuizSetup
+                courses={courses}
+                topics={topics}
+                topicSections={topicSections}
+                documents={documents}
+                documentBytes={documentBytes}
+                assessments={assessments}
+                onGenerate={handleGenerateQuiz}
+              />
+              {quizzes.filter((q) => q.completed_at !== null).length > 0 && (
+                <div>
+                  <h3>Frühere Quizze</h3>
+                  <ul>
+                    {quizzes
+                      .filter((q) => q.completed_at !== null)
+                      .map((q) => (
+                        <li key={q.id}>
+                          Quiz vom {q.created_at.slice(0, 10)} — {Math.round((q.score ?? 0) * 100)}% richtig
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          ))}
 
         {activeSection === 'fortschritt' && (
           <ProgressView assessments={assessments} topics={topics} studyBlocks={studyBlocks} from={today} />

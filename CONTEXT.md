@@ -2050,12 +2050,37 @@ nur ein Klick, kein neuer Schlüssel nötig (sofern nicht gelöscht).
 (ADR-007 „bei Überschreiten wird benachrichtigt") ist mit
 `loadMonthlyAiCostEur` vorbereitet, aber noch nicht an
 `NotificationBanner`/`domain/notifications.ts` angeschlossen — reine
-Protokollierung reicht für diesen Baustein. Ebenso zurückgestellt: die
-eigentliche Roadmap-Funktion, die den Anbieter nutzt (Quiz-Generierung,
-Probeklausur-Simulation, Altklausur-Analyse, siehe zurückgestellte Punkte
-oben) — `refineTopics`/`estimateDifficulty` sind noch nirgends aus
-`App.tsx` heraus verdrahtet. Sinnvoller Start einer neuen Sitzung: eine
-dieser Funktionen angehen, vermutlich Quiz-Generierung zuerst.
+Protokollierung reicht für diesen Baustein.
+
+**Nachtrag 3, noch am selben Tag: die drei zuvor auf einen KI-Anbieter
+wartenden Phase-4-Punkte sind jetzt gebaut** (siehe ADR-012) —
+Quiz-Generierung, Probeklausur-Simulation, Altklausur-Analyse →
+automatische Gewichtung, ROADMAP.md entsprechend abgehakt. `AIProvider`
+hat zwei neue Methoden (`generateQuestions`, `classifyExamContent`, beide
+in `anthropicProvider.ts`/`openaiProvider.ts` implementiert). Modellwahl
+präzisiert: `claude-sonnet-5`/`gpt-5.6-terra` (Nutzerwunsch). Neu:
+`domain/quiz.ts`, `domain/examWeighting.ts` (mit Tests),
+`data/quizzesRepo.ts`/`questionsRepo.ts`/`answersRepo.ts`,
+`ui/QuizSetup.tsx`/`QuizSession.tsx`/`AltklausurAnalysis.tsx`, neuer
+Navigationspunkt „Quiz". Dokumenttyp ist beim PDF-Import jetzt wählbar
+(vorher hart auf `folien` codiert) — nötig, damit Dokumente überhaupt als
+`altklausur` markiert werden können.
+
+Quiz-Generierung funktioniert nur für Themenabschnitte, deren PDF noch in
+der laufenden Sitzung im Speicher liegt (`documentBytes`) — PDF-Rohbytes
+werden bewusst nicht persistiert (SECURITY.md), `ingest/pdf.ts` bekam dafür
+`extractPageRangeText`. Freitext-Fragen werden wie Karteikarten durch
+Selbsteinschätzung bewertet, nur Multiple-Choice automatisch. Gewichts-
+vorschläge aus der Altklausur-Analyse werden nie automatisch übernommen
+(ADR-005-Prinzip) und rühren nie ein `manual_override`-Thema an.
+
+**Damit ist Phase 4 komplett bis auf „Nachschärfen aus dem Alltag"** — das
+braucht laut ROADMAP.md echte Nutzungsdaten und wartet auf den
+Echtbetrieb-Start am 1. September 2026. Bis dahin ist aus heutiger Sicht
+kein weiterer Implementierungsschritt zwingend nötig; eine neue Sitzung
+sollte zuerst prüfen, ob der Nutzer die neuen Funktionen (Quiz,
+Probeklausur, Altklausur-Analyse) bereits ausprobiert und Rückmeldung
+dazu hat, bevor an ihnen weitergebaut wird.
 
 ### Danach (unverändert aus der Roadmap)
 

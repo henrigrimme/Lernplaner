@@ -58,15 +58,15 @@ Migration.
 
 Nach Dringlichkeit aus echter Nutzung, grobe Reihenfolge:
 
-- [ ] Nachschärfen aus dem Alltag
-- [ ] Markieren im Dokument → Karteikarten
-- [ ] Spaced Repetition (FSRS) — Recherche bereits gemacht, siehe CONTEXT.md Abschnitt 8 „Recherche: Spaced Repetition (für Phase 4)"
-- [ ] Formelextraktion sauber
-- [ ] Quiz-Generierung
-- [ ] Probeklausur-Simulation
-- [ ] Fehlerhistorie → gezielte Wiederholung
-- [ ] Paper-Workflow
-- [ ] Altklausur-Analyse → automatische Gewichtung
+- [ ] Nachschärfen aus dem Alltag — braucht echte Nutzungsdaten, siehe CONTEXT.md
+- [x] Markieren im Dokument → Karteikarten
+- [x] Spaced Repetition (FSRS)
+- [x] Formelextraktion sauber
+- [x] Quiz-Generierung
+- [x] Probeklausur-Simulation
+- [x] Fehlerhistorie → gezielte Wiederholung
+- [x] Paper-Workflow
+- [x] Altklausur-Analyse → automatische Gewichtung
 
 ---
 
