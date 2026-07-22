@@ -24,7 +24,7 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 22. Juli 2026 (v0.17.0). Phase 4 komplett bis auf
+**Letzte Aktualisierung:** 22. Juli 2026 (v0.18.0). Phase 4 komplett bis auf
 „Nachschärfen aus dem Alltag" (wartet auf echte Nutzungsdaten ab 1. September).
 KI-Anbindung (Claude/ChatGPT, umschaltbar), Quiz-Generierung,
 Probeklausur-Simulation, Altklausur-Analyse, automatische Dokumenttyp-
@@ -36,19 +36,22 @@ Verfeinerung, Dock-Hover-Vergrößerung der Nav-Einträge, Seitenleiste bis auf
 64px ziehbar (Text wird abgeschnitten), Prioritäts-/Schwierigkeits-Richtung
 beim Fach beschriftet, Keychain-Zugriffe werden pro Sitzung gecacht**. Neu in
 v0.17.0: **Sidebar schwebt jetzt wirklich über dem Inhalt** (echte
-`position: fixed`-Glas-Ebene statt Grid-Spalte) **und ein wichtiger
-Bugfix: PDF-/Ordner-Import hing lautlos** (pdf.js-Worker-Ladefehler unter
-Tauri/macOS, bislang unentdeckt, da nie im echten gebauten Fenster
-getestet — Details siehe Abschnitt 8, Ende, unbedingt lesen vor
-Import-bezogenen Änderungen). Details zu allem siehe Abschnitt 8, Ende.
-**Keine offene Implementierungsaufgabe** aus Phase 4 — Details in Abschnitt 8
+`position: fixed`-Glas-Ebene statt Grid-Spalte) **und ein erster
+PDF-Import-Bugfix** (pdf.js-Worker-Ladefehler unter Tauri/macOS). Neu in
+v0.18.0: **zwei weitere Import-Bugfixes** — ein ArrayBuffer-„detached"-Fehler
+beim PDF-Lesen (durch den v0.17.0-Fix erst sichtbar geworden) und ein
+kompletter Umbau des Ordner-Imports auf den echten nativen macOS-Dialog
+(`webkitdirectory` war die eigentliche Ursache für „Ordner-Import tut
+nichts"). **Details zur ganzen Import-Bug-Serie siehe Abschnitt 8, Ende,
+unbedingt lesen vor jeder weiteren Import-bezogenen Änderung.** **Keine
+offene Implementierungsaufgabe** aus Phase 4 — Details in Abschnitt 8
 („Stand: KI-Anbindung und Phase 4 — komplett"). **Braucht Nutzer-
-Bestätigung:** der PDF-Worker-Fix wurde noch nicht im echten Tauri-Fenster
-verifiziert (nur die Ursachenanalyse + der Fix-Mechanismus sind belastbar,
-siehe Abschnitt 8) — nächste Sitzung sollte zuerst fragen, ob der Import in
-v0.17.0 jetzt funktioniert. **In Arbeit:** wiederkehrende Tages-Blocker in
-der Verfügbarkeit (Mittagspause, Abendessen, Gym o. ä. als feste Zeitfenster
-an bestimmten
+Bestätigung:** alle drei Import-Fixes (v0.17.0 + v0.18.0) sind noch nicht im
+echten Tauri-Fenster vom Nutzer bestätigt (nur Ursachenanalyse, Code und
+Dev-Server-Checks sind belastbar) — nächste Sitzung zuerst fragen, ob PDF-
+und Ordner-Import jetzt beide funktionieren. **In Arbeit:** wiederkehrende
+Tages-Blocker in der Verfügbarkeit (Mittagspause, Abendessen, Gym o. ä. als
+feste Zeitfenster an bestimmten
 Wochentagen) — Nutzerwunsch vom 22.07.2026, noch nicht umgesetzt, Details
 sobald die Umsetzung beginnt.
 
@@ -2519,6 +2522,85 @@ grob geschätzt.
   Diagnoseschritt.
 - **Release v0.17.0 veröffentlicht** (signiert, `latest.json`
   aktualisiert, Zip zusätzlich per SendUserFile geschickt).
+
+### Import-Bug-Serie, Teil 2: ArrayBuffer-Detach + nativer Ordner-Dialog (v0.18.0)
+
+Direkte Fortsetzung von oben: der v0.17.0-Worker-Fix hat den Import so weit
+gebracht, dass ein **zweiter, echter Fehler** sichtbar wurde (dank der neu
+eingebauten sichtbaren Fehleranzeige — genau der Zweck, für den sie gebaut
+wurde): `„WHU_FSA_Lecture 1_2025.pdf" konnte nicht importiert werden:
+Underlying ArrayBuffer has been detached from the view or out-of-bounds`.
+Gleichzeitig weiterhin gemeldet: Ordner-Import zeigt **immer noch gar
+keine** Reaktion (kein Fehler, kein Fach). Zwei unabhängige Root Causes,
+beide in derselben Sitzung behoben, `fix/pdf-buffer-detached-and-native-folder-picker`,
+[PR #49](https://github.com/henrigrimme/Lernplaner/pull/49).
+
+**1) ArrayBuffer-Detach (der PDF-Einzelimport-Fehler):**
+- **Ursache:** pdf.js überträgt den `ArrayBuffer` hinter `Uint8Array` als
+  `Transferable` an seinen Worker (Zero-Copy-Performance) — danach ist der
+  **Original**-Buffer „detached", jeder weitere Lesezugriff wirft genau
+  diesen Fehler. `App.tsx`s `importRegularPdf`/`importSummaryPdf` lesen
+  `data` aber mehrfach: erst `extractDocument(data, ...)` (öffnet den
+  Worker, detacht den Buffer), danach nochmal `computeSha256(data)`,
+  `saveDocumentFile(sha256, data)`, und `importPdfs`/`importFolder` legen
+  `data` am Ende auch noch in `setDocumentBytes` ab.
+- **Fix** (`ingest/pdf.ts` `readPages`, `ui/PdfViewer.tsx`): `data.slice()`
+  statt `data` direkt an `pdfjs.getDocument()` übergeben — eine
+  unabhängige Kopie, die pdf.js „verbrauchen" darf, während das Original
+  beim Aufrufer unangetastet bleibt.
+- **Betraf auch das reine PDF-Anzeigen, nicht nur den Import:**
+  `PdfViewer.tsx`s Effekt läuft bei **jedem Seitenwechsel** erneut mit
+  demselben `data`-Prop und ruft `getDocument({data})` jedes Mal neu auf
+  (kein wiederverwendetes offenes Dokument) — ohne den Fix wäre spätestens
+  der zweite Seitenwechsel beim Betrachten eines bereits importierten PDFs
+  fehlgeschlagen. Bisher nicht aufgefallen, weil kein Testpfad tatsächlich
+  zwei Seiten eines echten PDFs mit echtem Worker nacheinander geöffnet
+  hat (`PdfViewer.test.tsx` mockt `pdfjs` komplett, siehe dort).
+
+**2) Ordner-Import — kompletter Umbau auf nativen Dialog:**
+- **Ursache:** `<input type="file" webkitdirectory>` gilt in WKWebView
+  (Tauris Webview unter macOS) als bekannt unzuverlässig — recherchiert
+  über mehrere Quellen (u. a. Apple-Entwicklerforum), der „Auswählen"-
+  Button im Systemdialog kann beim Navigieren in einen Ordner deaktiviert
+  bleiben. Passt exakt zum Symptom „Dialog verhält sich komisch, am Ende
+  passiert nichts" — der Nutzer kommt vermutlich nie bis zu einer
+  tatsächlichen Ordnerauswahl, die einen `change`-Event mit Dateien
+  auslösen würde.
+- **Fix, kein Workaround** (neu: `platform/folderImport.ts`): kompletter
+  Wechsel von der Browser-API auf Tauris eigene, native Mechanismen —
+  `@tauri-apps/plugin-dialog`s `open({directory: true})` für den echten
+  macOS-Ordnerdialog, `@tauri-apps/plugin-fs`s `readDir`/`readFile` für
+  rekursives Einlesen aller PDFs im gewählten Ordner (selbst geschriebene
+  Rekursion, `readDir` ist in Tauri 2 nicht rekursiv). Neue Rust-
+  Abhängigkeit `tauri-plugin-dialog`, in `lib.rs` registriert.
+- **Neue Berechtigung** (`capabilities/default.json`): `fs:allow-read-file`/
+  `-read-dir`/`-exists` jetzt zusätzlich auf `$HOME/**` (vorher nur
+  `$APPDATA/documents/*`) — Vorlesungsmaterial liegt nicht zwingend im
+  App-Datenordner. Reiner Lesezugriff, kein Schreiben außerhalb von
+  `$APPDATA/documents`; `dialog:allow-open` zusätzlich. In SECURITY.md
+  dokumentiert.
+- **API-Änderung:** `importRegularPdf`/`importSummaryPdf` nehmen jetzt
+  einen Dateinamen (`string`) statt eines `File`-Objekts entgegen — einzige
+  bisher genutzte `File`-Eigenschaft war `.name`, dadurch funktioniert
+  derselbe Code für Browser-`File`-Objekte (Einzelimport, `<input>` bleibt
+  dafür bestehen — nur der *Ordner*-Import wurde umgebaut) und nativ per
+  `readFile` gelesene Bytes (Ordner-Import) gleichermaßen. Die alte
+  `relativePath`-Segmentierung (`slice(1, -1)`, dropte den Namen des
+  Browser-`webkitRelativePath`-Wurzelordners) wurde zu `slice(0, -1)`
+  angepasst, da `readPdfFilesRecursively`s `relativePath` den Wurzelordner
+  von vornherein nicht mitführt.
+- **Grenze dieser Sitzung:** wie beim Worker-Fix zuvor lässt sich der
+  eigentliche native Dialog/Dateisystemzugriff **nicht** im Dev-Server
+  verifizieren (`@tauri-apps/plugin-dialog`/`-fs` brauchen die echte
+  Tauri-IPC-Bridge). Abgesichert: `npx tsc --noEmit`, `npm test` (393
+  Tests), `npm run build`, `cargo check` (neues Plugin kompiliert sauber)
+  liefen alle fehlerfrei; Dev-Server-Konsolencheck ohne neue Fehler.
+- **Release v0.18.0 veröffentlicht** (signiert, `latest.json`
+  aktualisiert, Zip per SendUserFile geschickt). **Noch nicht vom Nutzer
+  im echten Fenster bestätigt** — das gilt jetzt für alle drei
+  Import-Fixes zusammen (Worker, ArrayBuffer, Ordner-Dialog). Nächste
+  Sitzung: zuerst nachfragen, ob PDF- **und** Ordner-Import beide
+  funktionieren, bevor an diesem Bereich weitergearbeitet wird.
 
 ---
 
