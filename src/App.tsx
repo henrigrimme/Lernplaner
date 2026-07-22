@@ -999,8 +999,10 @@ export function App() {
     }
   }
 
+  const mainInsetPx = sidebarCollapsed ? 0 : sidebarWidth
+
   return (
-    <div className="app-shell" style={{ gridTemplateColumns: `${sidebarCollapsed ? 0 : sidebarWidth}px 1fr` }}>
+    <div className="app-shell">
       <AppSidebar width={sidebarWidth} collapsed={sidebarCollapsed} onResize={setSidebarWidth}>
         <div className="app-brand">
           <span className="app-brand-mark" aria-hidden="true" />
@@ -1043,25 +1045,26 @@ export function App() {
         )}
       </AppSidebar>
 
-      <header className="app-toolbar">
-        <div className="app-toolbar-left">
-          <button
-            type="button"
-            className="app-sidebar-toggle"
-            onClick={() => setSidebarCollapsed((prev) => !prev)}
-            aria-pressed={sidebarCollapsed}
-            title={sidebarCollapsed ? 'Seitenleiste einblenden' : 'Seitenleiste ausblenden'}
-          >
-            <span className="app-sidebar-toggle-icon" aria-hidden="true" />
-          </button>
-          <h1>{NAV_ITEMS.find((i) => i.key === activeSection)?.label}</h1>
-        </div>
-        {selectedCourse && <span>{selectedCourse.name}</span>}
-      </header>
+      <div className="app-main" style={{ ['--main-inset' as string]: `${mainInsetPx}px` }}>
+        <header className="app-toolbar">
+          <div className="app-toolbar-left">
+            <button
+              type="button"
+              className="app-sidebar-toggle"
+              onClick={() => setSidebarCollapsed((prev) => !prev)}
+              aria-pressed={sidebarCollapsed}
+              title={sidebarCollapsed ? 'Seitenleiste einblenden' : 'Seitenleiste ausblenden'}
+            >
+              <span className="app-sidebar-toggle-icon" aria-hidden="true" />
+            </button>
+            <h1>{NAV_ITEMS.find((i) => i.key === activeSection)?.label}</h1>
+          </div>
+          {selectedCourse && <span>{selectedCourse.name}</span>}
+        </header>
 
-      <main className="app-content">
-        <UpdateBanner update={updateInfo} onInstall={installUpdateAndRestart} />
-        <NotificationBanner notifications={dueNotifications} onDismiss={dismissNotification} />
+        <main className="app-content">
+          <UpdateBanner update={updateInfo} onInstall={installUpdateAndRestart} />
+          <NotificationBanner notifications={dueNotifications} onDismiss={dismissNotification} />
 
         {activeSection === 'faecher' && (
           <>
@@ -1338,7 +1341,8 @@ export function App() {
             />
           </>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   )
 }

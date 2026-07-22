@@ -119,24 +119,34 @@ p {
 /* ---------- App-Rahmen ---------- */
 
 .app-shell {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  grid-template-rows: 52px 1fr;
-  grid-template-areas:
-    'sidebar toolbar'
-    'sidebar content';
+  position: relative;
   height: 100vh;
   overflow: hidden;
   background: var(--color-bg);
-  /* `grid-template-columns` wird von App.tsx per Inline-Style überschrieben
-     (Breite/Eingeklappt-Status sind Laufzeitwerte, siehe dortiger
-     Kommentar zu `sidebarWidth`/`sidebarCollapsed`) — der Wert hier ist
-     nur ein Fallback vor dem ersten Render. */
+}
+
+/* Wrapper um Toolbar+Inhalt (App.tsx) — spannt immer die volle Breite, die
+   Sidebar liegt *darüber* (`position: fixed`, `.app-sidebar` unten), nicht
+   mehr daneben (PRODUCT.md „Sidebar ... schweben mit spürbarer Vibrancy
+   über dem Inhalt" — bisher als Spalte nebeneinander umgesetzt, nicht
+   wirklich schwebend). `--main-inset` kommt per Inline-Style von App.tsx
+   (Laufzeitwert `sidebarWidth`/`sidebarCollapsed`) und hält Toolbar/Inhalt
+   exakt an der bisherigen Position — siehe `.app-toolbar`/`.app-content`
+   unten und `--bleed` bei `.grouped-list--bleed-left` für die einzige
+   bewusste Ausnahme davon. */
+.app-main {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  --main-inset: 0px;
 }
 
 .app-sidebar {
-  grid-area: sidebar;
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 40;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
@@ -148,8 +158,16 @@ p {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border-right: 1px solid var(--glass-border);
   /* Specular-Highlight am oberen Rand, siehe `--glass-highlight` in
-     tokens.css — der eigentliche "Liquid"-Anteil des Glas-Materials. */
-  box-shadow: inset 0 1px 0 var(--glass-highlight);
+     tokens.css — der eigentliche "Liquid"-Anteil des Glas-Materials.
+     Dazu jetzt ein echter Schlagschatten nach rechts: gerechtfertigt, weil
+     die Leiste seit dem Umbau auf `position: fixed` tatsächlich über dem
+     Inhalt schwebt (vorher Spalten nebeneinander, kein Schatten nötig,
+     DESIGN.md „Glass-Not-Shadow Rule" galt für genau diesen Fall — eine
+     wirklich erhöhte, schwebende Ebene braucht ihn dagegen, wie jedes
+     reale Glas-Panel über einer Fläche). */
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    4px 0 24px oklch(0.26 0.02 50 / 0.1);
   /* Kein `transition: width` — während des Ziehens (`AppSidebar.tsx`
      `isResizing`) würde jede Transition der laufenden Mausbewegung
      hinterherhinken und ruckelig wirken. */
@@ -315,11 +333,17 @@ p {
 }
 
 .app-toolbar {
-  grid-area: toolbar;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--space-lg);
+  height: 52px;
+  flex-shrink: 0;
+  /* `var(--main-inset)` hält den Titeltext exakt an der Position, die er
+     auch als Grid-Spalte neben der Sidebar hätte — der Umbau auf
+     schwebende Sidebar (`.app-sidebar` oben) verschiebt keinen Text, nur
+     die Statik dahinter (siehe Shape-Brief: „jeder lesbare Text bleibt
+     exakt an seiner heutigen Position"). */
+  padding: 0 var(--space-lg) 0 calc(var(--main-inset) + var(--space-lg));
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
@@ -334,9 +358,17 @@ p {
 }
 
 .app-content {
-  grid-area: content;
+  flex: 1;
   overflow-y: auto;
-  padding: var(--space-xl) var(--space-2xl);
+  /* Verhindert, dass `.grouped-list--bleed-left`s negativer `margin-left`
+     (siehe dort) bei eingeklappter Sidebar (`--main-inset: 0`, kein Glas
+     mehr vorhanden, das den Überstand kaschieren würde) sichtbar über den
+     linken Fensterrand hinausragt — wird an dieser eigenen Box-Kante
+     abgeschnitten, nicht am Viewport. */
+  overflow-x: hidden;
+  /* Dieselbe `--main-inset`-Logik wie `.app-toolbar` oben — Text/Karten
+     bleiben exakt an ihrer bisherigen Position. */
+  padding: var(--space-xl) var(--space-2xl) var(--space-xl) calc(var(--main-inset) + var(--space-2xl));
   display: flex;
   flex-direction: column;
   gap: var(--space-2xl);
@@ -373,6 +405,31 @@ section[aria-label] ul:not(.topic-tree):not(.topic-tree ul) > li {
 
 section[aria-label] ul:not(.topic-tree):not(.topic-tree ul) > li:last-child {
   border-bottom: none;
+}
+
+/* Bewusste, einzeln zugewiesene Ausnahme von „Text bleibt exakt an seiner
+   Position" oben: die Box selbst (Fläche, Rand, abgerundete Ecken einer
+   gruppierten Liste) darf ein kleines Stück unter die schwebende Glas-
+   Sidebar reichen, ihr Inhalt (Text in `li`) nicht. Funktioniert, weil
+   `margin-left` die Box nach links verschiebt, aber `padding-left` beim
+   `li` um genau denselben Betrag *zusätzlich* wächst — der Text landet
+   dadurch exakt an derselben Stelle wie ohne Bleed, nur die Box dahinter
+   reicht weiter. `--bleed` muss größer sein als `.app-content`s eigener
+   linker Innenabstand (`--space-2xl`, 48px) — sonst hebt der Innenabstand
+   den Versatz vollständig auf und die Box bliebe trotzdem vor dem
+   Sidebar-Rand stehen, ohne je wirklich darunter zu reichen (genau der
+   Rechenfehler des ersten, verworfenen Versuchs). 72px = 48px Innenabstand
+   + 24px echte, sichtbare Überlappung. Bewusst nur hier verwendet (Pilot
+   „Fächer & Themen", siehe CONTEXT.md), nicht pauschal auf jede gruppierte
+   Liste — jedes weitere Vorkommen ist eine eigene, geprüfte Entscheidung,
+   keine globale Regel. */
+section[aria-label] ul.grouped-list--bleed-left:not(.topic-tree):not(.topic-tree ul) {
+  --bleed: 72px;
+  margin-left: calc(-1 * var(--bleed));
+}
+
+section[aria-label] ul.grouped-list--bleed-left:not(.topic-tree):not(.topic-tree ul) > li {
+  padding-left: calc(var(--space-md) + var(--bleed));
 }
 
 /* ---------- Formulare ---------- */
