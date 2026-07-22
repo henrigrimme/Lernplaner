@@ -147,6 +147,9 @@ p {
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border-right: 1px solid var(--glass-border);
+  /* Specular-Highlight am oberen Rand, siehe `--glass-highlight` in
+     tokens.css — der eigentliche "Liquid"-Anteil des Glas-Materials. */
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
   /* Kein `transition: width` — während des Ziehens (`AppSidebar.tsx`
      `isResizing`) würde jede Transition der laufenden Mausbewegung
      hinterherhinken und ruckelig wirken. */
@@ -226,6 +229,11 @@ p {
   font-weight: 650;
   font-size: 15px;
   letter-spacing: -0.01em;
+  /* Erlaubt dem Flex-Kind `.app-brand-label` unten, unter seine
+     Inhaltsbreite zu schrumpfen, statt den Rahmen zu sprengen — nötig,
+     damit die Leiste bis auf `MIN_SIDEBAR_WIDTH` (`AppSidebar.tsx`)
+     schmaler gezogen werden kann, ohne dass Text übersteht. */
+  min-width: 0;
 }
 
 .app-brand-mark {
@@ -235,6 +243,13 @@ p {
   background: linear-gradient(160deg, var(--color-primary), var(--color-primary-hover));
   box-shadow: var(--shadow-sm);
   flex-shrink: 0;
+}
+
+.app-brand-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .app-nav {
@@ -250,6 +265,9 @@ p {
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--color-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .app-nav-item {
@@ -257,6 +275,7 @@ p {
   align-items: center;
   gap: var(--space-xs);
   width: 100%;
+  min-width: 0;
   padding: 6px var(--space-sm);
   border: none;
   background: transparent;
@@ -265,11 +284,28 @@ p {
   text-align: left;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out-quart);
+  transform: scale(var(--dock-scale, 1));
+  transform-origin: left center;
+  transition:
+    background var(--duration-fast) var(--ease-out-quart),
+    transform var(--duration-fast) var(--ease-out-quart);
 }
+
+/* Der eigentliche Skalierungsfaktor (`--dock-scale`) wird von
+   `AppSidebar.tsx` je Eintrag inline gesetzt (Annäherungs-Skalierung nach
+   der Mausposition, „Dock-Magnify" — siehe Kommentar dort). Ohne JS
+   (z. B. während SSR/erstem Render) bleibt `--dock-scale` undefiniert und
+   fällt auf `1` zurück (Custom-Property-Fallback oben). */
 
 .app-nav-item:hover {
   background: oklch(from var(--color-ink) l c h / 0.06);
+}
+
+.app-nav-item-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .app-nav-item[aria-current='page'] {
@@ -288,6 +324,7 @@ p {
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border-bottom: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
   z-index: 10;
 }
 

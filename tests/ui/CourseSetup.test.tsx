@@ -73,7 +73,7 @@ describe('CourseSetup', () => {
 
     const item = screen.getByText('Microeconomics').closest('li')!
     await user.click(within(item).getByRole('button', { name: 'Bearbeiten' }))
-    await user.selectOptions(screen.getByLabelText('Priorität'), '5')
+    await user.selectOptions(screen.getByLabelText('Priorität (1 = niedrig, 5 = hoch)'), '5')
     await user.click(screen.getByRole('button', { name: 'Speichern' }))
 
     expect(onUpdate).toHaveBeenCalledWith(1, expect.objectContaining({ priority: 5 }))

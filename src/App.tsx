@@ -1004,7 +1004,7 @@ export function App() {
       <AppSidebar width={sidebarWidth} collapsed={sidebarCollapsed} onResize={setSidebarWidth}>
         <div className="app-brand">
           <span className="app-brand-mark" aria-hidden="true" />
-          Lernplaner
+          <span className="app-brand-label">Lernplaner</span>
         </div>
 
         <div className="app-nav">
@@ -1016,7 +1016,7 @@ export function App() {
               aria-current={activeSection === item.key ? 'page' : undefined}
               onClick={() => setActiveSection(item.key)}
             >
-              {item.label}
+              <span className="app-nav-item-label">{item.label}</span>
             </button>
           ))}
         </div>
@@ -1035,7 +1035,7 @@ export function App() {
                     aria-current={selectedCourseId === c.id ? 'page' : undefined}
                     onClick={() => setSelectedCourseId(c.id)}
                   >
-                    {c.name}
+                    <span className="app-nav-item-label">{c.name}</span>
                   </button>
                 ))}
             </div>
