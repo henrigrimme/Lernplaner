@@ -1,7 +1,7 @@
 {
   "name": "lernplaner",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,11 +11,14 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "analyze": "tsx scripts/analyze-material.ts",
-    "preview-import": "tsx scripts/preview-import.ts"
+    "preview-import": "tsx scripts/preview-import.ts",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@tauri-apps/plugin-notification": "^2.3.3",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-sql": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "pdfjs-dist": "^4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

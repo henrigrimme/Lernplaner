@@ -11,7 +11,9 @@ import { ProgressView } from './ui/ProgressView'
 import { SourceViewer } from './ui/SourceViewer'
 import { CourseExportImport } from './ui/CourseExportImport'
 import { NotificationsPanel } from './ui/NotificationsPanel'
+import { UpdateChecker } from './ui/UpdateChecker'
 import { CalendarExport } from './ui/CalendarExport'
+import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
 import { extractDocument } from './ingest/pdf'
 import { computeSha256, persistExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
@@ -87,7 +89,20 @@ import type {
  * Fächer-/Prüfungs-Bausteinen, hier nur der Vollständigkeit halber erneut
  * festgehalten, da sie jetzt auch Themen und Lernblöcke betrifft.
  */
+type NavSection = 'faecher' | 'verfuegbarkeit' | 'plan' | 'heute' | 'wiederholen' | 'fortschritt' | 'einstellungen'
+
+const NAV_ITEMS: { key: NavSection; label: string }[] = [
+  { key: 'faecher', label: 'Fächer & Themen' },
+  { key: 'verfuegbarkeit', label: 'Verfügbarkeit' },
+  { key: 'plan', label: 'Planung' },
+  { key: 'heute', label: 'Heute' },
+  { key: 'wiederholen', label: 'Wiederholen' },
+  { key: 'fortschritt', label: 'Fortschritt' },
+  { key: 'einstellungen', label: 'Einstellungen' },
+]
+
 export function App() {
+  const [activeSection, setActiveSection] = useState<NavSection>('faecher')
   const [topics, setTopics] = useState<Topic[]>([])
   const [topicSections, setTopicSections] = useState<TopicSection[]>([])
   const [courses, setCourses] = useState<Course[]>([])
@@ -526,146 +541,201 @@ export function App() {
   }
 
   return (
-    <main>
-      <h1>Lernplaner</h1>
+    <div className="app-shell">
+      <nav className="app-sidebar" aria-label="Hauptnavigation">
+        <div className="app-brand">
+          <span className="app-brand-mark" aria-hidden="true" />
+          Lernplaner
+        </div>
 
-      <CourseSetup
-        courses={courses}
-        onAdd={handleAddCourse}
-        onUpdate={handleUpdateCourse}
-        onArchive={handleArchiveCourse}
-        onRemove={handleRemoveCourse}
-      />
+        <div className="app-nav">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className="app-nav-item"
+              aria-current={activeSection === item.key ? 'page' : undefined}
+              onClick={() => setActiveSection(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
 
-      {courses.length > 0 && (
-        <label>
-          Fach für Prüfungen
-          <select
-            value={selectedCourseId ?? ''}
-            onChange={(e) => setSelectedCourseId(e.target.value === '' ? null : Number(e.target.value))}
-          >
-            <option value="">— wählen —</option>
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {selectedCourse && (
-        <AssessmentSetup
-          course={selectedCourse}
-          assessments={assessments}
-          onAdd={handleAddAssessment}
-          onUpdate={handleUpdateAssessment}
-          onRemove={handleRemoveAssessment}
-        />
-      )}
-      {selectedCourse && (
-        <PaperSteps
-          course={selectedCourse}
-          assessments={assessments}
-          steps={paperSteps}
-          onAdd={handleAddPaperStep}
-          onUpdate={handleUpdatePaperStep}
-          onRemove={handleRemovePaperStep}
-        />
-      )}
+        {courses.length > 0 && (
+          <div>
+            <div className="app-nav-label">Fach</div>
+            <div className="app-nav">
+              {courses
+                .filter((c) => c.archived === 0)
+                .map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="app-nav-item"
+                    aria-current={selectedCourseId === c.id ? 'page' : undefined}
+                    onClick={() => setSelectedCourseId(c.id)}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
+      </nav>
 
-      <AvailabilitySetup
-        pattern={pattern}
-        exceptions={exceptions}
-        onSetPatternMinutes={handleSetPatternMinutes}
-        onAddException={handleAddException}
-        onRemoveException={handleRemoveException}
-      />
+      <header className="app-toolbar">
+        <h1>{NAV_ITEMS.find((i) => i.key === activeSection)?.label}</h1>
+        {selectedCourse && <span>{selectedCourse.name}</span>}
+      </header>
 
-      {selectedCourse && (
-        <label>
-          PDFs für {selectedCourse.name} importieren
-          <input
-            type="file"
-            accept="application/pdf"
-            multiple
-            onChange={(e) => e.target.files && importPdfs(e.target.files)}
+      <main className="app-content">
+        {activeSection === 'faecher' && (
+          <>
+            <CourseSetup
+              courses={courses}
+              onAdd={handleAddCourse}
+              onUpdate={handleUpdateCourse}
+              onArchive={handleArchiveCourse}
+              onRemove={handleRemoveCourse}
+            />
+
+            {selectedCourse && (
+              <AssessmentSetup
+                course={selectedCourse}
+                assessments={assessments}
+                onAdd={handleAddAssessment}
+                onUpdate={handleUpdateAssessment}
+                onRemove={handleRemoveAssessment}
+              />
+            )}
+            {selectedCourse && (
+              <PaperSteps
+                course={selectedCourse}
+                assessments={assessments}
+                steps={paperSteps}
+                onAdd={handleAddPaperStep}
+                onUpdate={handleUpdatePaperStep}
+                onRemove={handleRemovePaperStep}
+              />
+            )}
+
+            {selectedCourse && (
+              <label>
+                PDFs für {selectedCourse.name} importieren
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  multiple
+                  onChange={(e) => e.target.files && importPdfs(e.target.files)}
+                />
+              </label>
+            )}
+
+            <TopicTree topics={topics} onChange={handleChangeTopics} />
+
+            <SourceViewer
+              topics={topics}
+              topicSections={topicSections}
+              documentBytes={documentBytes}
+              cards={cards}
+              onCreateCard={handleCreateCard}
+              onDeleteCard={handleDeleteCard}
+            />
+          </>
+        )}
+
+        {activeSection === 'verfuegbarkeit' && (
+          <AvailabilitySetup
+            pattern={pattern}
+            exceptions={exceptions}
+            onSetPatternMinutes={handleSetPatternMinutes}
+            onAddException={handleAddException}
+            onRemoveException={handleRemoveException}
           />
-        </label>
-      )}
+        )}
 
-      <TopicTree topics={topics} onChange={handleChangeTopics} />
+        {activeSection === 'plan' && (
+          <>
+            <PlanView
+              topics={topics}
+              topicSections={topicSections}
+              assessments={assessments}
+              courses={courses}
+              pattern={pattern}
+              exceptions={exceptions}
+              blockers={blockers}
+              from={today}
+            />
 
-      <SourceViewer
-        topics={topics}
-        topicSections={topicSections}
-        documentBytes={documentBytes}
-        cards={cards}
-        onCreateCard={handleCreateCard}
-        onDeleteCard={handleDeleteCard}
-      />
+            <div>
+              <button type="button" onClick={generateStudyBlocks}>
+                {studyBlocks.length === 0 ? 'Plan übernehmen' : 'Plan neu übernehmen (überschreibt heutigen Fortschritt)'}
+              </button>
+            </div>
 
-      <ReviewSession
-        cards={cards}
-        reviews={reviews}
-        topics={topics}
-        now={() => new Date().toISOString()}
-        onReview={handleReview}
-      />
+            <ReplanView
+              studyBlocks={studyBlocks}
+              topics={topics}
+              assessments={assessments}
+              pattern={pattern}
+              exceptions={exceptions}
+              blockers={blockers}
+              from={today}
+              onApply={applyReplan}
+            />
+            {planVersions.length > 0 && <p>{planVersions.length} frühere Fassung(en) gespeichert (ADR-005).</p>}
+          </>
+        )}
 
-      <ErrorHistory cards={cards} reviews={reviews} topics={topics} onReview={handleReview} />
+        {activeSection === 'heute' && (
+          <TodayView
+            studyBlocks={studyBlocks}
+            topics={topics}
+            onChange={handleChangeStudyBlocks}
+            today={today}
+            now={() => new Date().toISOString()}
+          />
+        )}
 
-      <PlanView
-        topics={topics}
-        topicSections={topicSections}
-        assessments={assessments}
-        courses={courses}
-        pattern={pattern}
-        exceptions={exceptions}
-        blockers={blockers}
-        from={today}
-      />
+        {activeSection === 'wiederholen' && (
+          <>
+            <ReviewSession
+              cards={cards}
+              reviews={reviews}
+              topics={topics}
+              now={() => new Date().toISOString()}
+              onReview={handleReview}
+            />
 
-      <ProgressView assessments={assessments} topics={topics} studyBlocks={studyBlocks} from={today} />
+            <ErrorHistory cards={cards} reviews={reviews} topics={topics} onReview={handleReview} />
+          </>
+        )}
 
-      <div>
-        <button type="button" onClick={generateStudyBlocks}>
-          {studyBlocks.length === 0 ? 'Plan übernehmen' : 'Plan neu übernehmen (überschreibt heutigen Fortschritt)'}
-        </button>
-      </div>
+        {activeSection === 'fortschritt' && (
+          <ProgressView assessments={assessments} topics={topics} studyBlocks={studyBlocks} from={today} />
+        )}
 
-      <TodayView
-        studyBlocks={studyBlocks}
-        topics={topics}
-        onChange={handleChangeStudyBlocks}
-        today={today}
-        now={() => new Date().toISOString()}
-      />
+        {activeSection === 'einstellungen' && (
+          <>
+            <UpdateChecker onCheckNow={checkForUpdate} onInstall={installUpdateAndRestart} />
 
-      <ReplanView
-        studyBlocks={studyBlocks}
-        topics={topics}
-        assessments={assessments}
-        pattern={pattern}
-        exceptions={exceptions}
-        blockers={blockers}
-        from={today}
-        onApply={applyReplan}
-      />
-      {planVersions.length > 0 && <p>{planVersions.length} frühere Fassung(en) gespeichert (ADR-005).</p>}
+            <NotificationsPanel onCheckNow={checkNotifications} />
 
-      <NotificationsPanel onCheckNow={checkNotifications} />
+            <CalendarExport studyBlocks={studyBlocks} topics={topics} now={() => new Date().toISOString()} />
 
-      <CalendarExport studyBlocks={studyBlocks} topics={topics} now={() => new Date().toISOString()} />
-
-      <CourseExportImport
-        courses={courses}
-        topics={topics}
-        topicSections={topicSections}
-        assessments={assessments}
-        studyBlocks={studyBlocks}
-        onImport={applyCourseImport}
-        now={() => new Date().toISOString()}
-      />
-    </main>
+            <CourseExportImport
+              courses={courses}
+              topics={topics}
+              topicSections={topicSections}
+              assessments={assessments}
+              studyBlocks={studyBlocks}
+              onImport={applyCourseImport}
+              now={() => new Date().toISOString()}
+            />
+          </>
+        )}
+      </main>
+    </div>
   )
 }
