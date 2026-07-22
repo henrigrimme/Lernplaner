@@ -523,3 +523,42 @@ Neuanlage, Migration bestehender Binärdaten) zugunsten additiver,
 risikoarmer Lösungen — konsistent mit der Projektlinie „Ab 1. September
 nur noch additive Änderungen" (CONTRIBUTING.md), hier schon vor diesem
 Datum freiwillig angewendet.
+
+---
+
+## ADR-014 — Automatische Dokumenttyp-Erkennung aus dem Dateinamen (kein KI-Aufruf), nachträglich korrigierbar
+**2026-07-22 · angenommen**
+
+**Kontext:** Analyse einer echten Materialsammlung (siehe CONTEXT.md
+„Analyse: Beispiel-PDFs") zeigte, dass Dateinamen/Ordnernamen bei WHU-
+Kursmaterial fast immer eindeutige Signale für den Dokumenttyp enthalten
+(„Alte Klausuren", „…_solutions.pdf", „Zusammenfassung …", „Mock Exam").
+Der Nutzer wollte eine automatische Erkennung, aber ausdrücklich mit
+Korrekturmöglichkeit, falls sie danebenliegt.
+
+**Entscheidung:**
+- `ingest/docType.ts` (`inferDocType`) errät den Typ **aus dem Dateinamen
+  per Muster-Suche, ohne KI-Aufruf** — bei den gesichteten echten
+  Namen reicht das fast immer, ein KI-Aufruf wäre langsamer und würde
+  Kosten verursachen (ADR-007), ohne spürbar treffsicherer zu sein.
+  Reihenfolge der Muster ist Absicht: Altklausur/Musterlösung/
+  Zusammenfassung vor Übung, damit z. B. „…_exercise_solutions.pdf"
+  richtig als Musterlösung erkannt wird (enthält auch „exercise").
+- Die Vermutung überschreibt die Dropdown-Auswahl in `App.tsx` **nur**,
+  solange sie noch auf dem Default `folien` steht — eine bewusst
+  getroffene Auswahl geht nie verloren.
+- **Nachträglich korrigierbar:** `ui/DocumentList.tsx` (neu) zeigt
+  importierte Dokumente je Fach mit editierbarem Typ,
+  `documentsRepo.updateDocumentType` (neu) — bewusste Ausnahme von der
+  bisherigen „`documents` nur Insert/Select"-Regel, weil eine falsche
+  automatische Vermutung sonst nur per Neu-Import zu beheben wäre.
+
+**Begründung:** Passt zum Grundsatz, KI nur einzusetzen, wo sie einen
+echten Mehrwert über einfachere Mittel bringt (hier: Mustererkennung im
+Dateinamen reicht) — und zur wiederkehrenden Projektlinie, automatisierte
+Vorschläge korrigierbar/widerrufbar zu halten (ADR-005, ADR-012).
+
+**Nebenbei gefixt:** OpenAI-Aufrufe mit `gpt-5.6-terra` schlugen mit
+„Unsupported parameter: 'max_tokens'" fehl — `max_completion_tokens`
+ist der von neueren OpenAI-Modellen verlangte Nachfolgeparameter
+(`src/ai/openaiProvider.ts`).

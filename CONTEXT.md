@@ -2097,14 +2097,72 @@ ersten echten Test (siehe ADR-013):**
 
 **Damit ist Phase 4 komplett bis auf „Nachschärfen aus dem Alltag"** — das
 braucht laut ROADMAP.md echte Nutzungsdaten und wartet auf den
-Echtbetrieb-Start am 1. September 2026. Offener Rechercheauftrag vom
-Nutzer (noch nicht begonnen): den lokalen Ordner „Beispiel pdfs" (viele
-neue Unterordner, 2026-07-22 vom Nutzer ergänzt) durchsehen und
-auswerten, welche Dokumentarten/Aufbauten dort vorkommen — Ziel laut
-Nutzer sinngemäß „damit die App sie besser liest". Sinnvoller Start einer
-neuen Sitzung, falls das noch aussteht: zuerst dort nachsehen, ob diese
-Analyse schon gemacht wurde (Ergebnis würde hier oder in einem neuen ADR
-festgehalten), sonst beginnen.
+Echtbetrieb-Start am 1. September 2026.
+
+### Analyse: Beispiel-PDFs (2026-07-22, noch am selben Tag)
+
+Nutzerauftrag: den lokalen Ordner „Beispiel pdfs" (neu befüllt mit
+echtem WHU-BBA-Material aus mehreren Kursen: Microeconomics, Money
+Banking and Financial Markets, Data & Information Management,
+Entrepreneurial Transformation, Nurturing Customer Relationships)
+durchsehen und auswerten, welche Dokumentarten/Aufbauten vorkommen.
+`poppler` (`brew install poppler`) war nötig, damit das `Read`-Tool
+PDF-Seiten rendern kann — jetzt installiert.
+
+**Beobachtete Dokumentarten und ihr Aufbau** (repräsentative Stichprobe,
+nicht jede Datei einzeln gelesen):
+
+- **Folien** (`Slides/`-Ordner, „Slides …"/„BSC - … -"-Dateinamen):
+  Titelseite + ein Konzept pro Seite, wiederkehrende Kopf-/Fußzeile
+  (Seitenzahl, Dozentenname) — strukturell nah an den drei in Phase 1
+  bereits validierten Fächern, die bestehende Erkennung (Titel = größte
+  Schrift oben, wiederkehrende Zeilen entfernen) passt.
+- **Altklausuren** (`Alte Klausuren/`-Ordner, „Final exam …"/„Exam
+  review …"): oft nur eine einzige Seite, reine Fragenliste mit
+  Punktangaben in Klammern, **keine** Kopf-/Fußzeile, **keine**
+  Musterlösung im selben Dokument.
+- **Mock Exam** (eigener, von echten Altklausuren zu unterscheidender
+  Fall): Titelseite + nummerierte Fragen inkl. Multiple-Choice-Optionen
+  **und am Ende ein „Answers:"-Abschnitt mit der Lösung im selben
+  Dokument** — anders als reine Altklausuren.
+- **Übungen/Problem Sets**: nummerierte Aufgaben mit fett gesetztem
+  Themen-Namen als Überschrift je Aufgabe, oft als getrennte
+  `..._exercise_tasks.pdf`/`..._exercise_solutions.pdf`-Dateipaare.
+- **Zusammenfassungen**: farbige „Part"-Abschnittsbalken als
+  Kapitelmarker, dann dichte Stichpunkt-Seiten (teils mit eingebetteten
+  Bildern/handschriftlichen Anmerkungen) — **strukturell klar
+  anders als Folien** (kein Ein-Konzept-pro-Seite-Aufbau, keine
+  Animationsschritte). Die bestehende, auf Folien zugeschnittene
+  Kapitelerkennung (`ingest/chapters.ts`) ist für diesen Dokumenttyp
+  vermutlich nicht gut geeignet — **nicht behoben in diesem Schritt**
+  (bräuchte eine eigene Validierung wie die drei Fächer in Phase 1,
+  außerhalb des Zeitrahmens dieser Änderung). Für die Zukunft vorgemerkt.
+- **Syllabus**: festes WHU-Verwaltungsformular (Code, ECTS, Workload,
+  Prüfungsform) ohne Lerninhalt — eindeutig „sonstiges", kein
+  Grenzfall.
+
+**Umgesetzt:** `ingest/docType.ts` (`inferDocType`) schlägt den
+Dokumenttyp aus dem Dateinamen vor (Muster-Priorität: Altklausur >
+Musterlösung > Zusammenfassung > Übung > Skript > Folien; Ordnername nur
+als Rückfall, falls der Dateiname allein nichts hergibt) — bewusst **kein
+KI-Aufruf**, der Dateiname allein reicht bei den gesichteten echten
+Materialien fast immer. Rückfallwert ohne jedes Signal: `folien` (der
+mit Abstand häufigste Fall). In `App.tsx` übernimmt die automatische
+Vermutung die Dropdown-Auswahl nur, solange sie noch auf dem Default
+`folien` steht (gilt als „noch nicht bewusst gewählt") — eine explizite
+Nutzerauswahl wird nie überschrieben.
+
+**Korrigierbarkeit** (Nutzerwunsch: falsch erkannte Typen müssen sich
+nachträglich ändern lassen): `ui/DocumentList.tsx` zeigt importierte
+Dokumente je Fach mit editierbarem Typ-Dropdown,
+`data/documentsRepo.ts` bekam dafür `updateDocumentType` — die einzige
+Ausnahme von der bisherigen „nur Insert/Select, nie über die UI
+bearbeitet"-Regel für `documents`.
+
+**Nebenbei gefixt:** OpenAI-Aufrufe schlugen mit `gpt-5.6-terra` fehl
+(„Unsupported parameter: 'max_tokens'") — neuere OpenAI-Modelle
+verlangen `max_completion_tokens` statt `max_tokens`
+(`src/ai/openaiProvider.ts`).
 
 ### Danach (unverändert aus der Roadmap)
 

@@ -19,8 +19,10 @@ import { AiSettings } from './ui/AiSettings'
 import { QuizSetup, type GenerateQuizInput } from './ui/QuizSetup'
 import { QuizSession } from './ui/QuizSession'
 import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
+import { DocumentList } from './ui/DocumentList'
 import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
 import { extractDocument, extractPageRangeText } from './ingest/pdf'
+import { DOCUMENT_TYPE_OPTIONS, inferDocType } from './ingest/docType'
 import { loadDocumentFile, saveDocumentFile } from './platform/documentStorage'
 import { computeSha256, persistExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
@@ -52,7 +54,7 @@ import { ErrorHistory } from './ui/ErrorHistory'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationContent, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
-import { loadDocuments } from './data/documentsRepo'
+import { loadDocuments, updateDocumentType } from './data/documentsRepo'
 import { completeQuiz, insertQuiz, loadQuizzes } from './data/quizzesRepo'
 import { insertQuestion, loadQuestions } from './data/questionsRepo'
 import { insertAnswer, loadAnswers } from './data/answersRepo'
@@ -123,16 +125,6 @@ const NAV_ITEMS: { key: NavSection; label: string }[] = [
   { key: 'quiz', label: 'Quiz' },
   { key: 'fortschritt', label: 'Fortschritt' },
   { key: 'einstellungen', label: 'Einstellungen' },
-]
-
-const DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
-  { value: 'folien', label: 'Vorlesungsfolien' },
-  { value: 'skript', label: 'Skript' },
-  { value: 'uebung', label: 'Übungsblatt' },
-  { value: 'altklausur', label: 'Altklausur' },
-  { value: 'musterloesung', label: 'Musterlösung' },
-  { value: 'zusammenfassung', label: 'Zusammenfassung' },
-  { value: 'sonstiges', label: 'Sonstiges (eigene Bezeichnung)' },
 ]
 
 export function App() {
@@ -852,7 +844,17 @@ export function App() {
     await handleChangeTopics(nextTopics)
   }
 
-  const importPdfs = async (files: FileList) => {
+  const handleChangeDocumentType = async (id: number, docType: DocumentType, docTypeLabel: string | null) => {
+    try {
+      const db = await getDb()
+      await updateDocumentType(db, id, docType, docTypeLabel)
+      setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, doc_type: docType, doc_type_label: docTypeLabel } : d)))
+    } catch (error) {
+      console.error('Dokumenttyp konnte nicht geändert werden', error)
+    }
+  }
+
+  const importPdfs = async (files: FileList, docType: DocumentType) => {
     if (selectedCourseId === null) return
 
     for (const file of Array.from(files)) {
@@ -869,8 +871,8 @@ export function App() {
           {
             storedPath,
             sha256,
-            docType: importDocType,
-            docTypeLabel: importDocType === 'sonstiges' ? importDocTypeLabel.trim() || null : null,
+            docType,
+            docTypeLabel: docType === 'sonstiges' ? importDocTypeLabel.trim() || null : null,
           },
           new Date().toISOString(),
         )
@@ -979,6 +981,11 @@ export function App() {
                     ))}
                   </select>
                 </label>
+                <p>
+                  Wird beim Dateiauswählen automatisch aus dem Dateinamen vorgeschlagen (z. B. „Altklausur" oder
+                  „Zusammenfassung" im Namen) — falsch erkannt? Danach jederzeit unten in „Importierte Dokumente"
+                  korrigierbar.
+                </p>
                 {importDocType === 'sonstiges' && (
                   <label>
                     Eigene Bezeichnung
@@ -1003,10 +1010,24 @@ export function App() {
                     type="file"
                     accept="application/pdf"
                     multiple
-                    onChange={(e) => e.target.files && importPdfs(e.target.files)}
+                    onChange={(e) => {
+                      const files = e.target.files
+                      if (!files || files.length === 0) return
+                      // "folien" gilt als noch nicht bewusst gewählt (Default) — nur dann
+                      // übernimmt die Erkennung aus dem Dateinamen die Auswahl automatisch,
+                      // eine bewusst getroffene Wahl wird nie überschrieben (siehe
+                      // ingest/docType.ts-Kommentar).
+                      const resolvedType = importDocType === 'folien' ? inferDocType(files[0]!.name) : importDocType
+                      if (resolvedType !== importDocType) setImportDocType(resolvedType)
+                      importPdfs(files, resolvedType)
+                    }}
                   />
                 </label>
               </>
+            )}
+
+            {selectedCourse && (
+              <DocumentList course={selectedCourse} documents={documents} onChangeType={handleChangeDocumentType} />
             )}
 
             {selectedCourse && (

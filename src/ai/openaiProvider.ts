@@ -43,7 +43,10 @@ async function callOpenAi(apiKey: string, prompt: string): Promise<{ text: strin
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 8192,
+      // Neuere OpenAI-Modelle (u. a. gpt-5.6-terra) lehnen `max_tokens` ab
+      // ("Unsupported parameter", an echtem Aufruf entdeckt, 2026-07-22) —
+      // `max_completion_tokens` ist der Nachfolgeparameter.
+      max_completion_tokens: 8192,
       messages: [{ role: 'user', content: prompt }],
     }),
   })

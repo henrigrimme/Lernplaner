@@ -11,9 +11,13 @@ import type { Document, DocumentType } from './schema'
  * `PRAGMA foreign_keys = ON` scharf geschaltet, siehe
  * `tests/data/testConnection.ts`).
  *
- * Nur `INSERT`/`SELECT` — `documents` werden ausschließlich beim Import
- * angelegt, nie über die UI bearbeitet; Löschen läuft über
- * `ON DELETE CASCADE` beim Löschen des zugehörigen Fachs.
+ * `documents` werden ausschließlich beim Import angelegt (kein manuelles
+ * Anlegen über die UI); Löschen läuft über `ON DELETE CASCADE` beim
+ * Löschen des zugehörigen Fachs. `updateDocumentType` ist die eine
+ * Ausnahme von „nur Insert/Select" — die automatische Dokumenttyp-
+ * Erkennung beim Import (`ingest/docType.ts`) ist nur ein Vorschlag aus
+ * dem Dateinamen; der Nutzer muss eine falsche Erkennung nachträglich
+ * korrigieren können (Nutzerwunsch 2026-07-22, siehe `ui/DocumentList.tsx`).
  */
 
 export interface NewDocumentInput {
@@ -65,4 +69,13 @@ export async function insertDocument(
   )
   if (result.lastInsertId === undefined) throw new Error('INSERT hat keine lastInsertId geliefert')
   return { id: result.lastInsertId, ...input, imported_at: importedAt }
+}
+
+export async function updateDocumentType(
+  conn: SqlConnection,
+  id: number,
+  docType: DocumentType,
+  docTypeLabel: string | null,
+): Promise<void> {
+  await conn.execute('UPDATE documents SET doc_type = ?, doc_type_label = ? WHERE id = ?', [docType, docTypeLabel, id])
 }
