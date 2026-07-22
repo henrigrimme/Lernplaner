@@ -11,6 +11,9 @@ export interface AIProvider {
   estimateDifficulty(topic: Topic, sample: string): Promise<number>
 }
 
+/** Welche `AIProvider`-Implementierung gerade aktiv ist (siehe `ai/index.ts`). */
+export type AIProviderKind = 'anthropic' | 'openai'
+
 /** Eine von der KI vorgeschlagene Themenverfeinerung — vor der Nutzerprüfung (ARCHITECTURE.md „Datenfluss beim Import"). */
 export interface TopicSuggestion {
   name: string

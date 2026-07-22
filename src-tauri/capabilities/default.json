@@ -28,7 +28,10 @@
     },
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://api.anthropic.com/*" }]
+      "allow": [
+        { "url": "https://api.anthropic.com/*" },
+        { "url": "https://api.openai.com/*" }
+      ]
     }
   ]
 }

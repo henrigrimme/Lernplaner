@@ -371,3 +371,17 @@ Nutzer-Tradeoff — sie setzen nur bereits getroffene Entscheidungen
 `data/aiUsageRepo.ts` angebunden, aber die eigentliche
 Budget-Benachrichtigung im `NotificationBanner` noch nicht verdrahtet —
 das bleibt ein späterer Schritt, sobald echte Nutzungsdaten anfallen.
+
+**Nachtrag (2026-07-22, noch am selben Tag):** Die Zahlungseinrichtung für
+den Anthropic-API-Zugang funktionierte zunächst nicht. Auf Nutzerwunsch
+zusätzlich `src/ai/openaiProvider.ts` (OpenAI Chat Completions,
+`gpt-4o-mini`) als zweite `AIProvider`-Implementierung ergänzt — als
+Übergangslösung, bis die Claude-Zahlung klappt, nicht als Ersatz der
+Entscheidung oben. `ai/index.ts` verwaltet jetzt eine Anbieter-Auswahl
+(`getActiveProvider`/`setActiveProvider`, als weiterer Keychain-Eintrag
+`ai_active_provider` neben den beiden getrennten API-Key-Einträgen
+`anthropic_api_key`/`openai_api_key`) — beide Schlüssel bleiben unabhängig
+gespeichert, ein späterer Rückwechsel zu Claude braucht keinen neu
+eingegebenen Schlüssel, sofern der Nutzer ihn nicht zwischenzeitlich
+löscht. `AiSettings.tsx` hat dafür eine Anbieter-Auswahl (Radiobuttons)
+bekommen. HTTP-Capability-Scope erweitert um `https://api.openai.com/*`.

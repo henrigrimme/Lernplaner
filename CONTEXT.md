@@ -2039,6 +2039,13 @@ Der zuvor hier beschriebene erste Schritt ist erledigt:
   Löschen des Schlüssels (der Test-Aufruf validiert den Schlüssel, bevor
   er gespeichert wird).
 
+**Nachtrag, noch am selben Tag:** Anthropic-Zahlung funktionierte zunächst
+nicht — als Übergang zusätzlich `src/ai/openaiProvider.ts` (OpenAI,
+`gpt-4o-mini`) ergänzt, siehe ADR-011-Nachtrag. `AiSettings.tsx` erlaubt
+jetzt die Wahl zwischen Claude und ChatGPT, beide Schlüssel werden
+getrennt in der Keychain gehalten — ein Rückwechsel zu Claude ist später
+nur ein Klick, kein neuer Schlüssel nötig (sofern nicht gelöscht).
+
 **Noch nicht Teil dieses Schritts:** Die Budget-Benachrichtigung selbst
 (ADR-007 „bei Überschreiten wird benachrichtigt") ist mit
 `loadMonthlyAiCostEur` vorbereitet, aber noch nicht an
