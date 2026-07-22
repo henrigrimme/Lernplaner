@@ -165,6 +165,7 @@ export function App() {
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [importDocType, setImportDocType] = useState<DocumentType>('folien')
   const [importDocTypeLabel, setImportDocTypeLabel] = useState('')
+  const [importError, setImportError] = useState<string | null>(null)
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [questions, setQuestions] = useState<Question[]>([])
   const [answers, setAnswers] = useState<Answer[]>([])
@@ -934,6 +935,7 @@ export function App() {
 
   const importPdfs = async (files: FileList, docType: DocumentType) => {
     if (selectedCourseId === null) return
+    setImportError(null)
 
     for (const file of Array.from(files)) {
       const data = new Uint8Array(await file.arrayBuffer())
@@ -946,6 +948,8 @@ export function App() {
         setDocumentBytes((prev) => ({ ...prev, [result.document.id]: data }))
       } catch (error) {
         console.error('PDF-Import konnte nicht gespeichert werden', error)
+        const message = error instanceof Error ? error.message : String(error)
+        setImportError(`„${file.name}" konnte nicht importiert werden: ${message}`)
       }
     }
   }
@@ -963,7 +967,17 @@ export function App() {
   // (`importPdfs`): ihre Kapitel-Themen bekommen `parent_id = null`.
   const importFolder = async (files: FileList, docType: DocumentType) => {
     if (selectedCourseId === null) return
-    const db = await getDb()
+    setImportError(null)
+
+    let db: Awaited<ReturnType<typeof getDb>>
+    try {
+      db = await getDb()
+    } catch (error) {
+      console.error('Ordner-Import: Datenbankverbindung fehlgeschlagen', error)
+      setImportError(`Ordner konnte nicht importiert werden: ${error instanceof Error ? error.message : String(error)}`)
+      return
+    }
+
     const pdfFiles = Array.from(files).filter((f) => f.name.toLowerCase().endsWith('.pdf'))
     let knownTopics = topics
 
@@ -995,6 +1009,8 @@ export function App() {
         setDocumentBytes((prev) => ({ ...prev, [result.document.id]: data }))
       } catch (error) {
         console.error(`PDF-Import konnte nicht gespeichert werden (${relativePath})`, error)
+        const message = error instanceof Error ? error.message : String(error)
+        setImportError(`„${relativePath}" konnte nicht importiert werden: ${message}`)
       }
     }
   }
@@ -1181,6 +1197,7 @@ export function App() {
                   Material schon nach Unterthemen sortiert in Ordnern liegt. PDFs direkt im gewählten Ordner (ohne
                   Unterordner) verhalten sich wie beim normalen Import oben.
                 </p>
+                {importError && <p role="alert">{importError}</p>}
               </>
             )}
 

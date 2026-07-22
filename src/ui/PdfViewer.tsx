@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs'
+import { configureWorker } from '../ingest/pdf'
 
 /**
  * PDF-Viewer mit Seitensprung (ROADMAP.md Phase 3) und markierbarem Text
@@ -25,12 +26,6 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs'
  * (nur die für Positionierung/Auswahl nötigen, nicht das komplette,
  * Annotation-Editor-lastige Stylesheet).
  */
-if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/legacy/build/pdf.worker.mjs',
-    import.meta.url,
-  ).href
-}
 
 const TEXT_LAYER_STYLE = `
   .pdf-text-layer { position: absolute; inset: 0; overflow: clip; line-height: 1; transform-origin: 0 0; }
@@ -72,6 +67,7 @@ export function PdfViewer({ data, initialPage = 1, onSelectionChange }: PdfViewe
 
     async function render() {
       try {
+        await configureWorker()
         const doc = await pdfjs.getDocument({ data }).promise
         if (cancelled) {
           await doc.destroy()
