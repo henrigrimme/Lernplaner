@@ -275,3 +275,57 @@ ursprünglich gewünscht) ist damit **nicht** erfüllt — der Banner
 erscheint nur, wenn die App tatsächlich geöffnet ist. Für echte
 System-Push-Benachrichtigungen bräuchte es eine Apple-Entwickler-ID;
 diese Entscheidung bleibt bei Bedarf revidierbar.
+
+---
+
+## ADR-010 — Moodle-Anbindung geprüft und abgelehnt
+**2026-07-22 · abgelehnt**
+
+**Kontext:** Beide Nutzer verwenden WHU Moodle für alle Kurse (Deadlines,
+Klausurtermine inkl. Raum/Uhrzeit/Klausur-Tool-Link, Materialien). Idee:
+diese Termine automatisch über Moodles "Mobile-App"-Web-Service-API
+abrufen (WHUs offizielle Moodle-App belegt, dass der Dienst grundsätzlich
+aktiv ist) — bewusst nur Termine/Links, **keine PDFs** (Umfang von Anfang
+an klein gehalten).
+
+**Vor jeder Code-Zeile geprüft** (`scripts/moodle-spike.ts`, seitdem
+wieder entfernt): zwei mögliche Zugangswege durchgetestet, beide
+gescheitert.
+
+1. **Direkter Token-Abruf** (`login/token.php` mit Nutzername/Passwort,
+   `service=moodle_mobile_app`): schlägt mit "Invalid login" fehl — WHU
+   nutzt SSO (Microsoft/Office365-Weiterleitung) für den Moodle-Login.
+   Moodle prüft das Passwort dabei selbst gar nicht, dieser Zugangsweg
+   funktioniert bei SSO-Konten strukturell nie, unabhängig von korrekten
+   Zugangsdaten.
+2. **Selbstbedienungs-Token** (Einstellungen → "Sicherheitsschlüssel"/
+   "Security keys", von manchen Moodle-Installationen auch für
+   SSO-Nutzer angeboten): auf WHUs Moodle nicht vorhanden — die
+   Preferences-Seite zeigt nur "User account", keinen
+   Sicherheitsschlüssel-Abschnitt. WHU hat die Selbstbedienungs-
+   Token-Erzeugung für normale Nutzer nicht freigeschaltet.
+
+**Damit bliebe nur:** ein Browser-basierter SSO-Login-Fluss (App öffnet
+System-Browser, Nutzer meldet sich über Microsoft an, Moodle leitet über
+eine registrierte App-URL mit Token zurück) — genau der Weg, den die
+offizielle Moodle-App vermutlich nutzt. Deutlich größerer Umfang als
+geplant (Deep-Link-Handling in Tauri, neue Angriffsfläche, Ausgang bei
+WHUs konkreter Konfiguration ungewiss, bräuchte einen weiteren
+Verifikations-Test, bevor überhaupt Code entsteht).
+
+**Entscheidung:** Nicht umsetzen. Auf Rückfrage, mit vollem Bild der
+Konsequenz — passt zur wiederholt geäußerten Priorität: eine stabil
+funktionierende App ist wichtiger als ein riskantes neues Feature mit
+ungewissem Ausgang. `scripts/moodle-spike.ts` wieder entfernt (war
+bewusst als Wegwerf-Skript markiert). Prüfungstermine bleiben manuell in
+"Fächer & Themen" → Prüfungen eingetragen, wie vor diesem Versuch.
+
+**Alternative, nicht verfolgt:** WHU-IT direkt fragen, ob ein
+persönlicher Web-Service-Token für den eigenen Account freigeschaltet
+werden kann — vom Nutzer bewusst nicht gewählt (hängt von WHU ab, Ausgang
+und Dauer ungewiss).
+
+**Falls später erneut aufgegriffen:** zuerst klären, ob WHUs Moodle-
+Instanz den Browser-SSO-Launch (`admin/tool/mobile/launch.php`) tatsächlich
+unterstützt, bevor wieder Code entsteht — derselbe Verifikations-zuerst-
+Ansatz wie dieses Mal.
