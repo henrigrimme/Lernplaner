@@ -8,7 +8,7 @@ import {
   updateCourseRow,
 } from '../../src/data/coursesRepo'
 
-const INPUT = { name: 'Microeconomics', semester: 'WS25', color: '#3366ff', priority: 3 as const, difficulty: 3 as const }
+const INPUT = { name: 'Microeconomics', semester: 'WS25', color: '#3366ff', priority: 3 as const, difficulty: 3 as const, language: 'de' as const }
 
 describe('coursesRepo', () => {
   it('legt ein Fach an und liefert es mit der echten AUTOINCREMENT-id zurück', async () => {

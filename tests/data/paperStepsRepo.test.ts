@@ -5,7 +5,7 @@ import { insertCourse } from '../../src/data/coursesRepo'
 import { insertAssessment } from '../../src/data/assessmentsRepo'
 import type { SqlConnection } from '../../src/data/db'
 
-const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const }
+const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const, language: 'de' as const }
 
 const ASSESSMENT_INPUT = {
   course_id: 1,

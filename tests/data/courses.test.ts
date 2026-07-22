@@ -12,6 +12,7 @@ function courseFixture(overrides: Partial<Course> = {}): Course {
     difficulty: 3,
     archived: 0,
     created_at: 'x',
+    language: 'de',
     ...overrides,
   }
 }

@@ -1,15 +1,27 @@
 import { fetch } from '@tauri-apps/plugin-http'
 import type { ExtractedDocument } from '../ingest/types'
-import type { Topic } from '../data/schema'
+import type { CourseLanguage, Topic } from '../data/schema'
 import type {
   AIProvider,
   AIUsage,
   AIUsageListener,
   ExamTopicMatch,
   QuestionSuggestion,
+  QuizDifficulty,
   TextTopicSuggestion,
   TopicSuggestion,
 } from './types'
+
+const LANGUAGE_INSTRUCTION: Record<CourseLanguage, string> = {
+  de: 'Antworte auf Deutsch.',
+  en: 'Antworte auf Englisch (Answer in English).',
+}
+
+const DIFFICULTY_INSTRUCTION: Record<QuizDifficulty, string> = {
+  einfach: 'Einfaches Niveau: direkte Verständnisfragen, wenig Transfer nötig.',
+  mittel: 'Mittleres Niveau: normaler Klausur-Anspruch, etwas Transferleistung.',
+  schwer: 'Hohes Niveau: anspruchsvolle Transfer-/Anwendungsfragen, keine reinen Faktenfragen.',
+}
 
 /**
  * Übergangslösung, bis die Zahlung für den Anthropic-API-Zugang klappt
@@ -132,17 +144,27 @@ export class OpenAIProvider implements AIProvider {
     return value
   }
 
-  async generateQuestions(topicName: string, sourceText: string, count: number): Promise<QuestionSuggestion[]> {
+  async generateQuestions(
+    topicName: string,
+    sourceText: string,
+    count: number,
+    difficulty: QuizDifficulty,
+    language: CourseLanguage,
+  ): Promise<QuestionSuggestion[]> {
     const prompt = [
       `Erzeuge ${count} Quizfragen zum Thema "${topicName}" ausschließlich auf Basis des folgenden`,
       'Textauszugs aus dem Vorlesungsmaterial — erfinde keine Inhalte, die dort nicht stehen:',
       '',
       sourceText,
       '',
+      DIFFICULTY_INSTRUCTION[difficulty],
+      LANGUAGE_INSTRUCTION[language],
+      '',
       'Mische Multiple-Choice- und Freitext-Fragen. Antworte ausschließlich mit einem JSON-Array von',
-      'Objekten der Form {"type": "mc"|"freitext", "prompt": string, "answer": string, "explanation": string,',
-      '"difficulty": 1|2|3|4|5} — kein weiterer Text. Bei "mc" enthält "prompt" die Antwortoptionen als Text',
-      '(z. B. "…\\nA) …\\nB) …\\nC) …\\nD) …") und "answer" ist der Buchstabe der richtigen Option.',
+      'Objekten der Form {"type": "mc"|"freitext", "prompt": string, "options": string[] (nur bei "mc",',
+      'genau die Antwortoptionen ohne Buchstaben-Präfix, z. B. ["12", "14", "16", "18"]), "answer": string,',
+      '"explanation": string, "difficulty": 1|2|3|4|5} — kein weiterer Text. Bei "mc" ist "answer" der',
+      'Buchstabe der richtigen Option ("A" = erste Option in "options", "B" = zweite, usw.).',
     ].join('\n')
 
     const { text, usage } = await callOpenAi(this.apiKey, prompt)

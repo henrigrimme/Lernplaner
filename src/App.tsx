@@ -17,6 +17,7 @@ import { UpdateChecker, type UpdateInfo } from './ui/UpdateChecker'
 import { UpdateBanner } from './ui/UpdateBanner'
 import { CalendarExport } from './ui/CalendarExport'
 import { AiSettings } from './ui/AiSettings'
+import { AppearanceSetting, type ThemePreference } from './ui/AppearanceSetting'
 import { QuizSetup, type GenerateQuizInput } from './ui/QuizSetup'
 import { QuizSession } from './ui/QuizSession'
 import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
@@ -127,10 +128,16 @@ type NavSection = 'faecher' | 'verfuegbarkeit' | 'plan' | 'heute' | 'wiederholen
 // bekanntermaßen nicht erreichbar ist.
 const SIDEBAR_WIDTH_STORAGE_KEY = 'lernplaner.sidebarWidth'
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'lernplaner.sidebarCollapsed'
+const THEME_STORAGE_KEY = 'lernplaner.theme'
 
 function readStoredSidebarWidth(): number {
   const stored = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
   return Number.isFinite(stored) && stored >= MIN_SIDEBAR_WIDTH && stored <= MAX_SIDEBAR_WIDTH ? stored : DEFAULT_SIDEBAR_WIDTH
+}
+
+function readStoredTheme(): ThemePreference {
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
+  return stored === 'light' || stored === 'dark' ? stored : 'system'
 }
 
 const NAV_ITEMS: { key: NavSection; label: string }[] = [
@@ -176,6 +183,7 @@ export function App() {
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
   const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1')
+  const [theme, setTheme] = useState<ThemePreference>(readStoredTheme)
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
 
@@ -226,6 +234,15 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, sidebarCollapsed ? '1' : '0')
   }, [sidebarCollapsed])
+
+  // "system" setzt bewusst kein Attribut (statt z. B. data-theme="system")
+  // — dann greift ausschließlich `prefers-color-scheme` in tokens.css,
+  // ohne eine dritte, redundante CSS-Regel dafür zu brauchen.
+  useEffect(() => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme)
+    if (theme === 'system') document.documentElement.removeAttribute('data-theme')
+    else document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
 
   // Berechtigung früh anfragen, unabhängig davon, ob gerade etwas fällig
   // ist: `checkNotifications` unten fragt bewusst nur, wenn `due.length >
@@ -759,6 +776,7 @@ export function App() {
   const handleGenerateQuiz = async (input: GenerateQuizInput) => {
     const provider = await getConfiguredAIProvider(logAiUsage)
     if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
+    const courseLanguage = courses.find((c) => c.id === input.courseId)?.language ?? 'de'
 
     const generated: { sectionId: number; suggestion: Awaited<ReturnType<typeof provider.generateQuestions>>[number] }[] = []
     for (const sectionId of input.sectionIds) {
@@ -768,7 +786,13 @@ export function App() {
       if (!section || !topic || !bytes) continue
 
       const sourceText = await extractPageRangeText(bytes, section.page_start, section.page_end)
-      const suggestions = await provider.generateQuestions(topic.name, sourceText, input.questionsPerSection)
+      const suggestions = await provider.generateQuestions(
+        topic.name,
+        sourceText,
+        input.questionsPerSection,
+        input.difficulty,
+        courseLanguage,
+      )
       for (const suggestion of suggestions) generated.push({ sectionId, suggestion })
     }
 
@@ -791,6 +815,7 @@ export function App() {
         source_document_id: section.document_id,
         source_page: section.page_start,
         difficulty: suggestion.difficulty,
+        options: suggestion.options ?? null,
       })
       newQuestions.push(question)
     }
@@ -1334,6 +1359,8 @@ export function App() {
         {activeSection === 'einstellungen' && (
           <>
             <UpdateChecker onCheckNow={checkForUpdate} onInstall={installUpdateAndRestart} />
+
+            <AppearanceSetting theme={theme} onChange={setTheme} />
 
             <AiSettings />
 

@@ -1,5 +1,8 @@
 import type { ExtractedDocument } from '../ingest/types'
-import type { Topic } from '../data/schema'
+import type { CourseLanguage, Topic } from '../data/schema'
+
+/** Vom Nutzer wählbare Zielschwierigkeit für generierte Quizfragen (`ui/QuizSetup.tsx`). */
+export type QuizDifficulty = 'einfach' | 'mittel' | 'schwer'
 
 /**
  * Austauschbare KI-Anbieter-Schnittstelle (ARCHITECTURE.md „ai/ —
@@ -12,8 +15,22 @@ import type { Topic } from '../data/schema'
 export interface AIProvider {
   refineTopics(doc: ExtractedDocument): Promise<TopicSuggestion[]>
   estimateDifficulty(topic: Topic, sample: string): Promise<number>
-  /** `sourceText` ist echter Belegtext (siehe `ingest/pdf.ts` `extractPageRangeText`) — nie frei erfunden, sonst ließe sich `questions.source_page` nicht rechtfertigen (DATA_MODEL.md). */
-  generateQuestions(topicName: string, sourceText: string, count: number): Promise<QuestionSuggestion[]>
+  /**
+   * `sourceText` ist echter Belegtext (siehe `ingest/pdf.ts`
+   * `extractPageRangeText`) — nie frei erfunden, sonst ließe sich
+   * `questions.source_page` nicht rechtfertigen (DATA_MODEL.md).
+   * `difficulty` steuert den Anspruch der generierten Fragen (Nutzerwunsch
+   * 2026-07-22, vorher nicht wählbar). `language`: Fragen/Erklärungen
+   * entstehen in der Sprache des Fachs (`Course.language`, Migration
+   * 0004) — unabhängig von der (immer deutschen) App-Oberfläche selbst.
+   */
+  generateQuestions(
+    topicName: string,
+    sourceText: string,
+    count: number,
+    difficulty: QuizDifficulty,
+    language: CourseLanguage,
+  ): Promise<QuestionSuggestion[]>
   /** Ordnet Altklausur-Text den übergebenen Themen zu — Grundlage für `domain/examWeighting.ts`. */
   classifyExamContent(topics: { id: number; name: string }[], examText: string): Promise<ExamTopicMatch[]>
   /**
@@ -42,16 +59,21 @@ export interface TopicSuggestion {
  * Eine generierte Quizfrage vor dem Speichern (`data/questionsRepo.ts`
  * fügt `source_document_id`/`source_page` hinzu, die der Aufrufer schon
  * kennt — die KI selbst kennt nur den ihr übergebenen Textausschnitt).
- * `mc` (Multiple Choice): `prompt` enthält die Antwortoptionen als Text
- * (z. B. „…\nA) …\nB) …"), `answer` ist der Buchstabe der richtigen
- * Option. `freitext`: `answer` ist die Musterantwort, Bewertung erfolgt
- * durch Selbsteinschätzung wie bei den Karteikarten (`domain/quiz.ts`),
- * nicht durch Textvergleich — freie Antworten automatisch zu vergleichen
- * wäre unzuverlässig.
+ * `mc` (Multiple Choice): `options` trägt die Antwortoptionen als eigenes
+ * Array (Nutzerwunsch 2026-07-22, vorher als Text in `prompt` eingebettet
+ * — `ui/QuizSession.tsx` konnte die Antwort dadurch nur als Freitext
+ * abfragen, nicht anklickbar machen), `answer` ist der Buchstabe der
+ * richtigen Option (unverändert, referenziert `options` per Index:
+ * "A" → `options[0]`). `freitext`: `answer` ist die Musterantwort,
+ * Bewertung erfolgt durch Selbsteinschätzung wie bei den Karteikarten
+ * (`domain/quiz.ts`), nicht durch Textvergleich — freie Antworten
+ * automatisch zu vergleichen wäre unzuverlässig.
  */
 export interface QuestionSuggestion {
   type: 'mc' | 'freitext'
   prompt: string
+  /** Nur bei `type === 'mc'` gesetzt. */
+  options?: string[]
   answer: string
   explanation: string
   difficulty: 1 | 2 | 3 | 4 | 5

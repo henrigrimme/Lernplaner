@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Assessment, Course, Document, Topic, TopicSection } from '../data/schema'
+import type { QuizDifficulty } from '../ai/types'
 
 /**
  * Quiz/Probeklausur anlegen (ROADMAP.md Phase 4 „Quiz-Generierung"/
@@ -24,6 +25,7 @@ export interface GenerateQuizInput {
   courseId: number
   sectionIds: number[]
   questionsPerSection: number
+  difficulty: QuizDifficulty
   mode: 'quiz' | 'probeklausur'
   assessmentId: number | null
 }
@@ -45,6 +47,7 @@ export function QuizSetup({ courses, topics, topicSections, documents, documentB
   const [assessmentId, setAssessmentId] = useState<number | null>(null)
   const [selectedSectionIds, setSelectedSectionIds] = useState<Set<number>>(new Set())
   const [questionsPerSection, setQuestionsPerSection] = useState(3)
+  const [difficulty, setDifficulty] = useState<QuizDifficulty>('mittel')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -76,6 +79,7 @@ export function QuizSetup({ courses, topics, topicSections, documents, documentB
         courseId,
         sectionIds: Array.from(selectedSectionIds),
         questionsPerSection,
+        difficulty,
         mode,
         assessmentId: mode === 'probeklausur' ? assessmentId : null,
       })
@@ -133,10 +137,20 @@ export function QuizSetup({ courses, topics, topicSections, documents, documentB
         <input
           type="number"
           min={1}
-          max={10}
+          max={20}
           value={questionsPerSection}
-          onChange={(e) => setQuestionsPerSection(Math.max(1, Math.min(10, Number(e.target.value))))}
+          onChange={(e) => setQuestionsPerSection(Math.max(1, Math.min(20, Number(e.target.value))))}
         />
+      </label>
+      {selectedSectionIds.size > 0 && <p>Insgesamt etwa {questionsPerSection * selectedSectionIds.size} Fragen.</p>}
+
+      <label>
+        Schwierigkeit
+        <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as QuizDifficulty)}>
+          <option value="einfach">Einfach</option>
+          <option value="mittel">Mittel</option>
+          <option value="schwer">Schwer</option>
+        </select>
       </label>
 
       {availableSections.length === 0 ? (

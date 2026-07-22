@@ -13,6 +13,7 @@ const COURSE: Course = {
   difficulty: 3,
   archived: 0,
   created_at: 'x',
+  language: 'de',
 }
 
 function assessment(overrides: Partial<Assessment> & { id: number }): Assessment {

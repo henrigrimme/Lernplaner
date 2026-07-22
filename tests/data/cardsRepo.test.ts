@@ -5,7 +5,7 @@ import { insertCourse } from '../../src/data/coursesRepo'
 import { insertTopic } from '../../src/data/topicsRepo'
 import type { SqlConnection } from '../../src/data/db'
 
-const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const }
+const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const, language: 'de' as const }
 
 async function seedTopic(conn: SqlConnection) {
   const course = await insertCourse(conn, COURSE_INPUT, 'x')

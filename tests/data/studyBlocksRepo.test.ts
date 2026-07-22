@@ -14,7 +14,7 @@ import { completeStudyBlock, materializeStudyBlocks } from '../../src/data/study
 import type { SqlConnection } from '../../src/data/db'
 import type { StudyBlock } from '../../src/data/schema'
 
-const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const }
+const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const, language: 'de' as const }
 
 async function seedTopicAndAssessment(conn: SqlConnection) {
   const course = await seedCourse(conn)

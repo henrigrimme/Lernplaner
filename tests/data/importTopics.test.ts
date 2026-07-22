@@ -6,7 +6,7 @@ import { loadDocuments } from '../../src/data/documentsRepo'
 import { loadTopics } from '../../src/data/topicsRepo'
 import type { Chapter, ExtractedDocument, Slide } from '../../src/ingest/types'
 
-const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const }
+const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const, language: 'de' as const }
 const META = { storedPath: 'documents/abc123.pdf', sha256: 'abc123', docType: 'folien' as const, docTypeLabel: null }
 
 function slide(title: string, pageNumbers: number[], bodyText: string): Slide {

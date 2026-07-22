@@ -3,7 +3,7 @@ import { createTestConnection } from './testConnection'
 import { deleteAssessmentRow, insertAssessment, loadAssessments, updateAssessmentRow } from '../../src/data/assessmentsRepo'
 import { insertCourse } from '../../src/data/coursesRepo'
 
-const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const }
+const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const, language: 'de' as const }
 
 const INPUT = {
   course_id: 1,
