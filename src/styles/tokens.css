@@ -185,3 +185,40 @@
   --shadow-md: 0 4px 16px oklch(0.26 0.02 50 / 0.1), 0 1px 3px oklch(0.26 0.02 50 / 0.07);
   --shadow-lg: 0 12px 32px oklch(0.26 0.02 50 / 0.16), 0 2px 8px oklch(0.26 0.02 50 / 0.09);
 }
+
+/* Wählbare Akzent-Paletten (ui/AppearanceSetting.tsx, Einstellungen —
+   Nutzerwunsch 2026-07-22). Nur der Primär-Akzent wechselt (Buttons,
+   aktiver Sidebar-Eintrag) — die warmen Creme-/Papier-Neutrale und der
+   sekundäre Petrol-Akzent bleiben überall gleich, das ist die eigentliche
+   Markenidentität der App (DESIGN.md „One Accent Rule"), nicht die
+   Akzentfarbe selbst. `data-palette` auf `<html>` (App.tsx), "terrakotta"
+   (Standard) setzt bewusst kein Attribut — dann gelten unverändert die
+   Grundwerte oben. Bewusst NICHT je Hell-/Dunkel-Modus dupliziert (anders
+   als `[data-theme]` oben): dieselben Werte funktionieren in beiden
+   Fällen ausreichend gut, eine zweite Kopie je Palette wäre für den
+   Nutzen unverhältnismäßig viel Pflegeaufwand. Muss nach den
+   `[data-theme]`-Regeln oben stehen, um sie bei Bedarf zu schlagen
+   (gleiche Spezifität, Quellreihenfolge entscheidet). */
+:root[data-palette='racing-green'] {
+  --color-primary: oklch(0.36 0.075 155);
+  --color-primary-hover: oklch(0.3 0.08 155);
+  --color-primary-ink: oklch(0.99 0.006 75);
+}
+
+:root[data-palette='nato-olive'] {
+  --color-primary: oklch(0.47 0.06 110);
+  --color-primary-hover: oklch(0.41 0.065 110);
+  --color-primary-ink: oklch(0.99 0.006 75);
+}
+
+:root[data-palette='petrol'] {
+  --color-primary: oklch(0.5 0.075 205);
+  --color-primary-hover: oklch(0.44 0.08 205);
+  --color-primary-ink: oklch(0.99 0.006 75);
+}
+
+:root[data-palette='bordeaux'] {
+  --color-primary: oklch(0.42 0.13 20);
+  --color-primary-hover: oklch(0.36 0.14 20);
+  --color-primary-ink: oklch(0.99 0.006 75);
+}

@@ -24,6 +24,16 @@ export interface Course {
   archived: Bit
   created_at: string
   language: CourseLanguage
+  /** Ordner in der Seitenleiste (Migration 0005), `null` = oberste Ebene wie bisher. */
+  group_id: number | null
+}
+
+/** Frei benannter Ordner, um Fächer in der Seitenleiste zu gruppieren (Migration 0005) — unabhängig vom Themenbaum. */
+export interface CourseGroup {
+  id: number
+  parent_id: number | null
+  name: string
+  sort_order: number
 }
 
 export type AssessmentType = 'klausur' | 'paper' | 'praesentation'

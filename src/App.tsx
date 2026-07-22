@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { AppSidebar, DEFAULT_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from './ui/AppSidebar'
 import { TopicTree } from './ui/TopicTree'
 import { CourseSetup } from './ui/CourseSetup'
@@ -17,7 +18,7 @@ import { UpdateChecker, type UpdateInfo } from './ui/UpdateChecker'
 import { UpdateBanner } from './ui/UpdateBanner'
 import { CalendarExport } from './ui/CalendarExport'
 import { AiSettings } from './ui/AiSettings'
-import { AppearanceSetting, type ThemePreference } from './ui/AppearanceSetting'
+import { AppearanceSetting, PALETTE_OPTIONS, type PalettePreference, type ThemePreference } from './ui/AppearanceSetting'
 import { QuizSetup, type GenerateQuizInput } from './ui/QuizSetup'
 import { QuizSession } from './ui/QuizSession'
 import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
@@ -32,7 +33,24 @@ import { materializeStudyBlocks } from './data/studyBlocks'
 import type { ImportedCourseResult } from './data/courseExport'
 import { getDb } from './data/db'
 import { deleteCourseRow, insertCourse, loadCourses, setCourseArchivedRow, updateCourseRow } from './data/coursesRepo'
-import { removeCourse, setCourseArchived, updateCourse, type NewCourseInput } from './data/courses'
+import { removeCourse, setCourseArchived, setCourseGroup, updateCourse, type NewCourseInput } from './data/courses'
+import {
+  deleteCourseGroupRow,
+  insertCourseGroup,
+  loadCourseGroups,
+  setCourseGroupRow,
+  updateCourseGroupRow,
+  type NewCourseGroupInput,
+} from './data/courseGroupsRepo'
+import {
+  buildCourseGroupTree,
+  deleteCourseGroup,
+  moveCourseGroup,
+  renameCourseGroup,
+  ungroupedCourses,
+  type CourseGroupTreeNode,
+} from './data/courseGroups'
+import { CourseGroups } from './ui/CourseGroups'
 import { deleteAssessmentRow, insertAssessment, loadAssessments, updateAssessmentRow } from './data/assessmentsRepo'
 import { removeAssessment, updateAssessment, type NewAssessmentInput } from './data/assessments'
 import { deletePaperStepRow, insertPaperStep, loadPaperSteps, updatePaperStepRow } from './data/paperStepsRepo'
@@ -73,6 +91,7 @@ import type {
   Blocker,
   Card,
   Course,
+  CourseGroup,
   Document,
   DocumentType,
   PaperStep,
@@ -129,6 +148,7 @@ type NavSection = 'faecher' | 'verfuegbarkeit' | 'plan' | 'heute' | 'wiederholen
 const SIDEBAR_WIDTH_STORAGE_KEY = 'lernplaner.sidebarWidth'
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'lernplaner.sidebarCollapsed'
 const THEME_STORAGE_KEY = 'lernplaner.theme'
+const PALETTE_STORAGE_KEY = 'lernplaner.palette'
 
 function readStoredSidebarWidth(): number {
   const stored = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
@@ -138,6 +158,45 @@ function readStoredSidebarWidth(): number {
 function readStoredTheme(): ThemePreference {
   const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
   return stored === 'light' || stored === 'dark' ? stored : 'system'
+}
+
+function readStoredPalette(): PalettePreference {
+  const stored = window.localStorage.getItem(PALETTE_STORAGE_KEY)
+  return PALETTE_OPTIONS.some((opt) => opt.value === stored) ? (stored as PalettePreference) : 'terrakotta'
+}
+
+/**
+ * Rendert den Fach-Ordner-Baum (Migration 0005) in der Seitenleiste —
+ * Ordner als reine, nicht klickbare Zwischenüberschriften (`app-nav-label`,
+ * eingerückt je Tiefe), Fächer darunter wie bisher als `app-nav-item`.
+ * Modulweite Funktion statt Komponenteninterna, weil sie keinen eigenen
+ * Zustand braucht — nur die bereits vorhandenen `selectedCourseId`/
+ * `setSelectedCourseId` von `App()` durchreicht.
+ */
+function renderSidebarCourseTree(
+  nodes: CourseGroupTreeNode[],
+  selectedCourseId: number | null,
+  setSelectedCourseId: (id: number) => void,
+  depth = 0,
+): ReactNode[] {
+  return nodes.flatMap((node) => [
+    <div key={`group-${node.id}`} className="app-nav-label" style={{ paddingLeft: 12 + depth * 12 }}>
+      {node.name}
+    </div>,
+    ...node.courses.map((c) => (
+      <button
+        key={`course-${c.id}`}
+        type="button"
+        className="app-nav-item"
+        style={{ paddingLeft: 12 + (depth + 1) * 12 }}
+        aria-current={selectedCourseId === c.id ? 'page' : undefined}
+        onClick={() => setSelectedCourseId(c.id)}
+      >
+        <span className="app-nav-item-label">{c.name}</span>
+      </button>
+    )),
+    ...renderSidebarCourseTree(node.children, selectedCourseId, setSelectedCourseId, depth + 1),
+  ])
 }
 
 const NAV_ITEMS: { key: NavSection; label: string }[] = [
@@ -157,6 +216,7 @@ export function App() {
   const [topics, setTopics] = useState<Topic[]>([])
   const [topicSections, setTopicSections] = useState<TopicSection[]>([])
   const [courses, setCourses] = useState<Course[]>([])
+  const [courseGroups, setCourseGroups] = useState<CourseGroup[]>([])
   const [assessments, setAssessments] = useState<Assessment[]>([])
   const [paperSteps, setPaperSteps] = useState<PaperStep[]>([])
   const [pattern, setPattern] = useState<AvailabilityPattern[]>([])
@@ -184,6 +244,7 @@ export function App() {
   const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1')
   const [theme, setTheme] = useState<ThemePreference>(readStoredTheme)
+  const [palette, setPalette] = useState<PalettePreference>(readStoredPalette)
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
 
@@ -244,6 +305,13 @@ export function App() {
     else document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
+  // "terrakotta" (Standard) setzt bewusst kein Attribut, aus demselben Grund wie "system" oben.
+  useEffect(() => {
+    window.localStorage.setItem(PALETTE_STORAGE_KEY, palette)
+    if (palette === 'terrakotta') document.documentElement.removeAttribute('data-palette')
+    else document.documentElement.setAttribute('data-palette', palette)
+  }, [palette])
+
   // Berechtigung früh anfragen, unabhängig davon, ob gerade etwas fällig
   // ist: `checkNotifications` unten fragt bewusst nur, wenn `due.length >
   // 0` — bei einer frisch installierten App ohne Fächer/Prüfungen wäre das
@@ -264,6 +332,21 @@ export function App() {
       .then((db) => loadCourses(db))
       .then((rows) => {
         if (!cancelled) setCourses(rows)
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getDb()
+      .then((db) => loadCourseGroups(db))
+      .then((rows) => {
+        if (!cancelled) setCourseGroups(rows)
       })
       .catch(() => {
         // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
@@ -540,6 +623,61 @@ export function App() {
       setCourses((prev) => removeCourse(prev, id))
     } catch (error) {
       console.error('Fach konnte nicht gelöscht werden', error)
+    }
+  }
+
+  const handleAddCourseGroup = async (input: NewCourseGroupInput) => {
+    try {
+      const db = await getDb()
+      const group = await insertCourseGroup(db, input)
+      setCourseGroups((prev) => [...prev, group])
+    } catch (error) {
+      console.error('Ordner konnte nicht gespeichert werden', error)
+    }
+  }
+
+  const handleRenameCourseGroup = async (id: number, name: string) => {
+    try {
+      const db = await getDb()
+      const next = renameCourseGroup(courseGroups, id, name)
+      await updateCourseGroupRow(db, id, { name: next.find((g) => g.id === id)!.name })
+      setCourseGroups(next)
+    } catch (error) {
+      console.error('Ordner konnte nicht umbenannt werden', error)
+    }
+  }
+
+  const handleMoveCourseGroup = async (id: number, newParentId: number | null) => {
+    try {
+      const db = await getDb()
+      const next = moveCourseGroup(courseGroups, id, newParentId)
+      const updated = next.find((g) => g.id === id)!
+      await updateCourseGroupRow(db, id, { parent_id: updated.parent_id, sort_order: updated.sort_order })
+      setCourseGroups(next)
+    } catch (error) {
+      console.error('Ordner konnte nicht verschoben werden', error)
+    }
+  }
+
+  const handleRemoveCourseGroup = async (id: number) => {
+    try {
+      const db = await getDb()
+      const result = deleteCourseGroup(courseGroups, courses, id)
+      await deleteCourseGroupRow(db, id) // kaskadiert Unterordner, setzt courses.group_id per ON DELETE SET NULL
+      setCourseGroups(result.groups)
+      setCourses(result.courses)
+    } catch (error) {
+      console.error('Ordner konnte nicht gelöscht werden', error)
+    }
+  }
+
+  const handleSetCourseGroup = async (courseId: number, groupId: number | null) => {
+    try {
+      const db = await getDb()
+      await setCourseGroupRow(db, courseId, groupId)
+      setCourses((prev) => setCourseGroup(prev, courseId, groupId))
+    } catch (error) {
+      console.error('Fach konnte keinem Ordner zugewiesen werden', error)
     }
   }
 
@@ -1084,19 +1222,22 @@ export function App() {
           <div>
             <div className="app-nav-label">Fach</div>
             <div className="app-nav">
-              {courses
-                .filter((c) => c.archived === 0)
-                .map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    className="app-nav-item"
-                    aria-current={selectedCourseId === c.id ? 'page' : undefined}
-                    onClick={() => setSelectedCourseId(c.id)}
-                  >
-                    <span className="app-nav-item-label">{c.name}</span>
-                  </button>
-                ))}
+              {renderSidebarCourseTree(
+                buildCourseGroupTree(courseGroups, courses.filter((c) => c.archived === 0)),
+                selectedCourseId,
+                setSelectedCourseId,
+              )}
+              {ungroupedCourses(courses.filter((c) => c.archived === 0)).map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className="app-nav-item"
+                  aria-current={selectedCourseId === c.id ? 'page' : undefined}
+                  onClick={() => setSelectedCourseId(c.id)}
+                >
+                  <span className="app-nav-item-label">{c.name}</span>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -1131,6 +1272,16 @@ export function App() {
               onUpdate={handleUpdateCourse}
               onArchive={handleArchiveCourse}
               onRemove={handleRemoveCourse}
+            />
+
+            <CourseGroups
+              courseGroups={courseGroups}
+              courses={courses}
+              onAdd={handleAddCourseGroup}
+              onRename={handleRenameCourseGroup}
+              onMove={handleMoveCourseGroup}
+              onRemove={handleRemoveCourseGroup}
+              onAssignCourse={handleSetCourseGroup}
             />
 
             {selectedCourse && (
@@ -1360,7 +1511,7 @@ export function App() {
           <>
             <UpdateChecker onCheckNow={checkForUpdate} onInstall={installUpdateAndRestart} />
 
-            <AppearanceSetting theme={theme} onChange={setTheme} />
+            <AppearanceSetting theme={theme} onChangeTheme={setTheme} palette={palette} onChangePalette={setPalette} />
 
             <AiSettings />
 

@@ -71,6 +71,12 @@ pub fn run() {
       sql: include_str!("../../src/data/migrations/0004_quiz_language_and_options.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 5,
+      description: "course_groups",
+      sql: include_str!("../../src/data/migrations/0005_course_groups.sql"),
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()
