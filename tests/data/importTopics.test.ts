@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createTestConnection } from './testConnection'
-import { persistAiDetectedDocument, persistExtractedDocument } from '../../src/data/importTopics'
+import { ensureFolderTopicPath, persistAiDetectedDocument, persistExtractedDocument } from '../../src/data/importTopics'
 import { insertCourse } from '../../src/data/coursesRepo'
 import { loadDocuments } from '../../src/data/documentsRepo'
+import { loadTopics } from '../../src/data/topicsRepo'
 import type { Chapter, ExtractedDocument, Slide } from '../../src/ingest/types'
 
 const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const }
@@ -165,5 +166,86 @@ describe('persistAiDetectedDocument', () => {
       { page_start: 2, page_end: 3, slide_count: 0 },
     ])
     expect(await loadDocuments(conn)).toEqual([result.document])
+  })
+})
+
+describe('persistExtractedDocument mit parentTopicId (Ordner-Import)', () => {
+  it('hängt die Kapitel-Themen unter das übergebene Eltern-Thema, statt parent_id = null zu setzen', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
+    const { topicId: folderTopicId } = await ensureFolderTopicPath(conn, course.id, [], ['Consumer Theory'])
+
+    const result = await persistExtractedDocument(conn, course.id, extractedFixture(), META, 'x', folderTopicId)
+
+    expect(result.topics.every((t) => t.parent_id === folderTopicId)).toBe(true)
+  })
+})
+
+describe('ensureFolderTopicPath', () => {
+  it('legt für jeden Ordnernamen ein verschachteltes Thema an', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
+
+    const { topicId, createdTopics } = await ensureFolderTopicPath(conn, course.id, [], ['Consumer Theory', 'Budget'])
+
+    expect(createdTopics.map((t) => t.name)).toEqual(['Consumer Theory', 'Budget'])
+    expect(createdTopics[0]!.parent_id).toBeNull()
+    expect(createdTopics[1]!.parent_id).toBe(createdTopics[0]!.id)
+    expect(topicId).toBe(createdTopics[1]!.id)
+    expect(await loadTopics(conn)).toHaveLength(2)
+  })
+
+  it('legt kein Duplikat an, wenn derselbe Ordnername unter demselben Elternthema schon existiert', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
+
+    const first = await ensureFolderTopicPath(conn, course.id, [], ['Consumer Theory'])
+    const second = await ensureFolderTopicPath(conn, course.id, [...first.createdTopics], ['Consumer Theory'])
+
+    expect(second.createdTopics).toEqual([])
+    expect(second.topicId).toBe(first.topicId)
+    expect(await loadTopics(conn)).toHaveLength(1)
+  })
+
+  it('erkennt Namensgleichheit unabhängig von Groß-/Kleinschreibung und Sonderzeichen (normalizeForCompare)', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
+
+    const first = await ensureFolderTopicPath(conn, course.id, [], ['Consumer Theory'])
+    const second = await ensureFolderTopicPath(conn, course.id, [...first.createdTopics], ['consumer-theory'])
+
+    expect(second.createdTopics).toEqual([])
+    expect(second.topicId).toBe(first.topicId)
+  })
+
+  it('behandelt gleichnamige Ordner unter verschiedenen Elternthemen als eigenständige Themen', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
+
+    const a = await ensureFolderTopicPath(conn, course.id, [], ['Microeconomics', 'Übung'])
+    const b = await ensureFolderTopicPath(conn, course.id, [...a.createdTopics], ['Money & Banking', 'Übung'])
+
+    expect(a.topicId).not.toBe(b.topicId)
+    expect(await loadTopics(conn)).toHaveLength(4)
+  })
+
+  it('vergibt fortlaufende sort_order an Geschwister-Themen desselben Elternthemas', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
+
+    const root = await ensureFolderTopicPath(conn, course.id, [], ['Microeconomics'])
+    let known = [...root.createdTopics]
+    const budget = await ensureFolderTopicPath(conn, course.id, known, ['Microeconomics', 'Budget'])
+    known = [...known, ...budget.createdTopics]
+    const preferences = await ensureFolderTopicPath(conn, course.id, known, ['Microeconomics', 'Preferences'])
+
+    expect(budget.createdTopics[0]!.sort_order).toBe(0)
+    expect(preferences.createdTopics[0]!.sort_order).toBe(1)
+  })
+
+  it('wirft, wenn keine Ordnernamen übergeben werden', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
+    await expect(ensureFolderTopicPath(conn, course.id, [], [])).rejects.toThrow()
   })
 })
