@@ -68,6 +68,33 @@ Art (`fix`, `docs`, `test`, `chore`).
 
 ---
 
+## Releases
+
+> **Standing instruction (Claude):** Nach jeder vom Nutzer angestoßenen
+> Änderung, die tatsächlich sichtbares/nutzbares Verhalten betrifft (UI,
+> Funktion, Bugfix — nicht reine Doku-/Interna-Änderungen), automatisch:
+> Version anheben (`package.json`, `src-tauri/tauri.conf.json`,
+> `src-tauri/Cargo.toml` — alle drei gleichzeitig), signierten Release-Build
+> bauen (`TAURI_SIGNING_PRIVATE_KEY` aus `~/.tauri/lernplaner-updater.key`
+> bzw. dem Backup unter `App/signing-key-backup/`), `latest.json` erzeugen
+> und einen neuen GitHub Release veröffentlichen (Zip fürs manuelle
+> Nachinstallieren + `.tar.gz`/`.sig`/`latest.json` für den Auto-Updater).
+> **Ohne erneute Rückfrage** — das ist der ganze Sinn dieser Anweisung:
+> der Nutzer soll jede Änderung direkt in der laufenden App sehen können,
+> ohne bei jedem Mal erneut nach einem Release zu fragen (siehe ADR-008).
+>
+> Ablauf, der sich bewährt hat (PR #32/#33 als Präzedenzfall):
+> 1. Feature-Branch → PR → **Merge automatisch autorisiert** (Nutzerwunsch,
+>    2026-07-22) — nicht mehr einzeln nachfragen.
+> 2. Version an der dritten Stelle (Minor) anheben, nicht Patch — jede
+>    veröffentlichte Änderung ist für die zwei Nutzer sichtbar, nicht nur
+>    intern.
+> 3. Build + Signierung + Release wie oben.
+> 4. Kurze Release-Notes: was hat sich geändert, in einfachen Worten (nicht
+>    Commit-Message-Jargon) — die Nutzer sind keine Entwickler.
+
+---
+
 ## Vor jedem Push
 
 ```bash
