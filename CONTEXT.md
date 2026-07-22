@@ -2013,16 +2013,69 @@ Zurückgestellt, jeweils auf Rückfrage:
 
 ### Nächster Schritt
 
-Sobald der Nutzer einen KI-Anbieter wählt (oder der 1. September echte
-Nutzungsdaten liefert), die zurückgestellten Punkte in der Reihenfolge
-oben angehen. Bis dahin: keine offenen, ohne Rückfrage umsetzbaren
-Phase-4-Punkte mehr.
+**KI-Anbieter-Entscheidung gefallen (2026-07-22): Anthropic/Claude.** Der
+Nutzer möchte als nächstes den Claude-API-Key einbauen — das entsperrt
+Quiz-Generierung, Probeklausur-Simulation und Altklausur-Analyse (siehe
+zurückgestellte Punkte oben). Als erster Schritt braucht es die
+`ai/`-Schicht, die laut ARCHITECTURE.md beschrieben, aber noch nicht als
+Code existiert (kein `src/ai/`-Verzeichnis, siehe ADR-002/ADR-007) — plus
+den Key sicher in der macOS-Keychain ablegen (SECURITY.md verspricht das
+bereits, ist aber noch nirgends im Code umgesetzt, siehe ADR-010s
+Recherche dazu). Sinnvoller Start einer neuen Sitzung: `ai/`-Schnittstelle
++ Claude-Anbindung aufsetzen, danach die erste zurückgestellte
+Roadmap-Funktion (vermutlich Quiz-Generierung) angehen.
 
 ### Danach (unverändert aus der Roadmap)
 
 Phase 1, Phase 2 und Phase 3 sind komplett.
 
 Siehe [ROADMAP.md](ROADMAP.md) für die vollständige Phasenplanung.
+
+### Zwischenstand: Design-System, Auto-Updater, Verteilung (2026-07-22)
+
+Parallel zu Phase 4 eine komplette macOS-native Design-Überarbeitung plus
+Verteilungsinfrastruktur — beides unabhängig vom Roadmap-Fortschritt oben,
+aber für jede künftige Sitzung wichtig zu wissen:
+
+- **Design-System** (`PRODUCT.md`, `DESIGN.md`, `src/styles/tokens.css`,
+  `src/styles/global.css`, siehe PR #32): Sidebar+Toolbar-App-Rahmen im
+  macOS-Stil mit Liquid-Glass-Vibrancy (`backdrop-filter`), warme
+  Creme-/Terrakotta-Palette (an die Claude-App angelehnt, auf
+  Nutzerwunsch — nicht Apple-Blau), Systemschrift statt Web-Fonts.
+  `App.tsx` von einer langen Ein-Seiten-Scrollliste auf 7 Sektionen mit
+  Navigation umgestellt. Fach-Farbe (`CourseSetup.tsx`) als kuratiertes
+  Dropdown (`COURSE_COLORS`) statt freier Hex-Eingabe.
+- **Auto-Updater** (ADR-008, PRs #32/#34): `tauri-plugin-updater` +
+  `tauri-plugin-process`, Signierschlüssel lokal unter
+  `~/.tauri/lernplaner-updater.key` (Backup zusätzlich unter
+  `App/signing-key-backup/` im Projektordner, dort `.gitignore`-geschützt
+  über die `*.key`-Regel). **Repository ist deshalb public** (nötig,
+  damit der unauthentifizierte Update-Check der App private
+  Release-Assets erreichen kann) — Quellcode ist öffentlich einsehbar,
+  private Lerndaten/PDFs waren nie im Repo, davon unberührt.
+  `ui/UpdateBanner.tsx` zeigt automatisch (Start + alle 45 Min., PR #40)
+  einen Hinweis bei neuer Version.
+- **Benachrichtigungen laufen nur In-App** (ADR-009, PR #39): native
+  macOS-Push-Benachrichtigungen funktionieren bei unserem
+  ad-hoc-signierten Build nicht zuverlässig (bestätigt: App taucht nie in
+  `com.apple.ncprefs.plist` auf — `UNUserNotificationCenter` braucht
+  echte Apple-Entwickler-ID-Signatur, selbstsigniertes Zertifikat
+  reicht nicht). Auf Rückfrage entschieden: `ui/NotificationBanner.tsx`
+  (In-App) ist der primäre Weg, `showNotification` bleibt nur
+  Best-Effort-Zusatz. Bekannter, akzeptierter Kompromiss: kein Hinweis,
+  solange die App geschlossen ist.
+- **Verfügbarkeit — Mehrfachauswahl** (PR #33): abweichende Tage lassen
+  sich jetzt als Sammlung mehrerer Tage (Chips) auf einmal mit
+  Minuten/Notiz eintragen, statt nur einen Tag pro Durchlauf.
+- **Release-Workflow ist jetzt automatisch** (CONTRIBUTING.md „Releases"-
+  Abschnitt, Standing Instruction seit 2026-07-22): jede sichtbare
+  Änderung wird automatisch versioniert, signiert gebaut und als
+  GitHub-Release veröffentlicht, PR-Merges sind für dieses Repo
+  vorab-autorisiert — beides ohne erneute Rückfrage.
+- **Moodle-Anbindung geprüft und abgelehnt** (ADR-010): WHU nutzt SSO für
+  Moodle, kein Selbstbedienungs-Token verfügbar — der einzig verbleibende
+  Weg (Browser-SSO-Login-Flow) wäre deutlich aufwendiger und im Ausgang
+  ungewiss. Auf Rückfrage nicht verfolgt. Prüfungstermine bleiben manuell.
 
 ---
 
