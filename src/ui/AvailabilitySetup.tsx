@@ -16,7 +16,16 @@ import type { AvailabilityException, AvailabilityPattern } from '../data/schema'
  * (`onSetPatternMinutes`/`onAddException`/`onRemoveException`) nach außen,
  * siehe dortiger Kommentar zur Begründung. Anders als bei
  * `CourseSetup`/`AssessmentSetup` bräuchte `weekday`/`date` als
- * Primärschlüssel keine neue `id` — „Anlegen" ist immer ein Upsert.
+ * Primärschlüssel keine neue `id` — "Anlegen" ist immer ein Upsert.
+ *
+ * **Mehrfachauswahl bei Ausnahme-Tagen:** `onAddException` erwartet weiterhin
+ * genau ein Datum (Primärschlüssel `date`, siehe oben) — statt das
+ * Datenmodell dafür zu verbiegen, sammelt diese Komponente mehrere gewählte
+ * Tage lokal (`selectedDates`) und ruft `onAddException` beim Speichern
+ * einmal pro Tag auf, mit denselben Minuten/derselben Notiz für alle. Wird
+ * kein Tag explizit zur Auswahl hinzugefügt (der einfache Ein-Tag-Fall),
+ * fällt "Speichern" auf das aktuell im Datumsfeld stehende Datum zurück —
+ * der bisherige Ein-Tag-Ablauf bleibt dadurch unverändert nutzbar.
  */
 
 const WEEKDAY_LABELS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'] as const
@@ -36,19 +45,38 @@ export function AvailabilitySetup({
   onAddException,
   onRemoveException,
 }: AvailabilitySetupProps) {
-  const [newException, setNewException] = useState({ date: '', minutes: '', note: '' })
+  const [draftDate, setDraftDate] = useState('')
+  const [selectedDates, setSelectedDates] = useState<string[]>([])
+  const [minutes, setMinutes] = useState('')
+  const [note, setNote] = useState('')
 
   const minutesFor = (weekday: number) => pattern.find((p) => p.weekday === weekday)?.minutes ?? 0
 
+  const addToSelection = () => {
+    if (draftDate.trim().length === 0) return
+    setSelectedDates((prev) => (prev.includes(draftDate) ? prev : [...prev, draftDate]))
+    setDraftDate('')
+  }
+
+  const removeFromSelection = (date: string) => {
+    setSelectedDates((prev) => prev.filter((d) => d !== date))
+  }
+
   const addException = (e: React.FormEvent) => {
     e.preventDefault()
-    if (newException.date.trim().length === 0) return
-    onAddException(
-      newException.date,
-      Number(newException.minutes) || 0,
-      newException.note.trim() === '' ? null : newException.note.trim(),
-    )
-    setNewException({ date: '', minutes: '', note: '' })
+    const dates = selectedDates.length > 0 ? selectedDates : draftDate.trim().length > 0 ? [draftDate] : []
+    if (dates.length === 0) return
+
+    const parsedMinutes = Number(minutes) || 0
+    const trimmedNote = note.trim() === '' ? null : note.trim()
+    for (const date of dates) {
+      onAddException(date, parsedMinutes, trimmedNote)
+    }
+
+    setDraftDate('')
+    setSelectedDates([])
+    setMinutes('')
+    setNote('')
   }
 
   return (
@@ -90,25 +118,32 @@ export function AvailabilitySetup({
       <form onSubmit={addException} aria-label="Ausnahme hinzufügen">
         <label>
           Datum
-          <input
-            type="date"
-            value={newException.date}
-            onChange={(e) => setNewException({ ...newException, date: e.target.value })}
-            required
-          />
+          <input type="date" value={draftDate} onChange={(e) => setDraftDate(e.target.value)} />
         </label>
+        <button type="button" onClick={addToSelection}>
+          Tag zur Auswahl hinzufügen
+        </button>
+
+        {selectedDates.length > 0 && (
+          <ul aria-label="Ausgewählte Tage">
+            {selectedDates.map((date) => (
+              <li key={date}>
+                {date}
+                <button type="button" onClick={() => removeFromSelection(date)} aria-label={`${date} aus Auswahl entfernen`}>
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <label>
           Minuten
-          <input
-            type="number"
-            min={0}
-            value={newException.minutes}
-            onChange={(e) => setNewException({ ...newException, minutes: e.target.value })}
-          />
+          <input type="number" min={0} value={minutes} onChange={(e) => setMinutes(e.target.value)} />
         </label>
         <label>
           Notiz
-          <input value={newException.note} onChange={(e) => setNewException({ ...newException, note: e.target.value })} />
+          <input value={note} onChange={(e) => setNote(e.target.value)} />
         </label>
         <button type="submit">Ausnahme hinzufügen</button>
       </form>

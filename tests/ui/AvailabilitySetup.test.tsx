@@ -47,6 +47,45 @@ describe('AvailabilitySetup', () => {
     expect(onAddException).toHaveBeenCalledWith('2026-08-03', 30, 'Zahnarzt')
   })
 
+  it('fügt eine Ausnahme für mehrere zur Auswahl hinzugefügte Tage gleichzeitig hinzu', async () => {
+    const user = userEvent.setup()
+    const onAddException = vi.fn()
+    render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddException={onAddException} />)
+
+    await user.type(screen.getByLabelText('Datum'), '2026-08-03')
+    await user.click(screen.getByRole('button', { name: 'Tag zur Auswahl hinzufügen' }))
+    await user.type(screen.getByLabelText('Datum'), '2026-08-05')
+    await user.click(screen.getByRole('button', { name: 'Tag zur Auswahl hinzufügen' }))
+
+    expect(screen.getByText('2026-08-03')).toBeInTheDocument()
+    expect(screen.getByText('2026-08-05')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Minuten'), '45')
+    await user.type(screen.getByLabelText('Notiz'), 'Ferien')
+    await user.click(screen.getByRole('button', { name: 'Ausnahme hinzufügen' }))
+
+    expect(onAddException).toHaveBeenCalledTimes(2)
+    expect(onAddException).toHaveBeenCalledWith('2026-08-03', 45, 'Ferien')
+    expect(onAddException).toHaveBeenCalledWith('2026-08-05', 45, 'Ferien')
+  })
+
+  it('entfernt einen Tag wieder aus der Auswahl, bevor gespeichert wird', async () => {
+    const user = userEvent.setup()
+    const onAddException = vi.fn()
+    render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddException={onAddException} />)
+
+    await user.type(screen.getByLabelText('Datum'), '2026-08-03')
+    await user.click(screen.getByRole('button', { name: 'Tag zur Auswahl hinzufügen' }))
+    await user.type(screen.getByLabelText('Datum'), '2026-08-05')
+    await user.click(screen.getByRole('button', { name: 'Tag zur Auswahl hinzufügen' }))
+
+    await user.click(screen.getByRole('button', { name: '2026-08-03 aus Auswahl entfernen' }))
+    await user.click(screen.getByRole('button', { name: 'Ausnahme hinzufügen' }))
+
+    expect(onAddException).toHaveBeenCalledTimes(1)
+    expect(onAddException).toHaveBeenCalledWith('2026-08-05', 0, null)
+  })
+
   it('entfernt eine Ausnahme', async () => {
     const user = userEvent.setup()
     const exceptions: AvailabilityException[] = [{ date: '2026-08-03', minutes: 30, note: null }]
