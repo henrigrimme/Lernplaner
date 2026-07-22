@@ -25,6 +25,10 @@
     {
       "identifier": "opener:allow-open-path",
       "allow": [{ "path": "$CACHE/*" }]
+    },
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://api.anthropic.com/*" }]
     }
   ]
 }

@@ -329,3 +329,45 @@ und Dauer ungewiss).
 Instanz den Browser-SSO-Launch (`admin/tool/mobile/launch.php`) tatsächlich
 unterstützt, bevor wieder Code entsteht — derselbe Verifikations-zuerst-
 Ansatz wie dieses Mal.
+
+---
+
+## ADR-011 — Claude-API-Anbindung: Keychain-Speicherung via `keyring`-Crate, HTTP via `tauri-plugin-http`
+**2026-07-22 · angenommen**
+
+**Kontext:** ADR-002 wurde auf Nutzerwunsch von „zunächst Gemini
+Flash-Lite" auf Anthropic/Claude aktualisiert. Für die erste Anbindung
+(`ai/`-Schicht, siehe ARCHITECTURE.md) waren zwei technische Fragen offen:
+wie der API-Schlüssel sicher in der macOS-Keychain landet (SECURITY.md
+versprach das bereits, ohne dass es Code gab), und wie der HTTP-Aufruf aus
+dem Tauri-Webview heraus zuverlässig funktioniert.
+
+**Entscheidung:**
+- **Keychain:** die Rust-Crate `keyring` (plattformübergreifend, nutzt auf
+  macOS die Security-Framework-Keychain) hinter drei schlanken
+  Tauri-Commands (`keychain_set_secret`/`_get_secret`/`_delete_secret`,
+  `src-tauri/src/lib.rs`), Service-Name `com.henrigrimme.lernplaner`.
+  Alternative *Web-Storage/`localStorage`* verworfen — das wäre eine
+  Klartext-Datei, kein Keychain-Zugriff, und widerspräche SECURITY.md
+  direkt.
+- **HTTP:** `@tauri-apps/plugin-http`/`tauri-plugin-http` statt
+  Browser-`fetch`. Der Aufruf läuft dadurch über die Rust-Seite statt durch
+  die Webview-Same-Origin-Policy — kein Risiko, dass Anthropics API
+  CORS-Header für Direktzugriffe aus einem `tauri://`/`http://localhost`-
+  Ursprung verweigert. Netzwerk-Scope auf `https://api.anthropic.com/*`
+  begrenzt (`src-tauri/capabilities/default.json`), analog zum bereits
+  bestehenden `fs`-Scope auf `$CACHE/*`.
+- **Modell:** `claude-haiku-4-5` für `refineTopics`/`estimateDifficulty` —
+  beide Aufgaben brauchen kein anspruchsvolles Reasoning, und der günstigste
+  Claude-Tarif passt zum in ADR-002/ADR-007 angenommenen Kostenrahmen
+  (< 1 €/Monat im Planungsbetrieb). Ein Wechsel zu einem stärkeren Modell
+  für die spätere Quiz-Generierung bleibt vorgesehen (ADR-002-Folge).
+
+**Begründung:** Beide Bausteine sind reine Infrastrukturentscheidungen ohne
+Nutzer-Tradeoff — sie setzen nur bereits getroffene Entscheidungen
+(SECURITY.md, ADR-002) tatsächlich um, statt neue Richtungen zu wählen.
+
+**Folge:** `ai_usage`-Protokollierung (ADR-007) ist über
+`data/aiUsageRepo.ts` angebunden, aber die eigentliche
+Budget-Benachrichtigung im `NotificationBanner` noch nicht verdrahtet —
+das bleibt ein späterer Schritt, sobald echte Nutzungsdaten anfallen.

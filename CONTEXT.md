@@ -2013,17 +2013,42 @@ Zurückgestellt, jeweils auf Rückfrage:
 
 ### Nächster Schritt
 
-**KI-Anbieter-Entscheidung gefallen (2026-07-22): Anthropic/Claude.** Der
-Nutzer möchte als nächstes den Claude-API-Key einbauen — das entsperrt
-Quiz-Generierung, Probeklausur-Simulation und Altklausur-Analyse (siehe
-zurückgestellte Punkte oben). Als erster Schritt braucht es die
-`ai/`-Schicht, die laut ARCHITECTURE.md beschrieben, aber noch nicht als
-Code existiert (kein `src/ai/`-Verzeichnis, siehe ADR-002/ADR-007) — plus
-den Key sicher in der macOS-Keychain ablegen (SECURITY.md verspricht das
-bereits, ist aber noch nirgends im Code umgesetzt, siehe ADR-010s
-Recherche dazu). Sinnvoller Start einer neuen Sitzung: `ai/`-Schnittstelle
-+ Claude-Anbindung aufsetzen, danach die erste zurückgestellte
-Roadmap-Funktion (vermutlich Quiz-Generierung) angehen.
+**`ai/`-Schicht + Claude-Anbindung aufgesetzt (2026-07-22, siehe ADR-011).**
+Der zuvor hier beschriebene erste Schritt ist erledigt:
+
+- `src/ai/types.ts` — `AIProvider`-Schnittstelle exakt wie in
+  ARCHITECTURE.md beschrieben (`refineTopics`, `estimateDifficulty`), plus
+  `AIUsage`/`AIUsageListener` für die Kostenprotokollierung.
+- `src/ai/anthropicProvider.ts` — Implementierung gegen die Claude Messages
+  API (`claude-haiku-4-5`, ausreichend für Themenverfeinerung/
+  Schwierigkeitseinschätzung, passt zum Kostenrahmen aus ADR-002/ADR-007).
+- `src/ai/index.ts` — `getConfiguredAIProvider()`/`testAnthropicApiKey()`,
+  liest den Schlüssel aus der Keychain.
+- `src/platform/keychain.ts` + drei neue Tauri-Commands in
+  `src-tauri/src/lib.rs` (`keychain_set_secret`/`_get_secret`/
+  `_delete_secret`, `keyring`-Crate) — der Schlüssel verlässt nie die
+  Keychain in Richtung Datenbank/Log (SECURITY.md-Versprechen jetzt
+  umgesetzt).
+- `@tauri-apps/plugin-http`/`tauri-plugin-http` statt Browser-`fetch` für
+  den API-Aufruf (umgeht CORS-Fragen bei Direktzugriffen aus dem Webview;
+  Scope auf `https://api.anthropic.com/*` in
+  `src-tauri/capabilities/default.json`).
+- `src/data/aiUsageRepo.ts` — `insertAiUsage`/`loadMonthlyAiCostEur` gegen
+  die bereits bestehende `ai_usage`-Tabelle (Migration `0002_ai_usage.sql`).
+- `src/ui/AiSettings.tsx` — Einstellungen-Sektion zum Eingeben/Prüfen/
+  Löschen des Schlüssels (der Test-Aufruf validiert den Schlüssel, bevor
+  er gespeichert wird).
+
+**Noch nicht Teil dieses Schritts:** Die Budget-Benachrichtigung selbst
+(ADR-007 „bei Überschreiten wird benachrichtigt") ist mit
+`loadMonthlyAiCostEur` vorbereitet, aber noch nicht an
+`NotificationBanner`/`domain/notifications.ts` angeschlossen — reine
+Protokollierung reicht für diesen Baustein. Ebenso zurückgestellt: die
+eigentliche Roadmap-Funktion, die den Anbieter nutzt (Quiz-Generierung,
+Probeklausur-Simulation, Altklausur-Analyse, siehe zurückgestellte Punkte
+oben) — `refineTopics`/`estimateDifficulty` sind noch nirgends aus
+`App.tsx` heraus verdrahtet. Sinnvoller Start einer neuen Sitzung: eine
+dieser Funktionen angehen, vermutlich Quiz-Generierung zuerst.
 
 ### Danach (unverändert aus der Roadmap)
 

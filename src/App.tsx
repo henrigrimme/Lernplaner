@@ -15,6 +15,7 @@ import { NotificationBanner } from './ui/NotificationBanner'
 import { UpdateChecker, type UpdateInfo } from './ui/UpdateChecker'
 import { UpdateBanner } from './ui/UpdateBanner'
 import { CalendarExport } from './ui/CalendarExport'
+import { AiSettings } from './ui/AiSettings'
 import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
 import { extractDocument } from './ingest/pdf'
 import { computeSha256, persistExtractedDocument } from './data/importTopics'
@@ -817,6 +818,8 @@ export function App() {
         {activeSection === 'einstellungen' && (
           <>
             <UpdateChecker onCheckNow={checkForUpdate} onInstall={installUpdateAndRestart} />
+
+            <AiSettings />
 
             <NotificationsPanel onCheckNow={checkNotifications} />
 
