@@ -144,6 +144,20 @@ export function App() {
     }
   }, [])
 
+  // Berechtigung früh anfragen, unabhängig davon, ob gerade etwas fällig
+  // ist: `checkNotifications` unten fragt bewusst nur, wenn `due.length >
+  // 0` — bei einer frisch installierten App ohne Fächer/Prüfungen wäre das
+  // sonst nie der Fall, und macOS würde nie fragen dürfen, ob
+  // Benachrichtigungen erlaubt sind (Fehler, an echter Nutzung entdeckt:
+  // erster Start ohne Daten fragt nie). Einmalig beim Start, Ergebnis wird
+  // hier nicht gebraucht — `checkNotifications` prüft den Status später
+  // selbst erneut, bevor es tatsächlich etwas anzeigt.
+  useEffect(() => {
+    ensureNotificationPermission().catch(() => {
+      // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — keine Berechtigungsabfrage möglich.
+    })
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     getDb()
