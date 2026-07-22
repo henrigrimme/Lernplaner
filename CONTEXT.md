@@ -24,16 +24,23 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 22. Juli 2026 (v0.15.0). Phase 4 komplett bis auf
+**Letzte Aktualisierung:** 22. Juli 2026 (v0.16.0). Phase 4 komplett bis auf
 „Nachschärfen aus dem Alltag" (wartet auf echte Nutzungsdaten ab 1. September).
 KI-Anbindung (Claude/ChatGPT, umschaltbar), Quiz-Generierung,
 Probeklausur-Simulation, Altklausur-Analyse, automatische Dokumenttyp-
 Erkennung und Zusammenfassungs-Import per KI sind gebaut und released.
 Neu in v0.14.0: **Ordner-Import** — ganze Ordner (inkl. Unterordner-Struktur)
 lassen sich statt einzelner PDFs importieren. Neu in v0.15.0: **Seitenleiste
-größenverstellbar und einklappbar**. Details zu beidem siehe Abschnitt 8,
-Ende. **Keine offene Implementierungsaufgabe** aus Phase 4 — Details in
-Abschnitt 8 („Stand: KI-Anbindung und Phase 4 — komplett").
+größenverstellbar und einklappbar**. Neu in v0.16.0: **Liquid-Glass-
+Verfeinerung, Dock-Hover-Vergrößerung der Nav-Einträge, Seitenleiste bis auf
+64px ziehbar (Text wird abgeschnitten), Prioritäts-/Schwierigkeits-Richtung
+beim Fach beschriftet, Keychain-Zugriffe werden pro Sitzung gecacht**.
+Details siehe Abschnitt 8, Ende. **Keine offene Implementierungsaufgabe** aus
+Phase 4 — Details in Abschnitt 8 („Stand: KI-Anbindung und Phase 4 —
+komplett"). **In Arbeit:** wiederkehrende Tages-Blocker in der Verfügbarkeit
+(Mittagspause, Abendessen, Gym o. ä. als feste Zeitfenster an bestimmten
+Wochentagen) — Nutzerwunsch vom 22.07.2026, noch nicht umgesetzt, Details
+sobald die Umsetzung beginnt.
 
 **Freigaben, die für diese Sitzung gelten (Nutzer, 22.07.2026):** PR-Merges
 und GitHub-Release-Veröffentlichungen sind zusätzlich zur bereits stehenden
@@ -2308,6 +2315,84 @@ ausdrücklich freigegeben — siehe „Freigaben" oben).
   aktualisiert). `npx tsc --noEmit`, `npm test` (388 Tests) und
   `npm run build` liefen vor dem Release fehlerfrei.
 - **Keine weitere offene Aufgabe aus diesem Wunsch** — vollständig
+  umgesetzt.
+
+### Liquid Glass, Dock-Hover, Keychain-Cache (v0.16.0)
+
+Vier kleinere, im selben Zug umgesetzte Nutzerwünsche: mehr Liquid-Glass-
+Charakter (wie bei Apple), ein Dock-artiger Wachstums-Effekt beim
+Vorbeifahren mit der Maus über die Sidebar, die Seitenleiste so schmal
+ziehbar machen, dass Text abgeschnitten wird, Klarheit über die
+Prioritäts-/Schwierigkeits-Richtung, und (aus der Nachfrage zum
+wiederkehrenden Keychain-Dialog entstanden) weniger native
+Keychain-Zugriffe. Branch `feat/liquid-glass-dock-hover`,
+[PR #46](https://github.com/henrigrimme/Lernplaner/pull/46) (Squash-Merge,
+freigegeben).
+
+- **`tokens.css`**: `--glass-blur` 20px → 26px, `--glass-saturate` 1.8 →
+  2, neue Variable `--glass-highlight` (dezenter 1px-Specular-Highlight am
+  oberen Rand von Sidebar/Toolbar, per `box-shadow: inset`) — das ist der
+  eigentliche „Liquid"-Anteil (Licht bricht sich sichtbar an der Kante),
+  nicht nur ein trüber Filter. Auch für Dark Mode und
+  `prefers-reduced-transparency` abgesichert (dort `transparent`), wie die
+  übrigen Glas-Variablen.
+- **Dock-Magnify** (`ui/AppSidebar.tsx`): `.app-nav-item`-Einträge wachsen
+  je nach Abstand zur Maus (nur Y-Achse, vertikale Liste) über eine
+  CSS-Custom-Property `--dock-scale`, die `global.css` als
+  `transform: scale(var(--dock-scale, 1))` liest. Direkte DOM-Mutation
+  (`item.style.setProperty`) statt React-State/Re-Render pro
+  Mausbewegung, `requestAnimationFrame`-gedrosselt. Bewusst gedämpft
+  (max. 10 % Wachstum, Radius 70px) — anders als beim echten Dock sind das
+  Textzeilen, keine quadratischen Icon-Glyphen, ein größerer Sprung hätte
+  nur unruhig gewirkt. Reagiert automatisch auf
+  `prefers-reduced-motion` (globaler Fallback in `global.css`, forciert
+  `transition-duration` nahe 0 — kein Extra-Code nötig).
+- **Seitenleiste bis auf 64px ziehbar** (`MIN_SIDEBAR_WIDTH` 200 → 64,
+  `AppSidebar.tsx`): `.app-nav-item`/`.app-brand`-Beschriftung jetzt in
+  eigene `<span>`s mit `white-space: nowrap` + `text-overflow: ellipsis`
+  gefasst (vorher direkter Text-Kindknoten des Flex-Buttons — Ellipsis
+  greift zuverlässig nur an einem eigenen Block-/Inline-Block-Element,
+  nicht am Flex-Container selbst). `min-width: 0` an jeder Flex-Ebene
+  nötig, sonst verhindert Flexbox' Default (`min-width: auto`) das
+  Schrumpfen unter die Inhaltsbreite. Bleibt eine eigene, unabhängige
+  Einstellung vom vollständigen Wegklappen (`collapsed`-Toggle in der
+  Toolbar) — dieser Minimalwert ist nur die Ziehgrenze.
+- **`ui/CourseSetup.tsx`**: Labels „Priorität"/„Schwierigkeit" um
+  „(1 = niedrig, 5 = hoch)" bzw. „(1 = leicht, 5 = schwer)" ergänzt — vorher
+  nirgends ersichtlich, in welche Richtung die Skala zeigt.
+  `difficulty`-Richtung war über `domain/estimation.ts`s
+  `scaleMultiplier` bereits real festgelegt (höherer Wert → mehr
+  Lernzeit, siehe „Phase 2 — Planung"-Abschnitt oben); `priority` ist
+  aktuell ein unbenutztes, für spätere Planungslogik vorgesehenes Feld
+  (nur in `coursesRepo.ts` gespeichert, sonst nirgends gelesen) — die
+  Richtung „1 = niedrig, 5 = hoch" ist hier eine reine Beschriftungs-
+  Konvention, konsistent mit `difficulty` gewählt, keine bestehende
+  Logik geändert.
+- **`platform/keychain.ts`**: In-Memory-Cache pro `account`
+  (`Map<string, string | null>`, Sitzungsdauer, kein `localStorage`).
+  Grund: `AiSettings.tsx` liest bei jedem Öffnen von „Einstellungen" und
+  jede KI-Funktion (`ai/index.ts` `getConfiguredAIProvider`) bei jeder
+  Nutzung erneut aus der Keychain — jeder native Zugriff kann macOS'
+  Zugriffsdialog auslösen. Mit Cache passiert der native Zugriff
+  höchstens einmal je Account und App-Start. **Löst nicht** den
+  separaten, bereits dokumentierten Grund, warum der Dialog nach jedem
+  neuen Release-Build erneut erscheint (fehlende
+  Apple-Developer-ID-Signatur, ADR-008/009 weiter oben) — das ist ein
+  Signatur-, kein Zugriffshäufigkeits-Problem, bleibt bestehen.
+- **5 neue Tests** (`tests/platform/keychain.test.ts`, `@tauri-apps/api/core`
+  gemockt): wiederholtes Lesen desselben Accounts ruft nur einmal nativ
+  auf, „nicht vorhanden" (`null`) wird ebenfalls gecacht, verschiedene
+  Accounts unabhängig, `set`/`delete` aktualisieren den Cache sofort ohne
+  zusätzlichen nativen Lesezugriff.
+- **Im echten Browser getestet** (Playwright gegen `npm run dev`):
+  Dock-Hover bestätigt (gehovertes Item ≈1.10x-Skalierung, direkter
+  Nachbar ≈1.06x — Abstands-Falloff funktioniert), Sidebar auf 64–70px
+  gezogen und Text sichtbar per Ellipsis abgeschnitten (Screenshot),
+  keine Konsolenfehler.
+- **Release v0.16.0 veröffentlicht** (signiert, `latest.json`
+  aktualisiert). `npx tsc --noEmit`, `npm test` (393 Tests) und
+  `npm run build` liefen vor dem Release fehlerfrei.
+- **Keine weitere offene Aufgabe aus diesen vier Wünschen** — vollständig
   umgesetzt.
 
 ---
