@@ -1,13 +1,19 @@
 import { useState } from 'react'
-import { buildCalendarEvents, serializeIcs } from '../platform/calendarExport'
+import { buildCalendarEvents, openInCalendarApp, serializeIcs } from '../platform/calendarExport'
 import { triggerDownload } from './triggerDownload'
 import type { StudyBlock, Topic } from '../data/schema'
 
 /**
  * Kalender-Export (ROADMAP.md Phase 3; ADR-006). Reine Präsentation nach
- * außen (ARCHITECTURE.md „ui/") — ICS-Erzeugung lebt vollständig in
+ * außen (ARCHITECTURE.md „ui/") — ICS-Erzeugung/-Export lebt vollständig in
  * `platform/calendarExport.ts`. Tägliche Startzeit ist hier lokaler
  * Zustand (kein Bestandteil des Schemas, siehe dortiger Kommentar).
+ *
+ * **„Exportieren" öffnet direkt Kalender.app** (`openInCalendarApp`) statt
+ * nur eine Datei herunterzuladen — im Dev-Server-Browser (keine echte
+ * Tauri-IPC-Bridge, dieselbe Einschränkung wie bei jedem anderen
+ * `platform/`-Aufruf) fällt es auf den reinen Download zurück
+ * (`triggerDownload`), dann muss die Datei manuell geöffnet werden.
  */
 
 export interface CalendarExportProps {
@@ -21,12 +27,20 @@ const DEFAULT_DAILY_START_TIME = '09:00'
 
 export function CalendarExport({ studyBlocks, topics, now }: CalendarExportProps) {
   const [dailyStartTime, setDailyStartTime] = useState(DEFAULT_DAILY_START_TIME)
+  const [error, setError] = useState<string | null>(null)
 
   const openBlocks = studyBlocks.filter((b) => b.status === 'offen')
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    setError(null)
     const events = buildCalendarEvents(openBlocks, topics, dailyStartTime)
-    triggerDownload('lernplaner.ics', serializeIcs(events, now()), 'text/calendar')
+    const ics = serializeIcs(events, now())
+    try {
+      await openInCalendarApp(ics)
+    } catch {
+      triggerDownload('lernplaner.ics', ics, 'text/calendar')
+      setError('Kalender.app konnte nicht direkt geöffnet werden (nur in der echten App verfügbar) — Datei wurde stattdessen heruntergeladen.')
+    }
   }
 
   return (
@@ -43,6 +57,7 @@ export function CalendarExport({ studyBlocks, topics, now }: CalendarExportProps
       </button>
 
       {openBlocks.length === 0 && <p>Noch keine offenen Lernblöcke zum Exportieren.</p>}
+      {error && <p role="alert">{error}</p>}
     </section>
   )
 }

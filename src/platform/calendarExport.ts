@@ -1,13 +1,27 @@
+import { cacheDir, join } from '@tauri-apps/api/path'
+import { writeTextFile } from '@tauri-apps/plugin-fs'
+import { openPath } from '@tauri-apps/plugin-opener'
 import type { StudyBlock, StudyBlockKind, Topic } from '../data/schema'
 
 /**
  * Kalender-Export (ROADMAP.md Phase 3; ADR-006 „Einseitiger
  * Kalenderexport": „Lernblöcke werden in einen eigenen Kalender
  * exportiert. Kein Rückkanal."). Reine Textformat-Erzeugung (ICS,
- * RFC 5545) — kein Tauri-Plugin/OS-Aufruf nötig, anders als
- * `platform/notifications.ts`; trotzdem hier statt in `domain/`, weil
- * ARCHITECTURE.md „Kalender-Export" explizit der `platform/`-Schicht
- * zuordnet.
+ * RFC 5545) bleibt weiterhin Tauri-frei (`buildCalendarEvents`/
+ * `serializeIcs`) — ARCHITECTURE.md „Kalender-Export" ordnet das Feature
+ * insgesamt der `platform/`-Schicht zu, auch wenn dieser Teil selbst kein
+ * Plugin braucht.
+ *
+ * **`openInCalendarApp` (neu):** schreibt die ICS-Datei in den
+ * App-Cache-Ordner und öffnet sie über `tauri-plugin-opener` mit der
+ * Standard-App (Kalender.app auf macOS) — ein Klick öffnet direkt das
+ * native „Zum Kalender hinzufügen"-Fenster, statt die Datei nur
+ * herunterzuladen und manuell suchen zu müssen (`ui/CalendarExport.tsx`
+ * behält `triggerDownload` als Rückfallebene für den Dev-Server-Browser,
+ * wo es keine echte Tauri-IPC-Bridge gibt — dieselbe Einschränkung wie bei
+ * `data/db.ts`/`platform/notifications.ts`). Bleibt trotzdem ein
+ * Ein-Weg-Export (ADR-006) — es wird nur einmalig importiert, kein
+ * fortlaufender Sync, keine spätere Aktualisierung bestehender Termine.
  *
  * **Uhrzeit-Entscheidung (mit dem Nutzer geklärt, da `study_blocks` nur
  * ein Datum trägt, keine Tageszeit):** feste, vom Nutzer einstellbare
@@ -134,4 +148,17 @@ export function serializeIcs(events: CalendarEvent[], exportedAt: string): strin
 
   lines.push('END:VCALENDAR')
   return lines.join('\r\n')
+}
+
+/**
+ * Schreibt die ICS-Datei in den App-Cache-Ordner und öffnet sie mit der
+ * Standard-App (Kalender.app) — siehe Modul-Kommentar. Wirft im
+ * Dev-Server-Browser (keine echte Tauri-IPC-Bridge), `ui/CalendarExport.tsx`
+ * fängt das ab und fällt auf `triggerDownload` zurück.
+ */
+export async function openInCalendarApp(icsContent: string): Promise<void> {
+  const dir = await cacheDir()
+  const filePath = await join(dir, 'lernplaner.ics')
+  await writeTextFile(filePath, icsContent)
+  await openPath(filePath)
 }
