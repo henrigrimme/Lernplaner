@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AppSidebar, DEFAULT_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from './ui/AppSidebar'
 import { TopicTree } from './ui/TopicTree'
 import { CourseSetup } from './ui/CourseSetup'
 import { AssessmentSetup } from './ui/AssessmentSetup'
@@ -116,6 +117,21 @@ import type {
  */
 type NavSection = 'faecher' | 'verfuegbarkeit' | 'plan' | 'heute' | 'wiederholen' | 'quiz' | 'fortschritt' | 'einstellungen'
 
+// Reine UI-Präferenz (Breite/Ein-Ausgeklappt-Status der Seitenleiste), kein
+// Lerninhalt — bewusst in `localStorage` statt SQLite: unterscheidet sich
+// pro Gerät (unterschiedliche Bildschirmgrößen der zwei Nutzer), muss
+// deshalb ohnehin nicht zwischen ihnen geteilt werden, und `localStorage`
+// ist im Tauri-Webview wie im Vite-Dev-Server ohne IPC verfügbar (anders als
+// `getDb()`) — funktioniert also auch dort, wo Fach-/Themen-Persistenz
+// bekanntermaßen nicht erreichbar ist.
+const SIDEBAR_WIDTH_STORAGE_KEY = 'lernplaner.sidebarWidth'
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'lernplaner.sidebarCollapsed'
+
+function readStoredSidebarWidth(): number {
+  const stored = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
+  return Number.isFinite(stored) && stored >= MIN_SIDEBAR_WIDTH && stored <= MAX_SIDEBAR_WIDTH ? stored : DEFAULT_SIDEBAR_WIDTH
+}
+
 const NAV_ITEMS: { key: NavSection; label: string }[] = [
   { key: 'faecher', label: 'Fächer & Themen' },
   { key: 'verfuegbarkeit', label: 'Verfügbarkeit' },
@@ -156,6 +172,8 @@ export function App() {
     null,
   )
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
+  const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1')
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
 
@@ -198,6 +216,14 @@ export function App() {
       clearInterval(periodicInterval)
     }
   }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth))
+  }, [sidebarWidth])
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, sidebarCollapsed ? '1' : '0')
+  }, [sidebarCollapsed])
 
   // Berechtigung früh anfragen, unabhängig davon, ob gerade etwas fällig
   // ist: `checkNotifications` unten fragt bewusst nur, wenn `due.length >
@@ -974,8 +1000,8 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
-      <nav className="app-sidebar" aria-label="Hauptnavigation">
+    <div className="app-shell" style={{ gridTemplateColumns: `${sidebarCollapsed ? 0 : sidebarWidth}px 1fr` }}>
+      <AppSidebar width={sidebarWidth} collapsed={sidebarCollapsed} onResize={setSidebarWidth}>
         <div className="app-brand">
           <span className="app-brand-mark" aria-hidden="true" />
           Lernplaner
@@ -1015,10 +1041,21 @@ export function App() {
             </div>
           </div>
         )}
-      </nav>
+      </AppSidebar>
 
       <header className="app-toolbar">
-        <h1>{NAV_ITEMS.find((i) => i.key === activeSection)?.label}</h1>
+        <div className="app-toolbar-left">
+          <button
+            type="button"
+            className="app-sidebar-toggle"
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            aria-pressed={sidebarCollapsed}
+            title={sidebarCollapsed ? 'Seitenleiste einblenden' : 'Seitenleiste ausblenden'}
+          >
+            <span className="app-sidebar-toggle-icon" aria-hidden="true" />
+          </button>
+          <h1>{NAV_ITEMS.find((i) => i.key === activeSection)?.label}</h1>
+        </div>
         {selectedCourse && <span>{selectedCourse.name}</span>}
       </header>
 
