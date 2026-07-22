@@ -11,7 +11,8 @@ import { ProgressView } from './ui/ProgressView'
 import { SourceViewer } from './ui/SourceViewer'
 import { CourseExportImport } from './ui/CourseExportImport'
 import { NotificationsPanel } from './ui/NotificationsPanel'
-import { UpdateChecker } from './ui/UpdateChecker'
+import { UpdateChecker, type UpdateInfo } from './ui/UpdateChecker'
+import { UpdateBanner } from './ui/UpdateBanner'
 import { CalendarExport } from './ui/CalendarExport'
 import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
 import { extractDocument } from './ingest/pdf'
@@ -103,6 +104,7 @@ const NAV_ITEMS: { key: NavSection; label: string }[] = [
 
 export function App() {
   const [activeSection, setActiveSection] = useState<NavSection>('faecher')
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [topics, setTopics] = useState<Topic[]>([])
   const [topicSections, setTopicSections] = useState<TopicSection[]>([])
   const [courses, setCourses] = useState<Course[]>([])
@@ -121,6 +123,26 @@ export function App() {
   const [today] = useState(() => new Date().toISOString().slice(0, 10))
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
+
+  // Einmaliger automatischer Update-Check beim Start (nicht wiederholend
+  // während der laufenden Sitzung, kein Scheduler — dieselbe bewusste
+  // Einschränkung wie bei `NotificationsPanel`s manuellem "Jetzt prüfen":
+  // kein `tauri-plugin-cron` o. Ä. in dieser App). Ergebnis geht an
+  // `UpdateBanner`; im Dev-Server/Browser (keine echte Tauri-IPC-Bridge)
+  // bleibt `updateInfo` einfach `null`, kein Fehler sichtbar.
+  useEffect(() => {
+    let cancelled = false
+    checkForUpdate()
+      .then((result) => {
+        if (!cancelled) setUpdateInfo(result)
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — kein Update-Hinweis.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -590,6 +612,8 @@ export function App() {
       </header>
 
       <main className="app-content">
+        <UpdateBanner update={updateInfo} onInstall={installUpdateAndRestart} />
+
         {activeSection === 'faecher' && (
           <>
             <CourseSetup
