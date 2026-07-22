@@ -7,11 +7,12 @@ import type { Assessment, Course, Document, Topic, TopicSection } from '../data/
  * `onGenerate` kapselt sowohl den KI-Aufruf als auch das Speichern in
  * `quizzes`/`questions`, diese Komponente kennt nur Auswahl und Ergebnis.
  *
- * **Nur Themenabschnitte mit noch geladenen PDF-Bytes wählbar** — Belegtext
- * für die KI-Anfrage kommt aus `documentBytes` (nur für in dieser Sitzung
- * importierte Dokumente vorhanden, siehe `ui/SourceViewer.tsx`-Kommentar);
- * ohne echten Belegtext ließe sich `questions.source_page` nicht
- * rechtfertigen (DATA_MODEL.md).
+ * **Nur Themenabschnitte mit geladenen PDF-Bytes wählbar** — Belegtext für
+ * die KI-Anfrage kommt aus `documentBytes` (seit ADR-013 von der
+ * Festplatte nachgeladen, siehe `platform/documentStorage.ts`; nur für vor
+ * diesem Fix importierte Dokumente mit dem alten `in-memory://`-
+ * Platzhalter fehlt das PDF dauerhaft); ohne echten Belegtext ließe sich
+ * `questions.source_page` nicht rechtfertigen (DATA_MODEL.md).
  *
  * „Probeklausur" unterscheidet sich von einem gewöhnlichen Quiz nur durch
  * eine zusätzliche Prüfungs-Zuordnung (für die spätere Zeitbegrenzung in
@@ -140,8 +141,9 @@ export function QuizSetup({ courses, topics, topicSections, documents, documentB
 
       {availableSections.length === 0 ? (
         <p>
-          Keine Themenabschnitte mit noch geladenem PDF verfügbar — Materialien werden nur für die laufende Sitzung im
-          Speicher gehalten (siehe „Fächer & Themen"). Erst ein PDF für dieses Fach importieren oder erneut öffnen.
+          Keine Themenabschnitte mit geladenem PDF verfügbar — entweder noch kein Material für dieses Fach importiert,
+          oder das Dokument wurde vor der Änderung importiert, die Materialien dauerhaft speichert (siehe „Fächer &
+          Themen"). Einmal neu importieren, danach bleibt es erhalten.
         </p>
       ) : (
         <ul>

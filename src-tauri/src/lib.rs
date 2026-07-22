@@ -59,6 +59,12 @@ pub fn run() {
       sql: include_str!("../../src/data/migrations/0002_ai_usage.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 3,
+      description: "document_type_label",
+      sql: include_str!("../../src/data/migrations/0003_document_type_label.sql"),
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

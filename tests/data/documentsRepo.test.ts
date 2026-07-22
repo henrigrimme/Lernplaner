@@ -7,9 +7,10 @@ const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', 
 
 const DOCUMENT_INPUT = {
   filename: '02 Consumer Theory 01.pdf',
-  stored_path: 'in-memory://02 Consumer Theory 01.pdf',
+  stored_path: 'documents/abc123.pdf',
   sha256: 'abc123',
   doc_type: 'folien' as const,
+  doc_type_label: null,
   pdf_pages: 5,
   slide_count: 3,
   unique_chars: 120,

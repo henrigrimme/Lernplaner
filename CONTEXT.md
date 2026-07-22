@@ -2067,20 +2067,44 @@ Navigationspunkt „Quiz". Dokumenttyp ist beim PDF-Import jetzt wählbar
 `altklausur` markiert werden können.
 
 Quiz-Generierung funktioniert nur für Themenabschnitte, deren PDF noch in
-der laufenden Sitzung im Speicher liegt (`documentBytes`) — PDF-Rohbytes
-werden bewusst nicht persistiert (SECURITY.md), `ingest/pdf.ts` bekam dafür
-`extractPageRangeText`. Freitext-Fragen werden wie Karteikarten durch
-Selbsteinschätzung bewertet, nur Multiple-Choice automatisch. Gewichts-
-vorschläge aus der Altklausur-Analyse werden nie automatisch übernommen
-(ADR-005-Prinzip) und rühren nie ein `manual_override`-Thema an.
+der laufenden Sitzung im Speicher liegt (`documentBytes`), `ingest/pdf.ts`
+bekam dafür `extractPageRangeText`. Freitext-Fragen werden wie Karteikarten
+durch Selbsteinschätzung bewertet, nur Multiple-Choice automatisch.
+Gewichtsvorschläge aus der Altklausur-Analyse werden nie automatisch
+übernommen (ADR-005-Prinzip) und rühren nie ein `manual_override`-Thema an.
+
+**Nachtrag 4, noch am selben Tag — Bugfix + zwei Nutzerwünsche nach dem
+ersten echten Test (siehe ADR-013):**
+
+- **Bugfix:** API-Schlüssel verschwanden nach Verlassen der Einstellungen
+  wieder. Ursache: `keyring`-Crate ohne Plattform-Feature fällt auf einen
+  nicht-persistenten Mock zurück (`Cargo.toml`: `keyring = "3"` →
+  `keyring = { version = "3", features = ["apple-native"] }`). Bereits
+  eingegebene Schlüssel vor diesem Fix waren nie echt gespeichert und
+  müssen einmalig neu eingegeben werden.
+- **Materialien überstehen jetzt Neustart/Rechner-Aus.** Die Annahme „PDF-
+  Rohbytes bleiben bewusst nicht persistiert" war **kein**
+  SECURITY.md-Verbot, nur noch nicht gebaut — SECURITY.md verbietet nur,
+  PDFs ins Git-Repo zu committen. `platform/documentStorage.ts` schreibt
+  PDFs jetzt unter `$APPDATA/documents/<sha256>.pdf`, `documentBytes` wird
+  beim Start von der Festplatte nachgeladen. Vor diesem Fix importierte
+  Dokumente (`in-memory://`-Platzhalter) bleiben verloren, müssen einmalig
+  neu importiert werden.
+- **Eigene Dokumentkategorien:** Migration `0003_document_type_label.sql`
+  (additiv, `documents.doc_type_label`), Freitextfeld bei „Sonstiges" im
+  Import-Dialog, `<datalist>` mit bereits verwendeten eigenen
+  Bezeichnungen.
 
 **Damit ist Phase 4 komplett bis auf „Nachschärfen aus dem Alltag"** — das
 braucht laut ROADMAP.md echte Nutzungsdaten und wartet auf den
-Echtbetrieb-Start am 1. September 2026. Bis dahin ist aus heutiger Sicht
-kein weiterer Implementierungsschritt zwingend nötig; eine neue Sitzung
-sollte zuerst prüfen, ob der Nutzer die neuen Funktionen (Quiz,
-Probeklausur, Altklausur-Analyse) bereits ausprobiert und Rückmeldung
-dazu hat, bevor an ihnen weitergebaut wird.
+Echtbetrieb-Start am 1. September 2026. Offener Rechercheauftrag vom
+Nutzer (noch nicht begonnen): den lokalen Ordner „Beispiel pdfs" (viele
+neue Unterordner, 2026-07-22 vom Nutzer ergänzt) durchsehen und
+auswerten, welche Dokumentarten/Aufbauten dort vorkommen — Ziel laut
+Nutzer sinngemäß „damit die App sie besser liest". Sinnvoller Start einer
+neuen Sitzung, falls das noch aussteht: zuerst dort nachsehen, ob diese
+Analyse schon gemacht wurde (Ergebnis würde hier oder in einem neuen ADR
+festgehalten), sonst beginnen.
 
 ### Danach (unverändert aus der Roadmap)
 

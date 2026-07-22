@@ -21,6 +21,7 @@ import { QuizSession } from './ui/QuizSession'
 import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
 import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
 import { extractDocument, extractPageRangeText } from './ingest/pdf'
+import { loadDocumentFile, saveDocumentFile } from './platform/documentStorage'
 import { computeSha256, persistExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
 import type { ImportedCourseResult } from './data/courseExport'
@@ -93,11 +94,14 @@ import type {
  * Vite-Dev-Server/Browser, wie bei `platform/notifications.ts`) — die
  * `catch`-Blöcke unten fangen das ab, statt die UI abstürzen zu lassen.
  *
- * PDF-Rohbytes (`documentBytes`) bleiben bewusst **nicht** persistiert
- * (SECURITY.md: PDFs sind urheberrechtlich geschützt, gehören nicht mal
- * ins Repo) — nur für die laufende Sitzung im Speicher, wie zuvor.
- * `documents.stored_path` trägt deshalb noch keinen echten Dateisystempfad
- * (siehe `data/documentsRepo.ts`-Kommentar).
+ * PDF-Rohbytes (`documentBytes`) werden seit ADR-013 auf der Festplatte
+ * persistiert (`platform/documentStorage.ts`, `$APPDATA/documents/`) —
+ * nicht im Git-Repo (SECURITY.md: PDFs sind urheberrechtlich geschützt,
+ * gehören nicht mal ins Repo, deshalb außerhalb des Repo-Ordners unter
+ * Application Support). `documentBytes` wird beim Start von der
+ * Festplatte nachgeladen (siehe Effekt unten); vor ADR-013 importierte
+ * Dokumente tragen noch den alten `in-memory://`-Platzhalter in
+ * `documents.stored_path` und bleiben dauerhaft ohne PDF.
  *
  * **Bekannte Lücke:** Kurs-Export/Import (`applyCourseImport` unten) geht
  * bewusst **nicht** über die Repo-Schicht — es ist ein eigenständiges,
@@ -128,7 +132,7 @@ const DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
   { value: 'altklausur', label: 'Altklausur' },
   { value: 'musterloesung', label: 'Musterlösung' },
   { value: 'zusammenfassung', label: 'Zusammenfassung' },
-  { value: 'sonstiges', label: 'Sonstiges' },
+  { value: 'sonstiges', label: 'Sonstiges (eigene Bezeichnung)' },
 ]
 
 export function App() {
@@ -152,6 +156,7 @@ export function App() {
   const [dueNotifications, setDueNotifications] = useState<NotificationContent[]>([])
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
   const [importDocType, setImportDocType] = useState<DocumentType>('folien')
+  const [importDocTypeLabel, setImportDocTypeLabel] = useState('')
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [questions, setQuestions] = useState<Question[]>([])
   const [answers, setAnswers] = useState<Answer[]>([])
@@ -371,6 +376,38 @@ export function App() {
       cancelled = true
     }
   }, [])
+
+  // Materialien überstehen jetzt einen Neustart (Nutzerwunsch 2026-07-22,
+  // siehe `platform/documentStorage.ts`) — hier werden die PDF-Bytes für
+  // alle bereits bekannten Dokumente von der Festplatte nachgeladen, statt
+  // nur für neu importierte im Speicher zu bleiben. Dokumente mit dem
+  // alten `in-memory://`-Platzhalter (vor dieser Änderung importiert)
+  // liefern hier bewusst nichts — für die ist das PDF unwiederbringlich
+  // verloren, siehe `data/documentsRepo.ts`-Kommentar.
+  useEffect(() => {
+    let cancelled = false
+    const missing = documents.filter((d) => documentBytes[d.id] === undefined)
+    if (missing.length === 0) return
+
+    Promise.all(
+      missing.map(async (doc) => {
+        const bytes = await loadDocumentFile(doc.stored_path)
+        return bytes ? ([doc.id, bytes] as const) : null
+      }),
+    )
+      .then((results) => {
+        if (cancelled) return
+        const loaded = results.filter((r): r is readonly [number, Uint8Array] => r !== null)
+        if (loaded.length === 0) return
+        setDocumentBytes((prev) => ({ ...prev, ...Object.fromEntries(loaded) }))
+      })
+      .catch(() => {
+        // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — Materialien bleiben nicht geladen.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [documents])
 
   useEffect(() => {
     let cancelled = false
@@ -824,11 +861,17 @@ export function App() {
       try {
         const db = await getDb()
         const sha256 = await computeSha256(data)
+        const storedPath = await saveDocumentFile(sha256, data)
         const result = await persistExtractedDocument(
           db,
           selectedCourseId,
           extracted,
-          { storedPath: `in-memory://${file.name}`, sha256, docType: importDocType },
+          {
+            storedPath,
+            sha256,
+            docType: importDocType,
+            docTypeLabel: importDocType === 'sonstiges' ? importDocTypeLabel.trim() || null : null,
+          },
           new Date().toISOString(),
         )
         setTopics((prev) => [...prev, ...result.topics])
@@ -936,6 +979,24 @@ export function App() {
                     ))}
                   </select>
                 </label>
+                {importDocType === 'sonstiges' && (
+                  <label>
+                    Eigene Bezeichnung
+                    <input
+                      value={importDocTypeLabel}
+                      onChange={(e) => setImportDocTypeLabel(e.target.value)}
+                      placeholder="z. B. Formelsammlung"
+                      list="doc-type-label-suggestions"
+                    />
+                    <datalist id="doc-type-label-suggestions">
+                      {Array.from(new Set(documents.map((d) => d.doc_type_label).filter((label): label is string => !!label))).map(
+                        (label) => (
+                          <option key={label} value={label} />
+                        ),
+                      )}
+                    </datalist>
+                  </label>
+                )}
                 <label>
                   PDFs für {selectedCourse.name} importieren
                   <input

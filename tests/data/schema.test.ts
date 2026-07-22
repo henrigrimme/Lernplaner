@@ -17,6 +17,10 @@ const MIGRATION_0002 = readFileSync(
   resolve(__dirname, '../../src/data/migrations/0002_ai_usage.sql'),
   'utf-8',
 )
+const MIGRATION_0003 = readFileSync(
+  resolve(__dirname, '../../src/data/migrations/0003_document_type_label.sql'),
+  'utf-8',
+)
 
 const EXPECTED_TABLES = [
   'courses',

@@ -19,7 +19,19 @@
     },
     {
       "identifier": "fs:allow-exists",
-      "allow": [{ "path": "$CACHE/*" }]
+      "allow": [{ "path": "$CACHE/*" }, { "path": "$APPDATA/documents" }, { "path": "$APPDATA/documents/*" }]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$APPDATA/documents" }]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$APPDATA/documents/*" }]
+    },
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "$APPDATA/documents/*" }]
     },
     "opener:default",
     {

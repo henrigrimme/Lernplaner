@@ -60,6 +60,8 @@ export interface Document {
   stored_path: string
   sha256: string
   doc_type: DocumentType
+  /** Nur bei `doc_type === 'sonstiges'` gesetzt — vom Nutzer frei eingegebene Bezeichnung (Migration 0003). */
+  doc_type_label: string | null
   pdf_pages: number
   slide_count: number
   unique_chars: number

@@ -8,9 +8,10 @@ import { insertTopic } from '../../src/data/topicsRepo'
 const COURSE_INPUT = { name: 'Microeconomics', semester: 'WS26', color: '#000', priority: 3 as const, difficulty: 3 as const }
 const DOCUMENT_INPUT = {
   filename: 'a.pdf',
-  stored_path: 'in-memory://a.pdf',
+  stored_path: 'documents/x.pdf',
   sha256: 'x',
   doc_type: 'folien' as const,
+  doc_type_label: null,
   pdf_pages: 5,
   slide_count: 3,
   unique_chars: 100,

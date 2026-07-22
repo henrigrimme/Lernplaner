@@ -459,3 +459,67 @@ Tests, `tests/domain/quiz.test.ts`/`examWeighting.test.ts`),
 `data/quizzesRepo.ts`/`questionsRepo.ts`/`answersRepo.ts`,
 `ui/QuizSetup.tsx`/`QuizSession.tsx`/`AltklausurAnalysis.tsx`. Neuer
 Navigationspunkt „Quiz" in `App.tsx`.
+
+---
+
+## ADR-013 — Keychain-Fix (`apple-native`-Feature), Materialien überstehen jetzt einen Neustart, eigene Dokumentkategorien
+**2026-07-22 · angenommen**
+
+**Kontext:** Drei vom Nutzer gemeldete Probleme/Wünsche nach dem Testen von
+v0.10.0.
+
+**1. Bugfix: gespeicherte API-Schlüssel verschwanden beim Verlassen der
+Einstellungen.** Ursache gefunden: `keyring = "3"` in `Cargo.toml` (ADR-011)
+wurde ohne Feature-Flag eingebunden. Ohne ein Plattform-Feature (`apple-
+native`, `windows-native`, …) fällt die `keyring`-Crate auf ihren **Mock**-
+Speicher zurück (`keyring::mock`) — und dieser Mock hält Daten nur *im
+jeweiligen `Entry`-Objekt selbst*, nicht in einem geteilten Speicher. Jeder
+Tauri-Command (`keychain_set_secret`/`keychain_get_secret`) erzeugt aber
+über `Entry::new(...)` ein neues, unabhängiges `Entry` — der Mock hat
+deshalb nie tatsächlich etwas gespeichert, unabhängig davon, ob derselbe
+App-Prozess weiterlief. `Cargo.lock` bestätigte das: `keyring`s einzige
+Abhängigkeiten waren `log`/`zeroize`, kein `security-framework`. Bereits
+eingegebene Schlüssel vor diesem Fix sind dadurch nie echt gespeichert
+worden und müssen einmalig neu eingegeben werden. **Entscheidung:**
+`keyring = { version = "3", features = ["apple-native"] }` — zieht
+`security-framework` als echten macOS-Keychain-Backend ein (in `Cargo.lock`
+verifiziert).
+
+**2. Materialien überstehen jetzt Neustart/Rechner-Aus** (Nutzerwunsch,
+korrigiert eine frühere Annahme aus `App.tsx`/`ui/SourceViewer.tsx`: „PDF-
+Bytes bleiben bewusst nicht persistiert" war **kein** SECURITY.md-Verbot,
+sondern schlicht noch nicht gebaut — SECURITY.md verbietet nur, PDFs ins
+Git-Repository zu committen, nicht, sie lokal auf der eigenen Festplatte
+abzulegen). `platform/documentStorage.ts` schreibt importierte PDFs jetzt
+unter `$APPDATA/documents/<sha256>.pdf` (`@tauri-apps/plugin-fs`,
+`documents.stored_path` trägt ab jetzt diesen echten Pfad statt des
+`in-memory://`-Platzhalters). Beim Start lädt `App.tsx` die Bytes aller
+bekannten Dokumente von der Festplatte nach — `documentBytes` bleibt
+dieselbe In-Memory-Struktur wie zuvor, nur ihre Befüllung kommt jetzt auch
+von der Festplatte, nicht nur vom gerade laufenden Import. **Bekannte
+Lücke:** vor diesem Fix importierte Dokumente tragen weiterhin den
+`in-memory://`-Platzhalter — deren PDF-Bytes wurden nie geschrieben und
+sind nicht rückwirkend wiederherstellbar; betroffene Materialien müssen
+einmalig neu importiert werden, danach bleiben sie dauerhaft erhalten.
+
+**3. Eigene Dokumentkategorien.** Der Nutzer wollte mehr als die
+vordefinierten Kategorien (die es mit `uebung`/`musterloesung`/
+`zusammenfassung` bereits gab, ihm aber nicht bewusst war) — konkret eine
+frei betextbare Kategorie, die die KI selbst einordnen soll. `documents.
+doc_type` bleibt auf die sieben Werte beschränkt (CHECK-Constraint aus
+0001_init.sql absichtlich **nicht** angetastet — eine Tabellen-Neuanlage
+zur CHECK-Änderung hätte das Risiko getragen, die `topic_sections`/
+`questions`-Fremdschlüssel auf `documents` durcheinanderzubringen, siehe
+SQLite-Falle bei `ALTER TABLE RENAME` und automatisch mit-umgeschriebenen
+Fremdschlüsseldefinitionen in anderen Tabellen). Stattdessen rein additiv:
+Migration `0003_document_type_label.sql` fügt `doc_type_label TEXT`
+hinzu, gesetzt nur bei `doc_type = 'sonstiges'`. Der Import-Dialog zeigt
+bei „Sonstiges" ein Freitextfeld plus `<datalist>` mit bereits verwendeten
+eigenen Bezeichnungen (fühlt sich wie ein selbst hinzugefügter Reiter an,
+ohne dass jede neue Bezeichnung eine Schema-Änderung bräuchte).
+
+**Begründung:** Alle drei Punkte vermeiden riskante Eingriffe (Tabellen-
+Neuanlage, Migration bestehender Binärdaten) zugunsten additiver,
+risikoarmer Lösungen — konsistent mit der Projektlinie „Ab 1. September
+nur noch additive Änderungen" (CONTRIBUTING.md), hier schon vor diesem
+Datum freiwillig angewendet.

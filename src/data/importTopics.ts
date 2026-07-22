@@ -46,14 +46,12 @@ export async function computeSha256(data: Uint8Array): Promise<string> {
 }
 
 export interface DocumentMeta {
-  /**
-   * Bewusst kein echter Dateisystempfad — siehe `documentsRepo.ts`
-   * `NewDocumentInput.stored_path`-Kommentar (PDF-Bytes bleiben In-Memory,
-   * keine echte Datei-Persistenz in diesem Schritt).
-   */
+  /** Realer Pfad unter `$APPDATA/documents/` — siehe `documentsRepo.ts` `NewDocumentInput.stored_path`-Kommentar. */
   storedPath: string
   sha256: string
   docType: DocumentType
+  /** Nur bei `docType === 'sonstiges'` gesetzt — vom Nutzer frei eingegebene Bezeichnung. */
+  docTypeLabel: string | null
 }
 
 export interface PersistedImport {
@@ -93,6 +91,7 @@ export async function persistExtractedDocument(
       stored_path: meta.storedPath,
       sha256: meta.sha256,
       doc_type: meta.docType,
+      doc_type_label: meta.docTypeLabel,
       pdf_pages: extracted.pdfPages,
       slide_count: extracted.slideCount,
       unique_chars: extracted.uniqueChars,

@@ -10,9 +10,9 @@ import type { Course, Document, Topic } from '../data/schema'
  * „Übernehmen"-Klick (`onApply`) ändert echte Themengewichte. Reine
  * Präsentation (ARCHITECTURE.md „ui/").
  *
- * Nur Dokumente vom Typ `altklausur` mit noch geladenen PDF-Bytes
- * wählbar — dieselbe Einschränkung wie bei `ui/QuizSetup.tsx` (Belegtext
- * nur für in dieser Sitzung importierte Dokumente verfügbar).
+ * Nur Dokumente vom Typ `altklausur` mit geladenen PDF-Bytes wählbar —
+ * dieselbe Einschränkung wie bei `ui/QuizSetup.tsx` (siehe dortigen
+ * Kommentar zu ADR-013/`platform/documentStorage.ts`).
  */
 
 export interface AltklausurAnalysisProps {
@@ -77,10 +77,7 @@ export function AltklausurAnalysis({ course, topics, documents, documentBytes, o
       <h3>Altklausur-Analyse — automatische Gewichtung</h3>
 
       {availableDocs.length === 0 ? (
-        <p>
-          Keine als „Altklausur" importierten Dokumente mit noch geladenem PDF für {course.name} verfügbar (PDFs bleiben
-          nur für die laufende Sitzung im Speicher).
-        </p>
+        <p>Keine als „Altklausur" importierten Dokumente mit geladenem PDF für {course.name} verfügbar.</p>
       ) : (
         <>
           <ul>

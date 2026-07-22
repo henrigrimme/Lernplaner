@@ -101,7 +101,7 @@ describe('SourceViewer', () => {
     render(<SourceViewer topics={[]} topicSections={sections} documentBytes={{}} {...NOOP_CARD_PROPS} />)
 
     await user.click(screen.getByRole('button', { name: 'Im PDF ansehen' }))
-    expect(screen.getByText(/nicht mehr verfügbar/i)).toBeInTheDocument()
+    expect(screen.getByText(/PDF nicht verfügbar/i)).toBeInTheDocument()
   })
 
   it('zeigt den CardCreator, sobald eine Textauswahl gemeldet wird', async () => {

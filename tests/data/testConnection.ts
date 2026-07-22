@@ -19,12 +19,14 @@ import type { SqlConnection } from '../../src/data/db'
 
 const MIGRATION_0001 = readFileSync(resolve(__dirname, '../../src/data/migrations/0001_init.sql'), 'utf-8')
 const MIGRATION_0002 = readFileSync(resolve(__dirname, '../../src/data/migrations/0002_ai_usage.sql'), 'utf-8')
+const MIGRATION_0003 = readFileSync(resolve(__dirname, '../../src/data/migrations/0003_document_type_label.sql'), 'utf-8')
 
 export function createTestConnection(): SqlConnection {
   const db = new Database(':memory:')
   db.pragma('foreign_keys = ON')
   db.exec(MIGRATION_0001)
   db.exec(MIGRATION_0002)
+  db.exec(MIGRATION_0003)
 
   return {
     async execute(sql, params = []) {

@@ -53,7 +53,7 @@ for (const file of files) {
     conn,
     1,
     doc,
-    { storedPath: file, sha256: 'preview', docType: 'folien' },
+    { storedPath: file, sha256: 'preview', docType: 'folien', docTypeLabel: null },
     new Date(0).toISOString(),
   )
 

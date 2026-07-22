@@ -9,9 +9,8 @@ import type { NewCardInput } from '../data/cardsRepo'
  * konkret, direkt zur Quellseite eines Themas zu springen (`page_start`
  * aus `topic_sections`, die bereits die `document_id`/Seitenzahlen tragen,
  * siehe DATA_MODEL.md). Reine Präsentation (ARCHITECTURE.md „ui/") —
- * `documentBytes` kommt vom Aufrufer (`App.tsx`, während des PDF-Imports
- * im Speicher gehalten; siehe dortiger Kommentar zur fehlenden echten
- * Persistenz).
+ * `documentBytes` kommt vom Aufrufer (`App.tsx`, seit ADR-013 auch beim
+ * Start von der Festplatte nachgeladen, siehe `platform/documentStorage.ts`).
  *
  * **Markieren → Karteikarte** (ROADMAP.md Phase 4): `PdfViewer` meldet
  * Textauswahl über `onSelectionChange`, hier als `selection`-Zustand
@@ -25,7 +24,7 @@ import type { NewCardInput } from '../data/cardsRepo'
 export interface SourceViewerProps {
   topics: Topic[]
   topicSections: TopicSection[]
-  /** PDF-Bytes je `document_id` — nur für Dokumente vorhanden, die in dieser Sitzung importiert wurden. */
+  /** PDF-Bytes je `document_id` — fehlt nur für vor ADR-013 importierte Dokumente (alter `in-memory://`-Platzhalter). */
   documentBytes: Record<number, Uint8Array>
   cards: Card[]
   onCreateCard: (input: NewCardInput) => void
@@ -77,7 +76,7 @@ export function SourceViewer({ topics, topicSections, documentBytes, cards, onCr
             onSelectionChange={handleSelectionChange}
           />
         ) : (
-          <p>PDF nicht mehr verfügbar — nur für die aktuelle Sitzung im Speicher (siehe App.tsx).</p>
+          <p>PDF nicht verfügbar — vor der Persistenz-Umstellung importiert, einmal neu importieren, danach bleibt es erhalten.</p>
         ))}
 
       {selection && selectedSection && (
