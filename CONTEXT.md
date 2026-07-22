@@ -24,15 +24,22 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 22. Juli 2026 (v0.14.0). Phase 4 komplett bis auf
+**Letzte Aktualisierung:** 22. Juli 2026 (v0.15.0). Phase 4 komplett bis auf
 „Nachschärfen aus dem Alltag" (wartet auf echte Nutzungsdaten ab 1. September).
 KI-Anbindung (Claude/ChatGPT, umschaltbar), Quiz-Generierung,
 Probeklausur-Simulation, Altklausur-Analyse, automatische Dokumenttyp-
 Erkennung und Zusammenfassungs-Import per KI sind gebaut und released.
 Neu in v0.14.0: **Ordner-Import** — ganze Ordner (inkl. Unterordner-Struktur)
-lassen sich statt einzelner PDFs importieren, Details siehe Abschnitt 8, Ende.
-**Keine offene Implementierungsaufgabe** aus Phase 4 — Details in Abschnitt 8
-(„Stand: KI-Anbindung und Phase 4 — komplett").
+lassen sich statt einzelner PDFs importieren. Neu in v0.15.0: **Seitenleiste
+größenverstellbar und einklappbar**. Details zu beidem siehe Abschnitt 8,
+Ende. **Keine offene Implementierungsaufgabe** aus Phase 4 — Details in
+Abschnitt 8 („Stand: KI-Anbindung und Phase 4 — komplett").
+
+**Freigaben, die für diese Sitzung gelten (Nutzer, 22.07.2026):** PR-Merges
+und GitHub-Release-Veröffentlichungen sind zusätzlich zur bereits stehenden
+CONTRIBUTING.md-Anweisung noch einmal ausdrücklich freigegeben worden,
+nachdem der Auto-Mode-Classifier beide Aktionstypen trotz der stehenden
+Anweisung einmal blockiert hatte. Gilt fortlaufend für diese Sitzung.
 
 ---
 
@@ -2238,6 +2245,67 @@ daraufhin für diese Sitzung alle künftigen Merges ausdrücklich freigegeben).
   Unit-Tests gegen eine echte In-Memory-SQLite-Datenbank abgedeckt.
 - **Release v0.14.0 veröffentlicht** (signiert, `latest.json` aktualisiert,
   Auto-Updater greift). `npx tsc --noEmit`, `npm test` (381 Tests) und
+  `npm run build` liefen vor dem Release fehlerfrei.
+- **Keine weitere offene Aufgabe aus diesem Wunsch** — vollständig
+  umgesetzt.
+
+### Seitenleiste größenverstellbar und einklappbar (v0.15.0)
+
+Nutzerwunsch: die linke Navigationsleiste (Fächer, Verfügbarkeit, Planung,
+…) sollte sich in der Breite anpassen und komplett wegklappen lassen, damit
+mehr Platz für den eigentlichen Inhalt bleibt — wie in der Claude-App. Kein
+neuer Branch-Name mit PR-Nummer-Präzedenzfall nötig, gleicher Ablauf wie
+beim Ordner-Import: Branch `feat/sidebar-resizable-collapsible`,
+[PR #45](https://github.com/henrigrimme/Lernplaner/pull/45) (Squash-Merge,
+ausdrücklich freigegeben — siehe „Freigaben" oben).
+
+- **`ui/AppSidebar.tsx`** (neu): reine Präsentationskomponente wie
+  `TopicTree`/`CourseSetup`. Breite (`width`) und Eingeklappt-Status
+  (`collapsed`) kommen als Props von außen (kontrollierte Komponente) —
+  die Komponente hält nur den kurzlebigen `isResizing`-Zustand während
+  einer laufenden Ziehbewegung. Ein Trenngriff (`role="separator"`, echtes
+  `<button>` statt reinem `<div>` für Tastaturbedienbarkeit) am rechten
+  Rand: Ziehen per Maus (`document`-weite `mousemove`/`mouseup`-Listener,
+  analog zum Muster in `ui/PdfViewer.tsx`s Selektions-Listener),
+  Pfeiltasten (±16px), Home/End (Minimal-/Maximalbreite), Doppelklick setzt
+  die Standardbreite (260px) zurück. Grenzen `MIN_SIDEBAR_WIDTH` (200) /
+  `MAX_SIDEBAR_WIDTH` (420), exportiert und in `App.tsx` beim Lesen aus
+  `localStorage` zum Klemmen wiederverwendet (kein doppelt gepflegter
+  Grenzwert). Bei `collapsed = true` liefert die Komponente `null` — die
+  Leiste verschwindet vollständig aus dem DOM, nicht nur optisch
+  (`display: none`/Breite 0 hätte den Screenreader-Baum unnötig
+  aufgebläht).
+- **`App.tsx`**: `sidebarWidth`/`sidebarCollapsed`-Zustand, in
+  `localStorage` gespiegelt (`lernplaner.sidebarWidth`/
+  `lernplaner.sidebarCollapsed`) — **bewusst nicht** in SQLite wie die
+  übrigen Entitäten (Persistenz-Härtung Bausteine 1–7): eine reine
+  geräteabhängige UI-Präferenz, kein Lerninhalt, muss zwischen den zwei
+  Nutzern nicht geteilt werden, und `localStorage` funktioniert (anders als
+  `getDb()`/`tauri-plugin-sql`) auch ohne echtes Tauri-Fenster — dieselbe
+  Einschränkung, die bei jedem anderen Persistenz-Baustein den
+  Dev-Server-Test verhindert, greift hier also nicht. `app-shell`s
+  `grid-template-columns` wird per Inline-Style aus diesem Zustand gesetzt
+  (`${collapsed ? 0 : width}px 1fr`) — dynamischer Laufzeitwert, bewusste
+  Ausnahme von der sonstigen Konvention „keine Inline-Styles in `App.tsx`"
+  (CSS-Klassen können keinen beliebigen Pixelwert abbilden). Toggle-Button
+  für Ein-/Ausklappen sitzt in der Toolbar (`app-sidebar-toggle`,
+  CSS-gezeichnetes macOS-artiges Sidebar-Symbol, kein SVG/Icon-Set im
+  Projekt) — bewusst dort und nicht in der Leiste selbst: bei vollständig
+  weggeklappter Leiste gäbe es sonst keinen Weg mehr zurück.
+- **7 neue Tests** (`tests/ui/AppSidebar.test.tsx`): Breite wird gesetzt,
+  `collapsed` rendert nichts, Ziehen ruft `onResize` mit der Mausposition
+  auf (und nicht mehr nach `mouseup`), Klemmen auf Min/Max, Pfeiltasten,
+  Home/End, Doppelklick-Reset.
+- **Im echten Browser getestet** (Playwright gegen `npm run dev` — hier
+  tatsächlich vollständig möglich, anders als bei jedem
+  Persistenz-Baustein: `localStorage` statt SQLite, kein Tauri-Fenster
+  nötig): Resize per Drag (260px → 420px, korrekt geklemmt), Einklappen
+  (Leiste verschwindet vollständig, 0 DOM-Elemente), Ausklappen (Breite
+  bleibt bei 420px erhalten), **Reload** (Breite bleibt über
+  `localStorage` erhalten) — keine Konsolenfehler. Screenshots bestätigen
+  das erwartete Erscheinungsbild.
+- **Release v0.15.0 veröffentlicht** (signiert, `latest.json`
+  aktualisiert). `npx tsc --noEmit`, `npm test` (388 Tests) und
   `npm run build` liefen vor dem Release fehlerfrei.
 - **Keine weitere offene Aufgabe aus diesem Wunsch** — vollständig
   umgesetzt.
