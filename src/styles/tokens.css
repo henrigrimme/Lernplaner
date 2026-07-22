@@ -1,0 +1,109 @@
+/**
+ * Design-Tokens — siehe DESIGN.md für die Begründung der Werte.
+ * OKLCH durchgängig (PRODUCT.md/DESIGN.md-Doktrin). Farbstrategie:
+ * warme Creme-/Beige-Neutrale + ein Terrakotta-Akzent, an der Claude-App
+ * orientiert (auf Nutzerwunsch) — kombiniert mit macOS-Materialsprache
+ * (Sidebar/Toolbar-Glas, Systemschrift).
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Primär: warmes Terrakotta/Ton — der einzige durchgehende Akzent */
+  --color-primary: oklch(0.64 0.13 45);
+  --color-primary-hover: oklch(0.58 0.14 45);
+  --color-primary-ink: oklch(0.99 0.006 75);
+
+  /* Sekundär: gedämpftes Petrol, für Links/Info/sekundäre Aktionen —
+     bewusst andere Farbfamilie als Primär, nicht nur heller/dunkler */
+  --color-accent: oklch(0.55 0.08 200);
+  --color-accent-hover: oklch(0.49 0.09 200);
+  --color-accent-ink: oklch(0.99 0.006 75);
+
+  /* Systemfarben */
+  --color-success: oklch(0.58 0.13 145);
+  --color-warning: oklch(0.78 0.14 95);
+  --color-danger: oklch(0.55 0.19 20);
+  --color-danger-ink: oklch(0.99 0.006 75);
+
+  /* Neutrale Fläche (hell) — warmes Creme/Beige, keine sterile Weißfläche */
+  --color-bg: oklch(0.97 0.014 75);
+  --color-surface: oklch(0.94 0.017 72);
+  --color-surface-2: oklch(0.895 0.02 68);
+  --color-border: oklch(0.84 0.019 65);
+  --color-ink: oklch(0.26 0.02 50);
+  --color-muted: oklch(0.52 0.02 50);
+
+  /* Glas/Vibrancy — Sidebar, Toolbar, Overlays. Alpha auf --color-surface
+     abgestimmt, damit Blur über hellem UND dunklem Inhalt trägt. */
+  --glass-bg: oklch(0.95 0.016 72 / 0.72);
+  --glass-border: oklch(1 0.01 75 / 0.5);
+  --glass-blur: 20px;
+  --glass-saturate: 1.8;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  --shadow-sm: 0 1px 2px oklch(0.26 0.02 50 / 0.08), 0 1px 1px oklch(0.26 0.02 50 / 0.05);
+  --shadow-md: 0 4px 16px oklch(0.26 0.02 50 / 0.1), 0 1px 3px oklch(0.26 0.02 50 / 0.07);
+  --shadow-lg: 0 12px 32px oklch(0.26 0.02 50 / 0.16), 0 2px 8px oklch(0.26 0.02 50 / 0.09);
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: oklch(0.7 0.13 45);
+    --color-primary-hover: oklch(0.75 0.13 45);
+    --color-primary-ink: oklch(0.18 0.012 50);
+
+    --color-accent: oklch(0.68 0.09 200);
+    --color-accent-hover: oklch(0.73 0.09 200);
+    --color-accent-ink: oklch(0.18 0.012 50);
+
+    --color-success: oklch(0.66 0.13 145);
+    --color-warning: oklch(0.8 0.13 95);
+    --color-danger: oklch(0.63 0.18 20);
+    --color-danger-ink: oklch(0.99 0.006 75);
+
+    --color-bg: oklch(0.19 0.012 50);
+    --color-surface: oklch(0.24 0.015 50);
+    --color-surface-2: oklch(0.29 0.017 50);
+    --color-border: oklch(0.35 0.018 50);
+    --color-ink: oklch(0.92 0.014 75);
+    --color-muted: oklch(0.66 0.016 65);
+
+    --glass-bg: oklch(0.26 0.015 50 / 0.62);
+    --glass-border: oklch(1 0.01 75 / 0.08);
+
+    --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.3);
+    --shadow-md: 0 4px 16px oklch(0 0 0 / 0.35);
+    --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.45);
+  }
+}
+
+/* macOS-Systemeinstellung "Transparenz reduzieren" — Glas fällt auf
+   solide Flächen zurück (PRODUCT.md Accessibility & Inclusion). */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-bg: var(--color-surface);
+    --glass-blur: 0px;
+    --glass-saturate: 1;
+  }
+}

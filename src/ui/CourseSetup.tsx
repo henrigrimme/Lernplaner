@@ -32,7 +32,22 @@ interface DraftCourse {
   difficulty: Course['difficulty']
 }
 
-const EMPTY_DRAFT: DraftCourse = { name: '', semester: '', color: '#4f46e5', priority: 3, difficulty: 3 }
+/** Kuratierte, benannte Fach-Farben statt freier Hex-Eingabe — jede
+ * deutlich unterscheidbar von der Terrakotta-Akzentfarbe der App selbst
+ * (DESIGN.md „One Accent Rule"), damit eine Fach-Farbe nie mit der
+ * App-Akzentfarbe verwechselt wird. */
+export const COURSE_COLORS: { name: string; hex: string }[] = [
+  { name: 'Terrakotta', hex: '#c9754f' },
+  { name: 'Ocker', hex: '#c2a02a' },
+  { name: 'Olivgrün', hex: '#7c8b4a' },
+  { name: 'Petrolblau', hex: '#3e6b6b' },
+  { name: 'Taubenblau', hex: '#6e8cae' },
+  { name: 'Pflaume', hex: '#8b5a7c' },
+  { name: 'Bordeaux', hex: '#8c4a4a' },
+  { name: 'Graphit', hex: '#5c5a55' },
+]
+
+const EMPTY_DRAFT: DraftCourse = { name: '', semester: '', color: '#c9754f', priority: 3, difficulty: 3 }
 
 export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: CourseSetupProps) {
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -111,7 +126,16 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
           </label>
           <label>
             Farbe
-            <input value={draft.color} onChange={(e) => setDraft({ ...draft, color: e.target.value })} />
+            <span className="color-select">
+              <span className="color-swatch" style={{ backgroundColor: draft.color }} aria-hidden="true" />
+              <select value={draft.color} onChange={(e) => setDraft({ ...draft, color: e.target.value })}>
+                {COURSE_COLORS.map((c) => (
+                  <option key={c.hex} value={c.hex}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </span>
           </label>
           <label>
             Priorität
