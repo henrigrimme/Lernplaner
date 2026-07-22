@@ -529,6 +529,22 @@ export function App() {
     return due
   }
 
+  // Automatischer Check statt nur über den "Jetzt prüfen"-Knopf in
+  // NotificationsPanel (Nutzerwunsch, analog zum automatischen
+  // Update-Check oben) — läuft, sobald Lernblöcke/Themen/Prüfungen aus der
+  // DB geladen sind, und danach erneut bei jeder Änderung daran (z. B.
+  // neue Prüfung angelegt). `computeDueNotifications`/`notificationLog`
+  // sorgen dafür, dass jede Art höchstens einmal pro Tag tatsächlich als
+  // native Benachrichtigung gezeigt wird — wiederholtes Auslösen dieses
+  // Effekts ist damit ungefährlich, kein eigener "nur beim allerersten
+  // Laden"-Zustand nötig. `showNotification` (`platform/notifications.ts`)
+  // nutzt bereits die echte macOS-Benachrichtigungszentrale
+  // (`@tauri-apps/plugin-notification`) — erscheint oben rechts wie bei
+  // jeder anderen App, auch wenn Lernplaner nicht im Vordergrund ist.
+  useEffect(() => {
+    checkNotifications()
+  }, [studyBlocks, topics, assessments])
+
   const applyCourseImport = (result: ImportedCourseResult) => {
     setCourses(result.courses)
     setTopics(result.topics)
