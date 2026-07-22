@@ -138,7 +138,7 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
             </span>
           </label>
           <label>
-            Priorität
+            Priorität (1 = niedrig, 5 = hoch)
             <select
               value={draft.priority}
               onChange={(e) => setDraft({ ...draft, priority: Number(e.target.value) as Course['priority'] })}
@@ -151,7 +151,7 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
             </select>
           </label>
           <label>
-            Schwierigkeit
+            Schwierigkeit (1 = leicht, 5 = schwer)
             <select
               value={draft.difficulty}
               onChange={(e) => setDraft({ ...draft, difficulty: Number(e.target.value) as Course['difficulty'] })}

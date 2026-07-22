@@ -36,10 +36,17 @@
 
   /* Glas/Vibrancy — Sidebar, Toolbar, Overlays. Alpha auf --color-surface
      abgestimmt, damit Blur über hellem UND dunklem Inhalt trägt. */
-  --glass-bg: oklch(0.95 0.016 72 / 0.72);
+  --glass-bg: oklch(0.95 0.016 72 / 0.68);
   --glass-border: oklch(1 0.01 75 / 0.5);
-  --glass-blur: 20px;
-  --glass-saturate: 1.8;
+  --glass-blur: 26px;
+  --glass-saturate: 2;
+  /* Katzenauge/Specular-Highlight am oberen Rand von Glas-Flächen (Sidebar,
+     Toolbar) — das macht aus reinem Blur+Vibrancy erst "Liquid Glass"
+     (Apples eigentliches Merkmal: Licht bricht sich sichtbar an der Kante,
+     nicht nur ein trüber Filter). Sehr dezent (1px, geringe Deckkraft), rein
+     additiv über `box-shadow: inset`, nicht Teil der „Glass-Not-Shadow
+     Rule" (die betrifft Elevation/Tiefe, nicht diese Kantenzeichnung). */
+  --glass-highlight: oklch(1 0 0 / 0.5);
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -89,8 +96,9 @@
     --color-ink: oklch(0.92 0.014 75);
     --color-muted: oklch(0.66 0.016 65);
 
-    --glass-bg: oklch(0.26 0.015 50 / 0.62);
+    --glass-bg: oklch(0.26 0.015 50 / 0.58);
     --glass-border: oklch(1 0.01 75 / 0.08);
+    --glass-highlight: oklch(1 0 0 / 0.12);
 
     --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.3);
     --shadow-md: 0 4px 16px oklch(0 0 0 / 0.35);
@@ -105,5 +113,6 @@
     --glass-bg: var(--color-surface);
     --glass-blur: 0px;
     --glass-saturate: 1;
+    --glass-highlight: transparent;
   }
 }
