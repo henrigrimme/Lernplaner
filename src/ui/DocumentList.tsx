@@ -24,12 +24,16 @@ export function DocumentList({ course, documents, onChangeType }: DocumentListPr
 
   return (
     <section aria-label="Importierte Dokumente">
-      <h3>Importierte Dokumente — {course.name}</h3>
-      <ul>
+      <h3>Dokumente</h3>
+      <ul className="document-list">
         {courseDocuments.map((doc) => (
-          <li key={doc.id}>
-            {doc.filename}
+          <li key={doc.id} className="document-list-item">
+            <span className="document-list-icon" aria-hidden="true" />
+            <span className="document-list-filename" title={doc.filename}>
+              {doc.filename}
+            </span>
             <select
+              className="document-list-type"
               value={doc.doc_type}
               onChange={(e) => {
                 const nextType = e.target.value as DocumentType

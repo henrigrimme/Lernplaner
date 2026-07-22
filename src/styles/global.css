@@ -508,6 +508,56 @@ input[type='radio'] {
   flex-shrink: 0;
 }
 
+/* ---------- Dokumentenliste (ui/DocumentList.tsx) ---------- */
+/* Kompakte Zeile statt langem Fließtext (Nutzerwunsch 2026-07-22:
+   "PDF-Icons und kurze Beschreibung statt komplett ausgeschriebenem
+   Text") — Dateiname wird bei Bedarf abgeschnitten, kein Zeilenumbruch. */
+
+/* Höhere Spezifität als die generische `section[aria-label] ul ... > li`-
+   Regel (global.css weiter oben, `flex-wrap: wrap`) nötig, um sie ohne
+   `!important` zu überschreiben — hier soll die Zeile nie umbrechen. */
+section[aria-label] ul.document-list > li.document-list-item {
+  flex-wrap: nowrap;
+}
+
+.document-list-filename {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.document-list-type {
+  flex-shrink: 0;
+  max-width: 160px;
+}
+
+/* Einfaches Dokument-Symbol (Seite mit umgeknickter Ecke), rein aus CSS
+   wie `.app-sidebar-toggle-icon` — kein Icon-Set im Projekt. */
+.document-list-icon {
+  position: relative;
+  width: 15px;
+  height: 18px;
+  flex-shrink: 0;
+  background: var(--color-surface-2);
+  border: 1.3px solid var(--color-muted);
+  border-radius: 2px;
+}
+
+.document-list-icon::after {
+  content: '';
+  position: absolute;
+  top: -1.3px;
+  right: -1.3px;
+  width: 6px;
+  height: 6px;
+  background: var(--color-bg);
+  border-left: 1.3px solid var(--color-muted);
+  border-bottom: 1.3px solid var(--color-muted);
+  border-bottom-left-radius: 2px;
+}
+
 /* ---------- Buttons ---------- */
 
 button {
