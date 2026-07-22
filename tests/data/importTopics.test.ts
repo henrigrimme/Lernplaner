@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createTestConnection } from './testConnection'
-import { persistExtractedDocument } from '../../src/data/importTopics'
+import { persistAiDetectedDocument, persistExtractedDocument } from '../../src/data/importTopics'
 import { insertCourse } from '../../src/data/coursesRepo'
 import { loadDocuments } from '../../src/data/documentsRepo'
 import type { Chapter, ExtractedDocument, Slide } from '../../src/ingest/types'
@@ -134,5 +134,36 @@ describe('persistExtractedDocument', () => {
 
     expect(result.topics).toHaveLength(1)
     expect(result.topicSections).toEqual([])
+  })
+})
+
+describe('persistAiDetectedDocument', () => {
+  it('legt Themen mit dem von der KI erkannten Seitenbereich/Gewicht an, ohne Folien-Umfangsmaße (ADR-015)', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, COURSE_INPUT, 'x')
+
+    const result = await persistAiDetectedDocument(
+      conn,
+      course.id,
+      'Zusammenfassung Money Banking.pdf',
+      { storedPath: 'documents/xyz.pdf', sha256: 'xyz', docType: 'zusammenfassung', docTypeLabel: null },
+      3,
+      [
+        { suggestion: { name: 'Bonds', pageStart: 1, pageEnd: 1, weight: 4 }, uniqueChars: 300 },
+        { suggestion: { name: 'Financial Intermediaries', pageStart: 2, pageEnd: 3, weight: 2 }, uniqueChars: 500 },
+      ],
+      'x',
+    )
+
+    expect(result.document).toMatchObject({ doc_type: 'zusammenfassung', pdf_pages: 3, slide_count: 0, unique_chars: 800 })
+    expect(result.topics.map((t) => ({ name: t.name, weight: t.weight, manual_override: t.manual_override }))).toEqual([
+      { name: 'Bonds', weight: 4, manual_override: 0 },
+      { name: 'Financial Intermediaries', weight: 2, manual_override: 0 },
+    ])
+    expect(result.topicSections.map((s) => ({ page_start: s.page_start, page_end: s.page_end, slide_count: s.slide_count }))).toEqual([
+      { page_start: 1, page_end: 1, slide_count: 0 },
+      { page_start: 2, page_end: 3, slide_count: 0 },
+    ])
+    expect(await loadDocuments(conn)).toEqual([result.document])
   })
 })

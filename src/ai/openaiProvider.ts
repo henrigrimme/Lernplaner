@@ -1,7 +1,15 @@
 import { fetch } from '@tauri-apps/plugin-http'
 import type { ExtractedDocument } from '../ingest/types'
 import type { Topic } from '../data/schema'
-import type { AIProvider, AIUsage, AIUsageListener, ExamTopicMatch, QuestionSuggestion, TopicSuggestion } from './types'
+import type {
+  AIProvider,
+  AIUsage,
+  AIUsageListener,
+  ExamTopicMatch,
+  QuestionSuggestion,
+  TextTopicSuggestion,
+  TopicSuggestion,
+} from './types'
 
 /**
  * Übergangslösung, bis die Zahlung für den Anthropic-API-Zugang klappt
@@ -167,5 +175,29 @@ export class OpenAIProvider implements AIProvider {
     const parsed = extractJson(text)
     if (!Array.isArray(parsed)) throw new Error('OpenAI-Antwort war kein JSON-Array')
     return parsed as ExamTopicMatch[]
+  }
+
+  async detectTopicsFromText(pages: { pageNumber: number; text: string }[]): Promise<TextTopicSuggestion[]> {
+    const pagedText = pages.map((p) => `[Seite ${p.pageNumber}]\n${p.text}`).join('\n\n')
+    const prompt = [
+      'Das ist eine von einem Studierenden selbst geschriebene Zusammenfassung — jede Person baut ihre',
+      'Zusammenfassung anders auf (manche mit Überschriften, manche als reine Liste von Frage-Antwort-Paaren',
+      'ohne jede optische Gliederung). Verlasse dich deshalb nicht auf Formatierung, sondern lies den',
+      'gesamten Text inhaltlich und gruppiere ihn nach den behandelten Themen — auch wenn dieselbe Frage',
+      'thematisch zu einem vorherigen Abschnitt gehört, ohne dass eine neue Überschrift beginnt.',
+      '',
+      'Text (mit Seitenzahlen):',
+      pagedText,
+      '',
+      'Antworte ausschließlich mit einem JSON-Array von Objekten der Form',
+      '{"name": string, "pageStart": number, "pageEnd": number, "weight": 1|2|3|4|5} — "weight" ist der',
+      'geschätzte Lernaufwand (1 sehr leicht bis 5 sehr aufwendig). Kein weiterer Text.',
+    ].join('\n')
+
+    const { text, usage } = await callOpenAi(this.apiKey, prompt)
+    this.report('detect_topics_from_text', usage)
+    const parsed = extractJson(text)
+    if (!Array.isArray(parsed)) throw new Error('OpenAI-Antwort war kein JSON-Array')
+    return parsed as TextTopicSuggestion[]
   }
 }

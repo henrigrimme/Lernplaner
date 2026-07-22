@@ -21,10 +21,10 @@ import { QuizSession } from './ui/QuizSession'
 import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
 import { DocumentList } from './ui/DocumentList'
 import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
-import { extractDocument, extractPageRangeText } from './ingest/pdf'
+import { extractDocument, extractPageRangeText, readPages } from './ingest/pdf'
 import { DOCUMENT_TYPE_OPTIONS, inferDocType } from './ingest/docType'
 import { loadDocumentFile, saveDocumentFile } from './platform/documentStorage'
-import { computeSha256, persistExtractedDocument } from './data/importTopics'
+import { computeSha256, persistAiDetectedDocument, persistExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
 import type { ImportedCourseResult } from './data/courseExport'
 import { getDb } from './data/db'
@@ -854,28 +854,63 @@ export function App() {
     }
   }
 
+  // Zusammenfassungen haben keinen einheitlichen Aufbau (jede Person
+  // schreibt anders, oft ganz ohne optische Gliederung — siehe CONTEXT.md
+  // „Analyse: Beispiel-PDFs") — die folienbasierte Kapitelerkennung
+  // (`extractDocument`) passt hier nicht. Stattdessen liest die KI den
+  // kompletten Seitentext inhaltlich und gruppiert ihn selbst nach Themen
+  // (ADR-015 `detectTopicsFromText`).
+  const importSummaryPdf = async (file: File, data: Uint8Array) => {
+    const provider = await getConfiguredAIProvider(logAiUsage)
+    if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
+
+    const pages = await readPages(data)
+    const pagedText = pages.map((p) => ({ pageNumber: p.number, text: p.lines.map((l) => l.text).join(' ') }))
+    const suggestions = await provider.detectTopicsFromText(pagedText)
+    if (suggestions.length === 0) throw new Error('Es konnten keine Themen erkannt werden.')
+
+    const db = await getDb()
+    const sha256 = await computeSha256(data)
+    const storedPath = await saveDocumentFile(sha256, data)
+    const uniqueCharsByTopic = suggestions.map((suggestion) => ({
+      suggestion,
+      uniqueChars: pagedText
+        .filter((p) => p.pageNumber >= suggestion.pageStart && p.pageNumber <= suggestion.pageEnd)
+        .reduce((sum, p) => sum + p.text.length, 0),
+    }))
+
+    return persistAiDetectedDocument(
+      db,
+      selectedCourseId!,
+      file.name,
+      { storedPath, sha256, docType: 'zusammenfassung', docTypeLabel: null },
+      pages.length,
+      uniqueCharsByTopic,
+      new Date().toISOString(),
+    )
+  }
+
+  const importRegularPdf = async (file: File, data: Uint8Array, docType: DocumentType) => {
+    const db = await getDb()
+    const extracted = await extractDocument(data, file.name)
+    const sha256 = await computeSha256(data)
+    const storedPath = await saveDocumentFile(sha256, data)
+    return persistExtractedDocument(
+      db,
+      selectedCourseId!,
+      extracted,
+      { storedPath, sha256, docType, docTypeLabel: docType === 'sonstiges' ? importDocTypeLabel.trim() || null : null },
+      new Date().toISOString(),
+    )
+  }
+
   const importPdfs = async (files: FileList, docType: DocumentType) => {
     if (selectedCourseId === null) return
 
     for (const file of Array.from(files)) {
       const data = new Uint8Array(await file.arrayBuffer())
-      const extracted = await extractDocument(data, file.name)
       try {
-        const db = await getDb()
-        const sha256 = await computeSha256(data)
-        const storedPath = await saveDocumentFile(sha256, data)
-        const result = await persistExtractedDocument(
-          db,
-          selectedCourseId,
-          extracted,
-          {
-            storedPath,
-            sha256,
-            docType,
-            docTypeLabel: docType === 'sonstiges' ? importDocTypeLabel.trim() || null : null,
-          },
-          new Date().toISOString(),
-        )
+        const result = docType === 'zusammenfassung' ? await importSummaryPdf(file, data) : await importRegularPdf(file, data, docType)
         setTopics((prev) => [...prev, ...result.topics])
         setTopicSections((prev) => [...prev, ...result.topicSections])
         setDocuments((prev) => [...prev, result.document])

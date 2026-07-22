@@ -562,3 +562,48 @@ Vorschläge korrigierbar/widerrufbar zu halten (ADR-005, ADR-012).
 „Unsupported parameter: 'max_tokens'" fehl — `max_completion_tokens`
 ist der von neueren OpenAI-Modellen verlangte Nachfolgeparameter
 (`src/ai/openaiProvider.ts`).
+
+---
+
+## ADR-015 — Zusammenfassungen: KI liest Volltext statt Folien-Kapitelerkennung; kein Bestätigungsdialog vor KI-Übertragung
+**2026-07-22 · angenommen**
+
+**Kontext:** Vertiefte Prüfung mehrerer echter „Zusammenfassung"-Dokumente
+(handschriftliche Notizen, eine reine Frage-Antwort-Liste ganz ohne
+Überschriften, mehrseitige Dokumente mit farbigen Abschnittsbalken) ergab:
+Zusammenfassungen sind von Studierenden selbst geschrieben, jede anders
+aufgebaut. Eine Erkennung über Formatierung (Schriftgröße, Farbe,
+wiederkehrende Kopfzeilen — wie bei Folien in `ingest/chapters.ts`) reicht
+nicht: manche Dokumente haben gar keine visuelle Gliederung, die
+Zugehörigkeit einer Frage zu einem Thema ergibt sich rein inhaltlich.
+
+**Entscheidung:**
+- **Zweiter Einlesepfad statt Erweiterung der bestehenden Kapitelerkennung.**
+  Bei `doc_type = 'zusammenfassung'` wird nicht `ingest/chapters.ts`
+  aufgerufen, sondern der komplette Seitentext (`ingest/pdf.ts`
+  `readPages`) mit Seitenzahl-Markern an die KI geschickt
+  (`AIProvider.detectTopicsFromText`, `data/importTopics.ts`
+  `persistAiDetectedDocument`). Der Prompt weist die KI ausdrücklich an,
+  sich **nicht auf Formatierung zu verlassen**, sondern inhaltlich zu
+  gruppieren — genau der Punkt, den der Nutzer nach eigener Durchsicht
+  des Materials einbrachte.
+- **Themen ohne Hierarchie**, wie bei der Folien-Kapitelerkennung auch
+  (`persistExtractedDocument`) — keine neue Einschränkung.
+  `topic_sections.slide_count` ist immer 0: der Folien-Zuschlag in der
+  Aufwandsschätzung (ADR-004) gilt Diagrammen/Grafiken auf Folien, nicht
+  Fließtext-Seiten.
+- **Kein gesonderter Bestätigungsdialog vor der KI-Übertragung**
+  (Rückfrage, siehe auch die Korrektur in SECURITY.md „Was an externe
+  Dienste übertragen wird"): der Nutzer löst die Übertragung durch die
+  eigene Auswahl des Dokuments beim Import ohnehin bewusst aus, ein
+  zusätzlicher Dialog wäre reine Reibung ohne echten Zugewinn.
+
+**Bekannte Grenze, nicht behoben:** handschriftliche/gescannte Notizen
+(z. B. per Tablet-App exportierte Mitschriften) enthalten zwar oft eine
+Text-Ebene, diese ist aber häufig grob fehlerhaft und in falscher
+Lesereihenfolge (Handschrift-OCR der Notiz-App, nicht linear angeordnet)
+— an echtem Material geprüft (`pdftotext` lieferte sinnentstellte,
+durcheinandergewürfelte Wortfetzen). Für solches Material bräuchte es
+echte Bilderkennung/OCR, was ROADMAP.md „Später / offen" bereits als
+eigenen, noch nicht terminierten Punkt führt („OCR, Handschrift") — hier
+bewusst nicht mitgelöst.

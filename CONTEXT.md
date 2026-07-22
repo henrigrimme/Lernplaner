@@ -2164,6 +2164,33 @@ bearbeitet"-Regel für `documents`.
 verlangen `max_completion_tokens` statt `max_tokens`
 (`src/ai/openaiProvider.ts`).
 
+**Nachtrag 5, noch am selben Tag — Zusammenfassungen und ein weiterer
+Kurstyp (ADR-015):**
+
+- Vertiefte Prüfung mehrerer Zusammenfassungen (handschriftliche
+  Notizen, eine reine Frage-Antwort-Liste ganz ohne Überschriften)
+  bestätigte: rein formatierungsbasierte Erkennung reicht nicht.
+  `ai/detectTopicsFromText` liest jetzt den kompletten Seitentext einer
+  Zusammenfassung und gruppiert ihn **inhaltlich** nach Themen, statt auf
+  Überschriften/Formatierung zu setzen. Neuer Einlesepfad
+  `data/importTopics.ts` `persistAiDetectedDocument` (parallel zum
+  bestehenden folienbasierten `persistExtractedDocument`). **Bekannte
+  Grenze:** handschriftliche Notizen (Tablet-App-Export) haben zwar
+  einen Textlayer, dieser ist aber oft fehlerhaft/durcheinandergewürfelt
+  (echte OCR-Erkennung wäre nötig, siehe ROADMAP.md „Später/offen —
+  OCR, Handschrift", hier bewusst nicht mitgelöst).
+- **Neuer Kurstyp gesichtet:** ein Mathematik-Kurs („Topic 1"–„Topic 3"
+  im Beispielordner) mit ganz anderer Namenskonvention als die
+  WHU-Kurse — LaTeX-Beamer-Folien heißen „Vorlesung N", Übungsblätter
+  „Aufgabenblatt N"/„assignments N deutsch.pdf". `ingest/docType.ts`
+  kannte diese deutschen Begriffe noch nicht (nur „Übung"/„Skript"/
+  „Folie" u. Ä.) — Muster für `vorlesung` (→ Folien) und
+  `aufgabenblatt`/`assignment` (→ Übung) ergänzt.
+- Kein Bestätigungsdialog vor KI-Übertragung (Rückfrage, siehe
+  SECURITY.md-Korrektur oben) — die gezielte Nutzung der jeweiligen
+  Funktion (Quiz-Generierung, Altklausur-Analyse, jetzt auch
+  Zusammenfassungs-Import) ist die Bestätigung.
+
 ### Danach (unverändert aus der Roadmap)
 
 Phase 1, Phase 2 und Phase 3 sind komplett.

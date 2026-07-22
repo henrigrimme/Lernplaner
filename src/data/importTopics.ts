@@ -1,6 +1,8 @@
 import type { ExtractedDocument } from '../ingest/types'
 import type { Document, DocumentType, Topic, TopicSection } from './schema'
 import type { SqlConnection } from './db'
+import type { TextTopicSuggestion } from '../ai/types'
+import { normalizeForCompare } from '../ingest/extract'
 import { insertDocument } from './documentsRepo'
 import { insertTopic } from './topicsRepo'
 import { insertTopicSection } from './topicSectionsRepo'
@@ -128,6 +130,74 @@ export async function persistExtractedDocument(
       page_end: Math.max(...pageNumbers),
       unique_chars: chapter.slides.reduce((sum, slide) => sum + slide.chars, 0),
       slide_count: chapter.slides.length,
+    })
+    topicSections.push(section)
+  }
+
+  return { document, topics, topicSections }
+}
+
+/**
+ * Legt ein Dokument an, dessen Themen nicht deterministisch aus
+ * Folienstruktur, sondern von der KI direkt aus dem Volltext erkannt
+ * wurden (ADR-015 „Zusammenfassungen") — z. B. von Studierenden selbst
+ * verfasste Zusammenfassungen ohne einheitlichen Aufbau, bei denen
+ * `ingest/chapters.ts`s folienbasierte Erkennung nicht greift. Jeder
+ * Themenvorschlag trägt seinen Seitenbereich bereits selbst (anders als
+ * `persistExtractedDocument`, wo er aus den Folien der Kapitelgruppe
+ * folgt). `slide_count` ist immer 0 — der Formel-Zuschlag pro Folie
+ * (ADR-004) gilt für Diagramme/Grafiken auf Folien, nicht für
+ * Fließtext-Seiten einer Zusammenfassung.
+ */
+export async function persistAiDetectedDocument(
+  conn: SqlConnection,
+  courseId: number,
+  filename: string,
+  meta: DocumentMeta,
+  pdfPages: number,
+  uniqueCharsByTopic: { suggestion: TextTopicSuggestion; uniqueChars: number }[],
+  importedAt: string,
+): Promise<PersistedImport> {
+  const document = await insertDocument(
+    conn,
+    {
+      course_id: courseId,
+      filename,
+      stored_path: meta.storedPath,
+      sha256: meta.sha256,
+      doc_type: meta.docType,
+      doc_type_label: meta.docTypeLabel,
+      pdf_pages: pdfPages,
+      slide_count: 0,
+      unique_chars: uniqueCharsByTopic.reduce((sum, t) => sum + t.uniqueChars, 0),
+    },
+    importedAt,
+  )
+
+  const topics: Topic[] = []
+  const topicSections: TopicSection[] = []
+
+  for (const [index, { suggestion, uniqueChars }] of uniqueCharsByTopic.entries()) {
+    const topic = await insertTopic(conn, {
+      course_id: courseId,
+      parent_id: null,
+      name: suggestion.name,
+      normalized_name: normalizeForCompare(suggestion.name),
+      weight: suggestion.weight,
+      difficulty: DEFAULT_DIFFICULTY,
+      sort_order: index,
+      status: 'offen',
+      manual_override: 0,
+    })
+    topics.push(topic)
+
+    const section = await insertTopicSection(conn, {
+      topic_id: topic.id,
+      document_id: document.id,
+      page_start: suggestion.pageStart,
+      page_end: suggestion.pageEnd,
+      unique_chars: uniqueChars,
+      slide_count: 0,
     })
     topicSections.push(section)
   }

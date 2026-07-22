@@ -33,6 +33,12 @@ describe('inferDocType', () => {
     expect(inferDocType('Slides Session 1.pdf')).toBe('folien')
   })
 
+  it('erkennt deutsche Mathe-Kurs-Begriffe: "Vorlesung" als Folien, "Aufgabenblatt"/"Assignment" als Übung', () => {
+    expect(inferDocType('Vorlesung 1.pdf')).toBe('folien')
+    expect(inferDocType('assignments 1 deutsch.pdf')).toBe('uebung')
+    expect(inferDocType('Blatt 1.pdf', ['Aufgabenblatt 1'])).toBe('uebung')
+  })
+
   it('fällt ohne jedes Signal auf "folien" zurück (häufigster Fall bei echtem Material)', () => {
     expect(inferDocType('02 Consumer Theory 01.pdf')).toBe('folien')
     expect(inferDocType('Syllabus.pdf')).toBe('folien')

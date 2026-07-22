@@ -16,6 +16,15 @@ export interface AIProvider {
   generateQuestions(topicName: string, sourceText: string, count: number): Promise<QuestionSuggestion[]>
   /** Ordnet Altklausur-Text den übergebenen Themen zu — Grundlage für `domain/examWeighting.ts`. */
   classifyExamContent(topics: { id: number; name: string }[], examText: string): Promise<ExamTopicMatch[]>
+  /**
+   * Erkennt Themen samt Seitenbereich direkt aus dem Volltext (ADR-015)
+   * — für Dokumente ohne einheitliche Struktur (Zusammenfassungen von
+   * Studierenden, jede anders aufgebaut), bei denen die folienbasierte
+   * Kapitelerkennung (`ingest/chapters.ts`) nicht greift. `pages` trägt
+   * echten Seitentext (`ingest/pdf.ts` `readPages`), keine erfundenen
+   * Inhalte.
+   */
+  detectTopicsFromText(pages: { pageNumber: number; text: string }[]): Promise<TextTopicSuggestion[]>
 }
 
 /** Welche `AIProvider`-Implementierung gerade aktiv ist (siehe `ai/index.ts`). */
@@ -46,6 +55,21 @@ export interface QuestionSuggestion {
   answer: string
   explanation: string
   difficulty: 1 | 2 | 3 | 4 | 5
+}
+
+/**
+ * Ein aus Volltext erkanntes Thema (ADR-015) — anders als
+ * `TopicSuggestion` (verfeinert bereits bekannte Folien-Kapitel) enthält
+ * dies den Seitenbereich selbst, weil bei Zusammenfassungen keine
+ * deterministische Kapitelerkennung vorausgeht. Bewusst ohne
+ * `parentName`/Hierarchie — dieselbe Einschränkung wie bei
+ * `data/importTopics.ts` „Jedes Kapitel wird 1:1 zu einem Thema".
+ */
+export interface TextTopicSuggestion {
+  name: string
+  pageStart: number
+  pageEnd: number
+  weight: 1 | 2 | 3 | 4 | 5
 }
 
 /** Wie oft ein Thema im analysierten Altklausur-Text vorkam (`domain/examWeighting.ts`). */

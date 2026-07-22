@@ -29,16 +29,18 @@ export const DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
  * als Übung (das Wort „exercise" kommt in beiden vor). An echtem Material
  * geprüft (WHU-Kurse: Microeconomics, Money Banking and Financial
  * Markets, Data & Information Management, Entrepreneurial Transformation,
- * Nurturing Customer Relationships).
+ * Nurturing Customer Relationships; Mathematik-Kurs: „Vorlesung …"/
+ * „Aufgabenblatt …" — andere Begriffe als bei den WHU-Kursen, deshalb
+ * eigene Muster statt Annahme, „exercise"/„slide" deckten alles ab).
  */
 function classify(text: string): DocumentType | null {
   const t = text.toLowerCase()
   if (/altklausur|old exam|past exam|final exam|exam review|mock exam/.test(t)) return 'altklausur'
   if (/l[oö]sung|solution|answer key/.test(t)) return 'musterloesung'
   if (/zusammenfassung|summary|cheat sheet|revision|key questions/.test(t)) return 'zusammenfassung'
-  if (/[uü]bung|exercise|problem set|tutorial|workshop|task/.test(t)) return 'uebung'
+  if (/[uü]bung|exercise|problem set|tutorial|workshop|task|aufgabenblatt|assignment/.test(t)) return 'uebung'
   if (/skript|script|lecture notes|handout/.test(t)) return 'skript'
-  if (/slide|folie/.test(t)) return 'folien'
+  if (/slide|folie|vorlesung/.test(t)) return 'folien'
   return null
 }
 

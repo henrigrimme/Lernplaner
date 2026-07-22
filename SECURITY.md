@@ -46,21 +46,34 @@ sobald das Repository je jemand anderes zu sehen bekommt.
 
 ## Was an externe Dienste übertragen wird
 
-Die App nutzt eine externe KI-API zur Themenerkennung.
+Die App nutzt eine externe KI-API (Claude oder ChatGPT, je nach eigener
+Wahl in den Einstellungen — siehe ADR-011/ADR-013) für drei Funktionen:
+Quiz-Generierung, Probeklausur-Simulation und Altklausur-Analyse
+(ROADMAP.md Phase 4), sowie die Themenerkennung bei Zusammenfassungen
+(ADR-015, da diese anders als Folien keine einheitliche Struktur haben,
+aus der sich Themen ohne KI zuverlässig ableiten lassen).
 
-**Übertragen wird:** extrahierter Text aus euren Foliensätzen — Titel,
-Kapitelzeilen, Fließtext.
+**Übertragen wird:** extrahierter Text aus den jeweils betroffenen
+Dokumenten — z. B. der Seitentext des ausgewählten Themenabschnitts bei
+Quiz-Generierung, der Volltext ausgewählter Altklausuren bei der
+Altklausur-Analyse, der Volltext einer Zusammenfassung bei deren
+Themenerkennung.
 
-**Nicht übertragen wird:** die PDF-Dateien selbst, euer Lernfortschritt, eure
-Notizen, eure Prüfungsergebnisse.
+**Nicht übertragen wird:** die PDF-Dateien selbst (nur extrahierter
+Text), euer Lernfortschritt, eure Notizen, eure Prüfungsergebnisse.
 
-**Bedingung:** Vor der ersten Übertragung eines Dokuments fragt die App nach.
-Ohne Bestätigung verlässt nichts den Rechner. Für Dokumente, die als
-Altklausur erkannt wurden, wird gesondert gefragt.
+**Kein gesonderter Bestätigungsdialog vor jeder Übertragung** (bewusste
+Entscheidung, 2026-07-22 — eine frühere Fassung dieses Abschnitts hatte
+das versprochen, war aber nie umgesetzt und wurde auf Rückfrage bewusst
+verworfen statt nachträglich gebaut): jede der drei Funktionen wird vom
+Nutzer selbst und gezielt ausgelöst (Knopfdruck in „Quiz"/„Fächer &
+Themen"), das *ist* die Bestätigung. Voraussetzung für jede Übertragung
+bleibt ohnehin ein selbst hinterlegter API-Schlüssel — ohne Schlüssel
+findet keine einzige Übertragung statt.
 
-Wer das nicht möchte, kann die KI-Verfeinerung abschalten — die Kapitelstruktur
-wird ohnehin ohne KI aus den Folien selbst gewonnen. Der Themenbaum wird dann
-gröber, die App bleibt nutzbar.
+Wer das grundsätzlich nicht möchte, hinterlegt einfach keinen API-Schlüssel
+(Einstellungen → „KI-Anbindung") — die App bleibt ohne ihn vollständig
+nutzbar, nur die drei genannten Funktionen sind dann nicht verfügbar.
 
 ---
 
