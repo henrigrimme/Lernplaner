@@ -234,6 +234,7 @@ export function App() {
   const [importDocType, setImportDocType] = useState<DocumentType>('folien')
   const [importDocTypeLabel, setImportDocTypeLabel] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
+  const [importInfo, setImportInfo] = useState<string | null>(null)
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [questions, setQuestions] = useState<Question[]>([])
   const [answers, setAnswers] = useState<Answer[]>([])
@@ -1100,6 +1101,7 @@ export function App() {
   const importPdfs = async (files: FileList, docType: DocumentType) => {
     if (selectedCourseId === null) return
     setImportError(null)
+    setImportInfo(null)
 
     for (const file of Array.from(files)) {
       const data = new Uint8Array(await file.arrayBuffer())
@@ -1135,14 +1137,18 @@ export function App() {
   const importFolder = async () => {
     if (selectedCourseId === null) return
     setImportError(null)
+    setImportInfo(null)
 
     let db: Awaited<ReturnType<typeof getDb>>
     let pickedFiles: PickedPdfFile[]
+    let skipped: string[]
     try {
       const folder = await pickFolder()
       if (folder === null) return // Nutzer hat abgebrochen
       db = await getDb()
-      pickedFiles = await readPdfFilesRecursively(folder)
+      const result = await readPdfFilesRecursively(folder)
+      pickedFiles = result.files
+      skipped = result.skipped
     } catch (error) {
       console.error('Ordner-Import fehlgeschlagen', error)
       setImportError(`Ordner konnte nicht importiert werden: ${error instanceof Error ? error.message : String(error)}`)
@@ -1150,8 +1156,18 @@ export function App() {
     }
 
     if (pickedFiles.length === 0) {
-      setImportError('Der gewählte Ordner enthält keine PDF-Dateien.')
+      setImportError(
+        skipped.length > 0
+          ? `Der gewählte Ordner enthält keine PDF-Dateien — nur andere Formate (${skipped.length}), die der Import (noch) nicht liest: ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ', …' : ''}.`
+          : 'Der gewählte Ordner enthält keine PDF-Dateien.',
+      )
       return
+    }
+
+    if (skipped.length > 0) {
+      setImportInfo(
+        `${skipped.length} Datei(en) übersprungen (kein PDF, wird derzeit nicht unterstützt): ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ', …' : ''}.`,
+      )
     }
 
     // "folien" gilt als noch nicht bewusst gewählt (Default) — nur dann
@@ -1368,6 +1384,7 @@ export function App() {
                   Unterordner) verhalten sich wie beim normalen Import oben.
                 </p>
                 {importError && <p role="alert">{importError}</p>}
+                {importInfo && <p role="status">{importInfo}</p>}
               </>
             )}
 

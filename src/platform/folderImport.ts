@@ -38,28 +38,53 @@ export interface PickedPdfFile {
   data: Uint8Array
 }
 
-async function collectPdfPaths(dir: string, relativePrefix: string, out: { absolute: string; relative: string }[]): Promise<void> {
+// Versteckte Systemdateien, die beim Durchsuchen eines vom Nutzer
+// gewählten Ordners nie als "übersprungenes Dokument" zählen sollen (kein
+// Lernmaterial, entstehen automatisch, z. B. macOS' `.DS_Store`).
+const IGNORED_FILENAMES = new Set(['.ds_store', 'thumbs.db'])
+
+async function collectPaths(
+  dir: string,
+  relativePrefix: string,
+  pdfs: { absolute: string; relative: string }[],
+  skipped: string[],
+): Promise<void> {
   const entries = await readDir(dir)
   for (const entry of entries) {
     const absolute = `${dir}/${entry.name}`
     const relative = relativePrefix ? `${relativePrefix}/${entry.name}` : entry.name
     if (entry.isDirectory) {
-      await collectPdfPaths(absolute, relative, out)
-    } else if (entry.isFile && entry.name.toLowerCase().endsWith('.pdf')) {
-      out.push({ absolute, relative })
+      await collectPaths(absolute, relative, pdfs, skipped)
+    } else if (entry.isFile) {
+      if (entry.name.toLowerCase().endsWith('.pdf')) pdfs.push({ absolute, relative })
+      else if (!IGNORED_FILENAMES.has(entry.name.toLowerCase())) skipped.push(relative)
     }
   }
 }
 
-/** Liest alle PDFs unter `rootPath` rekursiv (Unterordner inklusive). */
-export async function readPdfFilesRecursively(rootPath: string): Promise<PickedPdfFile[]> {
+export interface FolderReadResult {
+  files: PickedPdfFile[]
+  /**
+   * Pfade (relativ zum gewählten Ordner) aller gefundenen Dateien, die
+   * NICHT importiert wurden, weil sie keine PDF sind (z. B. .docx/.xlsx/
+   * .pptx) — der Import unterstützt bisher nur PDF (CONTEXT.md
+   * „Anforderungen", bestätigt). Wird sichtbar gemeldet statt still
+   * übersprungen (Nutzerbericht 2026-07-22: „nicht alle Dokumente wurden
+   * komplett übernommen" — betraf genau diesen Fall, ohne jeden Hinweis).
+   */
+  skipped: string[]
+}
+
+/** Liest alle PDFs unter `rootPath` rekursiv (Unterordner inklusive), meldet alle übrigen Dateien als übersprungen. */
+export async function readPdfFilesRecursively(rootPath: string): Promise<FolderReadResult> {
   const paths: { absolute: string; relative: string }[] = []
-  await collectPdfPaths(rootPath, '', paths)
+  const skipped: string[] = []
+  await collectPaths(rootPath, '', paths, skipped)
 
   const files: PickedPdfFile[] = []
   for (const { absolute, relative } of paths) {
     const data = await readFile(absolute)
     files.push({ relativePath: relative, name: relative.split('/').pop()!, data })
   }
-  return files
+  return { files, skipped }
 }
