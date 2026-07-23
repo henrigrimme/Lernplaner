@@ -4,7 +4,7 @@ import {
   availableMinutesInRange,
   checkCapacity,
 } from '../../src/domain/capacity'
-import type { AvailabilityException, AvailabilityPattern, Blocker } from '../../src/data/schema'
+import type { AvailabilityException, AvailabilityPattern, Blocker, RecurringBlocker } from '../../src/data/schema'
 
 // Montag=1 ... Sonntag=0, wie JS Date#getUTCDay() — nirgends in DATA_MODEL.md
 // beziffert, siehe Kommentar in capacity.ts.
@@ -49,6 +49,56 @@ describe('availableMinutesForDay', () => {
   it('wird nie negativ, auch wenn Blocker den Tag überbuchen', () => {
     const blockers = [blocker({ starts_at: '2026-08-03T00:00:00.000Z', ends_at: '2026-08-04T00:00:00.000Z' })]
     expect(availableMinutesForDay('2026-08-03', WEEKDAY_PATTERN, [], blockers)).toBe(0)
+  })
+
+  it('zählt sich überschneidende Blocker nicht doppelt (Vereinigung, nicht Summe)', () => {
+    // Zwei Blocker überlappen sich 09:00-10:30 UND 10:00-11:00 -> echte
+    // Vereinigung ist 09:00-11:00 (120 Min.), eine naive Summe der
+    // Einzeldauern (90 + 60 = 150 Min.) würde die verfügbare Zeit
+    // unterschätzen.
+    const blockers = [
+      blocker({ starts_at: '2026-08-03T09:00:00.000Z', ends_at: '2026-08-03T10:30:00.000Z' }),
+      blocker({ starts_at: '2026-08-03T10:00:00.000Z', ends_at: '2026-08-03T11:00:00.000Z' }),
+    ]
+    expect(availableMinutesForDay('2026-08-03', WEEKDAY_PATTERN, [], blockers)).toBe(120 - 120)
+  })
+
+  describe('recurringBlockers (wiederkehrende Tages-Blocker)', () => {
+    // 2026-08-03 ist ein Montag (weekday 1), 2026-08-04 Dienstag (weekday 2).
+    const lunchOnMonday: RecurringBlocker[] = [
+      { id: 1, weekday: 1, starts_at: '12:00', ends_at: '13:00', label: 'Mittagspause' },
+    ]
+
+    it('zieht einen wiederkehrenden Blocker am passenden Wochentag ab', () => {
+      expect(availableMinutesForDay('2026-08-03', WEEKDAY_PATTERN, [], [], lunchOnMonday)).toBe(120 - 60)
+    })
+
+    it('lässt einen anderen Wochentag unverändert', () => {
+      expect(availableMinutesForDay('2026-08-04', WEEKDAY_PATTERN, [], [], lunchOnMonday)).toBe(120)
+    })
+
+    it('kombiniert mehrere wiederkehrende Blocker am selben Tag korrekt (keine Überschneidung)', () => {
+      const lunchAndGym: RecurringBlocker[] = [
+        { id: 1, weekday: 1, starts_at: '12:00', ends_at: '13:00', label: 'Mittagspause' },
+        { id: 2, weekday: 1, starts_at: '18:00', ends_at: '19:00', label: 'Gym' },
+      ]
+      expect(availableMinutesForDay('2026-08-03', WEEKDAY_PATTERN, [], [], lunchAndGym)).toBe(120 - 120)
+    })
+
+    it('zählt einen wiederkehrenden Blocker nicht doppelt, wenn er einen absoluten Blocker überschneidet', () => {
+      // Vorlesung 12:30-13:30 überschneidet sich mit der Mittagspause
+      // 12:00-13:00 -> echte Vereinigung ist 12:00-13:30 (90 Min.), nicht
+      // 60 + 60 = 120 Min.
+      const blockers = [blocker({ starts_at: '2026-08-03T12:30:00.000Z', ends_at: '2026-08-03T13:30:00.000Z' })]
+      expect(availableMinutesForDay('2026-08-03', WEEKDAY_PATTERN, [], blockers, lunchOnMonday)).toBe(120 - 90)
+    })
+
+    it('wird nie negativ, auch wenn wiederkehrende Blocker den Tag überbuchen', () => {
+      const wholeDayBlocked: RecurringBlocker[] = [
+        { id: 1, weekday: 1, starts_at: '00:00', ends_at: '23:59', label: 'Ganztägig' },
+      ]
+      expect(availableMinutesForDay('2026-08-03', WEEKDAY_PATTERN, [], [], wholeDayBlocked)).toBe(0)
+    })
   })
 })
 

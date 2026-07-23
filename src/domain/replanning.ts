@@ -6,7 +6,7 @@ import {
   type SchedulingTopic,
   type UnscheduledRemainder,
 } from './scheduling'
-import type { AvailabilityException, AvailabilityPattern, Blocker, StudyBlock, StudyBlockKind } from '../data/schema'
+import type { AvailabilityException, AvailabilityPattern, Blocker, RecurringBlocker, StudyBlock, StudyBlockKind } from '../data/schema'
 
 /**
  * Neuberechnung und Diff (ARCHITECTURE.md „domain/"), nach ADR-005
@@ -215,6 +215,7 @@ export function replan(
   exceptions: AvailabilityException[],
   blockers: Blocker[],
   options: ScheduleOptions = {},
+  recurringBlockers: RecurringBlocker[] = [],
 ): ReplanResult {
   const topics: SchedulingTopic[] = remainingErstdurchgangNeed(existingBlocks).map((need) => ({
     topicId: need.topicId,
@@ -222,7 +223,16 @@ export function replan(
     neededMinutes: need.minutes,
   }))
 
-  const { blocks, unscheduled } = scheduleStudyBlocks(topics, assessments, from, pattern, exceptions, blockers, options)
+  const { blocks, unscheduled } = scheduleStudyBlocks(
+    topics,
+    assessments,
+    from,
+    pattern,
+    exceptions,
+    blockers,
+    options,
+    recurringBlockers,
+  )
 
   // Kein Datumsfilter hier: ein "offen" gebliebener Block *vor* `from` ist
   // genau der Rückstand (verpasst, aber nicht erledigt/gestrichen) und muss

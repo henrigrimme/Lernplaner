@@ -834,3 +834,60 @@ pdfs/`) — die Tests bauen minimale, gültige OOXML-Dateien selbst
 direkt im Test). Sollte der Nutzer echtes Material dieser Formate
 importieren, ist eine erste echte Rückmeldung besonders wertvoll —
 nächste Sitzung danach fragen.
+
+---
+
+## ADR-019 — Wiederkehrende Tages-Blocker: eigene Tabelle, Vereinigungsmenge statt Summe
+**2026-07-23 · angenommen**
+
+**Kontext:** Nutzerwunsch vom 22.07.2026 (damals zugunsten des Import-Bugs
+zurückgestellt, siehe ROADMAP.md „Später/offen"): feste, an einen
+Wochentag gebundene Zeitfenster (Mittagspause, Abendessen, Gym) sollen
+automatisch von der verfügbaren Lernzeit abgezogen werden, ohne dass der
+Nutzer sie für jede einzelne Woche der Vorbereitungszeit (bis zu 4
+Wochen, CONTEXT.md „Nutzer") von Hand als `blockers`-Eintrag anlegen
+muss.
+
+**Entscheidung:**
+1. **Neue Tabelle `recurring_blockers`** (`weekday`, `starts_at`/`ends_at`
+   als reine "HH:MM"-Uhrzeiten, `label`), nicht `blockers` erweitert — die
+   Wiederkehr-Semantik (Wochentag + Uhrzeit statt absolutem Datum) ist ein
+   grundlegend anderes Datenmodell. CHECK-Constraints über
+   `substr`/`CAST` statt eines einfachen GLOB-Musters — ein GLOB wie
+   `[0-2][0-9]:[0-5][0-9]` würde ungültige Stunden wie „25" durchlassen
+   (jede Ziffer 0-2 gefolgt von jeder Ziffer 0-9 passt formal), erst am
+   eigenen Test aufgefallen.
+2. **`domain/capacity.ts` rechnet Blocker und wiederkehrende Blocker als
+   eine gemeinsame Vereinigungsmenge**, nicht als zwei separate Summen
+   (neue Funktion `mergedOverlapMinutes`) — deckt einen latenten Fehler
+   in der bestehenden `blockers`-Logik mit auf: zwei sich überschneidende
+   Blocker (z. B. eine Vorlesung, die zufällig mit der Mittagspause
+   zusammenfällt) hätten ihre gemeinsame Zeit sonst doppelt abgezogen und
+   die verfügbare Zeit unterschätzt. Test dafür ergänzt (auch für den
+   bereits bestehenden reinen `blockers`-Fall, unabhängig von
+   `recurring_blockers`).
+3. **Neue Parameter ans Ende gestellt, nicht an ihre „natürliche" Position
+   vor bestehenden optionalen Parametern** (`scheduleStudyBlocks`,
+   `replan`: `recurringBlockers` nach `options`, nicht davor) — mehrere
+   bestehende Aufrufer/Tests übergeben `options` positional als letztes
+   Argument; ein dazwischengeschobener Parameter hätte diese Aufrufe
+   stillschweigend falsch verdrahtet, statt eines Typfehlers.
+   `domain/planBuilder.ts`s `BuildScheduleInput` ist dagegen ein Objekt —
+   dort ist `recurringBlockers` ein normales optionales Feld, Reihenfolge
+   spielt keine Rolle.
+4. **UI in `ui/AvailabilitySetup.tsx` integriert**, nicht als eigene
+   Komponente — dieselbe Seite („Verfügbarkeit") behandelt bereits
+   Wochenmuster und Ausnahme-Tage, ein dritter eng verwandter Abschnitt
+   („Wiederkehrende Blocker") passt inhaltlich dazu.
+
+**Begründung:** Löst das Problem an der Wurzel (Zeitrechnung in
+`domain/capacity.ts`), nicht nur oberflächlich in der Terminierung —
+sowohl die reine Kapazitätsanzeige (`checkCapacity`) als auch die
+tatsächliche Planung (`scheduleStudyBlocks`) und die Neuberechnung
+(`replan`) berücksichtigen wiederkehrende Blocker jetzt konsistent.
+
+**Neue Dateien:** `src/data/migrations/0006_recurring_blockers.sql`,
+`data/recurringBlockers.ts`/`-Repo.ts`. Geändert: `domain/capacity.ts`
+(Vereinigungsmenge, neue Parameter), `domain/scheduling.ts`/
+`replanning.ts`/`planBuilder.ts` (Parameter durchgereicht),
+`ui/AvailabilitySetup.tsx`/`PlanView.tsx`/`ReplanView.tsx`.

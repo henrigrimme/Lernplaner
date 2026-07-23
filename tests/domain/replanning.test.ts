@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { diffPlans, remainingErstdurchgangNeed, replan } from '../../src/domain/replanning'
 import type { ScheduledBlock } from '../../src/domain/scheduling'
-import type { AvailabilityPattern, StudyBlock } from '../../src/data/schema'
+import type { AvailabilityPattern, RecurringBlocker, StudyBlock } from '../../src/data/schema'
 
 // Montag=1 ... Sonntag=0, wie in capacity.test.ts/scheduling.test.ts.
 const DAILY_60: AvailabilityPattern[] = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
@@ -209,6 +209,35 @@ describe('replan', () => {
         after: expect.objectContaining({ minutes: 45 }),
       },
     ])
+  })
+
+  it('reicht wiederkehrende Tages-Blocker an scheduleStudyBlocks weiter (weniger Kapazität, mehr Tage)', () => {
+    const existingBlocks = [block({ id: 2, planned_date: '2026-08-04', planned_minutes: 120, status: 'offen' })]
+    const lunchDaily: RecurringBlocker[] = [0, 1, 2, 3, 4, 5, 6].map((weekday, id) => ({
+      id: id + 1,
+      weekday: weekday as RecurringBlocker['weekday'],
+      starts_at: '12:00',
+      ends_at: '12:30',
+      label: 'Mittagspause',
+    }))
+
+    const withoutBlocker = replan(existingBlocks, [{ id: 1, date: '2026-08-24' }], '2026-08-10', DAILY_60, [], [], {
+      reviewFraction: 0,
+    })
+    const withBlocker = replan(
+      existingBlocks,
+      [{ id: 1, date: '2026-08-24' }],
+      '2026-08-10',
+      DAILY_60,
+      [],
+      [],
+      { reviewFraction: 0 },
+      lunchDaily,
+    )
+
+    const daysUsed = (blocks: typeof withBlocker.blocks) => new Set(blocks.map((b) => b.planned_date)).size
+    expect(daysUsed(withBlocker.blocks)).toBeGreaterThan(daysUsed(withoutBlocker.blocks))
+    expect(withBlocker.blocks.reduce((sum, b) => sum + b.planned_minutes, 0)).toBe(120)
   })
 
   it('lässt ein bereits vollständig erledigtes Thema unverändert (kein Diff-Eintrag, kein neuer Block)', () => {

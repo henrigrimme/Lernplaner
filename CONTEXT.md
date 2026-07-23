@@ -2939,6 +2939,46 @@ Format). Branch `feat/multi-format-import`.
   Themenerkennung dabei aussah** — das ist der erste echte Test dieser
   vier Pipelines.
 
+### Wiederkehrende Tages-Blocker (ADR-019, Release-Version siehe unten)
+
+Nutzerwunsch vom 22.07.2026 (damals zugunsten des Import-Bugs
+zurückgestellt), jetzt nachgeholt. Branch `feat/recurring-blockers`.
+
+- **Migration 0006** (`recurring_blockers`): Wochentag + „HH:MM"-Uhrzeiten
+  + Bezeichnung. `data/recurringBlockers.ts`/`-Repo.ts` nach dem
+  `paperSteps.ts`-Muster (einfache Entität, `AUTOINCREMENT`-`id`, kein
+  Update — falsch angelegt wird gelöscht und neu erstellt).
+- **`domain/capacity.ts` überarbeitet:** Blocker (absolut datiert) und
+  wiederkehrende Blocker werden jetzt als **eine gemeinsame
+  Vereinigungsmenge** verrechnet (`mergedOverlapMinutes`), nicht mehr als
+  zwei/mehrere separate Summen — deckt dabei einen latenten Fehler in der
+  bereits bestehenden `blockers`-Logik mit auf (zwei sich überschneidende
+  Blocker hätten ihre gemeinsame Zeit vorher doppelt abgezogen). Neuer
+  Test dafür, unabhängig von `recurring_blockers`.
+- **Durchgereicht bis in die eigentliche Planung:** `scheduleStudyBlocks`/
+  `replan`/`buildSchedule` berücksichtigen wiederkehrende Blocker jetzt
+  ebenfalls, nicht nur die Kapazitätsanzeige — neue Parameter bewusst ans
+  **Ende** der Funktionssignaturen gestellt (nicht an ihre naheliegende
+  Position), weil mehrere bestehende Aufrufer `options` bereits
+  positional als letztes Argument übergeben; ein dazwischengeschobener
+  Parameter hätte diese still falsch verdrahtet.
+- **UI in `ui/AvailabilitySetup.tsx` integriert** (neuer Abschnitt
+  „Wiederkehrende Blocker" unter Wochenmuster/Ausnahme-Tage) — Wochentag,
+  Von/Bis (`<input type="time">`), Bezeichnung, mit Validierung „Bis"
+  muss nach „Von" liegen.
+- **20 neue Tests** (`recurringBlockers`/`-Repo` 8, `capacity.ts`-
+  Erweiterungen 6, `scheduling`/`replanning`-Integration 2,
+  `AvailabilitySetup.tsx` 5) — `npx tsc --noEmit`, `npm test` (471
+  Tests), `npm run build`, `cargo check` liefen fehlerfrei.
+- **Im Dev-Server vollständig durchgeklickt** (anders als bei
+  Fach-abhängigen Funktionen: „Verfügbarkeit" braucht kein ausgewähltes
+  Fach) — Blocker anlegen, Validierungsmeldung bei ungültiger Zeitspanne,
+  Screenshot bestätigt. DB-Schreibfehler ohne echtes Tauri-Fenster
+  korrekt abgefangen (dieselbe, bereits x-fach dokumentierte
+  IPC-Einschränkung), kein Absturz, kein optimistisches Update.
+- **Keine weitere offene Aufgabe aus diesem Wunsch** — vollständig
+  umgesetzt.
+
 ---
 
 ## 9. Bekannte Einschränkungen

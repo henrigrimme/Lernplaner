@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { scheduleStudyBlocks } from '../../src/domain/scheduling'
-import type { AvailabilityPattern } from '../../src/data/schema'
+import type { AvailabilityPattern, RecurringBlocker } from '../../src/data/schema'
 
 // Montag=1 ... Sonntag=0, wie in capacity.test.ts.
 const DAILY_60: AvailabilityPattern[] = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
@@ -223,5 +223,43 @@ describe('scheduleStudyBlocks', () => {
     )
     expect(result.blocks).toEqual([])
     expect(result.unscheduled).toEqual([])
+  })
+
+  it('berücksichtigt wiederkehrende Tages-Blocker bei der Terminierung (weniger Zeit pro Tag)', () => {
+    // Mit einer 30-minütigen täglichen Mittagspause bleiben pro Tag nur noch
+    // 30 statt 60 Minuten übrig -> mehr Tage nötig, um denselben Bedarf zu decken.
+    const lunchDaily: RecurringBlocker[] = [0, 1, 2, 3, 4, 5, 6].map((weekday, id) => ({
+      id: id + 1,
+      weekday: weekday as RecurringBlocker['weekday'],
+      starts_at: '12:00',
+      ends_at: '12:30',
+      label: 'Mittagspause',
+    }))
+
+    const withoutBlocker = scheduleStudyBlocks(
+      [{ topicId: 1, assessmentId: 1, neededMinutes: 120 }],
+      [{ id: 1, date: '2026-08-10' }],
+      '2026-08-03',
+      DAILY_60,
+      [],
+      [],
+      { reviewFraction: 0 },
+    )
+    const withBlocker = scheduleStudyBlocks(
+      [{ topicId: 1, assessmentId: 1, neededMinutes: 120 }],
+      [{ id: 1, date: '2026-08-10' }],
+      '2026-08-03',
+      DAILY_60,
+      [],
+      [],
+      { reviewFraction: 0 },
+      lunchDaily,
+    )
+
+    const daysUsed = (blocks: typeof withoutBlocker.blocks) => new Set(blocks.map((b) => b.planned_date)).size
+    expect(daysUsed(withBlocker.blocks)).toBeGreaterThan(daysUsed(withoutBlocker.blocks))
+    // Der Gesamtbedarf wird trotzdem vollständig untergebracht, nur über mehr Tage verteilt.
+    expect(withBlocker.blocks.reduce((sum, b) => sum + b.planned_minutes, 0)).toBe(120)
+    expect(withBlocker.unscheduled).toEqual([])
   })
 })

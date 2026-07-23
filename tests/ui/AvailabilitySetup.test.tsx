@@ -2,10 +2,17 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { AvailabilitySetup } from '../../src/ui/AvailabilitySetup'
-import type { AvailabilityException } from '../../src/data/schema'
+import type { AvailabilityException, RecurringBlocker } from '../../src/data/schema'
 
 function noop() {
-  return { onSetPatternMinutes: vi.fn(), onAddException: vi.fn(), onRemoveException: vi.fn() }
+  return {
+    onSetPatternMinutes: vi.fn(),
+    onAddException: vi.fn(),
+    onRemoveException: vi.fn(),
+    recurringBlockers: [] as RecurringBlocker[],
+    onAddRecurringBlocker: vi.fn(),
+    onRemoveRecurringBlocker: vi.fn(),
+  }
 }
 
 describe('AvailabilitySetup', () => {
@@ -94,5 +101,78 @@ describe('AvailabilitySetup', () => {
 
     await user.click(screen.getByRole('button', { name: 'Entfernen' }))
     expect(onRemoveException).toHaveBeenCalledWith('2026-08-03')
+  })
+
+  describe('Wiederkehrende Blocker', () => {
+    it('listet bestehende wiederkehrende Blocker mit Wochentag, Uhrzeit und Bezeichnung', () => {
+      const recurringBlockers: RecurringBlocker[] = [
+        { id: 1, weekday: 1, starts_at: '12:00', ends_at: '13:00', label: 'Mittagspause' },
+      ]
+      render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} recurringBlockers={recurringBlockers} />)
+      expect(screen.getByText(/Montag, 12:00–13:00: Mittagspause/)).toBeInTheDocument()
+    })
+
+    it('fügt einen neuen wiederkehrenden Blocker mit den Formularwerten hinzu', async () => {
+      const user = userEvent.setup()
+      const onAddRecurringBlocker = vi.fn()
+      render(
+        <AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddRecurringBlocker={onAddRecurringBlocker} />,
+      )
+
+      await user.selectOptions(screen.getByLabelText('Wochentag'), 'Dienstag')
+      fireEvent.change(screen.getByLabelText('Von'), { target: { value: '18:00' } })
+      fireEvent.change(screen.getByLabelText('Bis'), { target: { value: '19:30' } })
+      await user.type(screen.getByLabelText('Bezeichnung'), 'Gym')
+      await user.click(screen.getByRole('button', { name: 'Blocker hinzufügen' }))
+
+      expect(onAddRecurringBlocker).toHaveBeenCalledWith({ weekday: 2, starts_at: '18:00', ends_at: '19:30', label: 'Gym' })
+    })
+
+    it('verweigert das Hinzufügen, wenn "Bis" nicht nach "Von" liegt', async () => {
+      const user = userEvent.setup()
+      const onAddRecurringBlocker = vi.fn()
+      render(
+        <AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddRecurringBlocker={onAddRecurringBlocker} />,
+      )
+
+      fireEvent.change(screen.getByLabelText('Von'), { target: { value: '13:00' } })
+      fireEvent.change(screen.getByLabelText('Bis'), { target: { value: '12:00' } })
+      await user.type(screen.getByLabelText('Bezeichnung'), 'Ungültig')
+
+      expect(screen.getByRole('button', { name: 'Blocker hinzufügen' })).toBeDisabled()
+      expect(screen.getByText('„Bis" muss nach „Von" liegen.')).toBeInTheDocument()
+      expect(onAddRecurringBlocker).not.toHaveBeenCalled()
+    })
+
+    it('verweigert das Hinzufügen ohne Bezeichnung', async () => {
+      const user = userEvent.setup()
+      const onAddRecurringBlocker = vi.fn()
+      render(
+        <AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddRecurringBlocker={onAddRecurringBlocker} />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Blocker hinzufügen' }))
+      expect(onAddRecurringBlocker).not.toHaveBeenCalled()
+    })
+
+    it('entfernt einen wiederkehrenden Blocker', async () => {
+      const user = userEvent.setup()
+      const recurringBlockers: RecurringBlocker[] = [
+        { id: 5, weekday: 3, starts_at: '19:00', ends_at: '20:00', label: 'Abendessen' },
+      ]
+      const onRemoveRecurringBlocker = vi.fn()
+      render(
+        <AvailabilitySetup
+          pattern={[]}
+          exceptions={[]}
+          {...noop()}
+          recurringBlockers={recurringBlockers}
+          onRemoveRecurringBlocker={onRemoveRecurringBlocker}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Entfernen' }))
+      expect(onRemoveRecurringBlocker).toHaveBeenCalledWith(5)
+    })
   })
 })

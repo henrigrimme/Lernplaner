@@ -50,6 +50,7 @@ describe('ReplanView', () => {
         pattern={DAILY_60}
         exceptions={[]}
         blockers={[]}
+        recurringBlockers={[]}
         from="2026-08-10"
         onApply={vi.fn()}
       />,
@@ -73,6 +74,7 @@ describe('ReplanView', () => {
         pattern={DAILY_60}
         exceptions={[]}
         blockers={[]}
+        recurringBlockers={[]}
         from="2026-08-10"
         onApply={vi.fn()}
       />,
@@ -100,6 +102,7 @@ describe('ReplanView', () => {
         pattern={DAILY_60}
         exceptions={[]}
         blockers={[]}
+        recurringBlockers={[]}
         from="2026-08-10"
         onApply={vi.fn()}
       />,
@@ -125,6 +128,7 @@ describe('ReplanView', () => {
         pattern={DAILY_60}
         exceptions={[]}
         blockers={[]}
+        recurringBlockers={[]}
         from="2026-08-10"
         onApply={onApply}
       />,
@@ -152,6 +156,7 @@ describe('ReplanView', () => {
         pattern={DAILY_60}
         exceptions={[]}
         blockers={[]}
+        recurringBlockers={[]}
         from="2026-08-10"
         onApply={onApply}
       />,
