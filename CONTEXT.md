@@ -89,6 +89,12 @@ Nutzer will das später entscheiden, für jetzt reicht der Workaround bei
 zwei Nutzern. Nächste Sitzung: falls das Thema wieder aufkommt (z. B.
 weil der Workaround stört oder ein dritter Nutzer dazukommt), diese
 Notiz und ADR-009 als Ausgangspunkt nehmen, keine neue Recherche nötig.
+**Reibung reduziert (23.07.2026, ohne Kosten):** `scripts/Install.command`
+(neu, PR siehe unten) macht den `xattr`-Schritt zum Doppelklick statt
+Terminal-Befehl — seit v0.22.0 im Release-Zip neben `lernplaner.app`
+enthalten (CONTRIBUTING.md „Releases"). Löst nicht das zugrunde liegende
+Signatur-Problem, nimmt aber die Terminal-Hürde für den einmaligen
+Erstinstall.
 
 ---
 

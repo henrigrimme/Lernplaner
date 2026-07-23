@@ -233,6 +233,16 @@ Installationen als vertrauenswürdig akzeptieren. Kein Schlüssel-Backup
 außerhalb dieses Rechners (passt zu ADR-003 „keine Backups", gilt hier
 zusätzlich für den Signierschlüssel selbst).
 
+**Nachtrag (2026-07-23):** Ohne Apple-Developer-ID/Notarisierung zeigt
+macOS beim allerersten Öffnen einer heruntergeladenen Version „kann nicht
+geöffnet werden" (Gatekeeper-Quarantäne, echter Nutzerbericht vom
+Mitnutzer). Auf Rückfrage entschieden: die 99-$/Jahr-Developer-ID bleibt
+zurückgestellt (wie schon in ADR-009 für Benachrichtigungen), stattdessen
+`scripts/Install.command` (entfernt die Quarantänemarkierung per
+Doppelklick, siehe CONTRIBUTING.md „Releases") — betrifft ohnehin nur den
+einmaligen Erstinstall pro Person, der Auto-Updater selbst löst kein
+Quarantäne-Flag aus (kein Browser-Downloadpfad).
+
 ---
 
 ## ADR-009 — In-App-Benachrichtigungsbanner statt native macOS-Benachrichtigung
