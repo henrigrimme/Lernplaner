@@ -1,5 +1,6 @@
 import { open } from '@tauri-apps/plugin-dialog'
 import { readDir, readFile } from '@tauri-apps/plugin-fs'
+import { isSupportedDocument } from '../ingest/documentImport'
 
 /**
  * Nativer Ordner-Import statt `<input type="file" webkitdirectory>`
@@ -24,7 +25,7 @@ export async function pickFolder(): Promise<string | null> {
   return typeof selected === 'string' ? selected : null
 }
 
-export interface PickedPdfFile {
+export interface PickedDocumentFile {
   /**
    * Pfad relativ zum gewählten Wurzelordner, ohne dessen eigenen Namen
    * (z. B. `"Consumer Theory/Budget/folien.pdf"`, nicht
@@ -46,7 +47,7 @@ const IGNORED_FILENAMES = new Set(['.ds_store', 'thumbs.db'])
 async function collectPaths(
   dir: string,
   relativePrefix: string,
-  pdfs: { absolute: string; relative: string }[],
+  documents: { absolute: string; relative: string }[],
   skipped: string[],
 ): Promise<void> {
   const entries = await readDir(dir)
@@ -54,34 +55,35 @@ async function collectPaths(
     const absolute = `${dir}/${entry.name}`
     const relative = relativePrefix ? `${relativePrefix}/${entry.name}` : entry.name
     if (entry.isDirectory) {
-      await collectPaths(absolute, relative, pdfs, skipped)
+      await collectPaths(absolute, relative, documents, skipped)
     } else if (entry.isFile) {
-      if (entry.name.toLowerCase().endsWith('.pdf')) pdfs.push({ absolute, relative })
+      if (isSupportedDocument(entry.name)) documents.push({ absolute, relative })
       else if (!IGNORED_FILENAMES.has(entry.name.toLowerCase())) skipped.push(relative)
     }
   }
 }
 
 export interface FolderReadResult {
-  files: PickedPdfFile[]
+  files: PickedDocumentFile[]
   /**
    * Pfade (relativ zum gewählten Ordner) aller gefundenen Dateien, die
-   * NICHT importiert wurden, weil sie keine PDF sind (z. B. .docx/.xlsx/
-   * .pptx) — der Import unterstützt bisher nur PDF (CONTEXT.md
-   * „Anforderungen", bestätigt). Wird sichtbar gemeldet statt still
-   * übersprungen (Nutzerbericht 2026-07-22: „nicht alle Dokumente wurden
-   * komplett übernommen" — betraf genau diesen Fall, ohne jeden Hinweis).
+   * NICHT importiert wurden, weil ihr Format nicht unterstützt ist
+   * (`ingest/documentImport.ts` `isSupportedDocument` — z. B. `.csv`/
+   * `.html`, bewusst ausgeschlossen, siehe dort). Wird sichtbar gemeldet
+   * statt still übersprungen (Nutzerbericht 2026-07-22: „nicht alle
+   * Dokumente wurden komplett übernommen" — betraf genau diesen Fall,
+   * ohne jeden Hinweis, damals noch bei „nur PDF").
    */
   skipped: string[]
 }
 
-/** Liest alle PDFs unter `rootPath` rekursiv (Unterordner inklusive), meldet alle übrigen Dateien als übersprungen. */
-export async function readPdfFilesRecursively(rootPath: string): Promise<FolderReadResult> {
+/** Liest alle unterstützten Dokumente unter `rootPath` rekursiv (Unterordner inklusive), meldet alle übrigen Dateien als übersprungen. */
+export async function readDocumentFilesRecursively(rootPath: string): Promise<FolderReadResult> {
   const paths: { absolute: string; relative: string }[] = []
   const skipped: string[] = []
   await collectPaths(rootPath, '', paths, skipped)
 
-  const files: PickedPdfFile[] = []
+  const files: PickedDocumentFile[] = []
   for (const { absolute, relative } of paths) {
     const data = await readFile(absolute)
     files.push({ relativePath: relative, name: relative.split('/').pop()!, data })

@@ -24,7 +24,14 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 22./23. Juli 2026 (v0.20.0 — Nachtsitzung, Nutzer
+**Letzte Aktualisierung:** 23. Juli 2026 — Import akzeptiert jetzt auch
+Word/PowerPoint/Excel/Markdown, deterministisch ohne KI (v0.21.0, ADR-018,
+siehe „Word/PowerPoint/Excel/Markdown-Import" am Ende von Abschnitt 8).
+Größere, noch unbeantwortete offene Frage aus dieser Sitzung: Nutzer hat
+noch keine Rückmeldung zu echtem Word-/PowerPoint-/Excel-Testmaterial
+gegeben — dort zuerst nachfragen.
+
+**Davor (22./23. Juli 2026, v0.20.0 — Nachtsitzung, Nutzer
 schlief während der Umsetzung, siehe „Nachtsitzung 22.07.→23.07.2026" ganz am
 Ende von Abschnitt 8 für die vollständige Zusammenfassung + eine Liste
 zurückgestellter Verbesserungsideen). Phase 4 komplett bis auf
@@ -129,7 +136,7 @@ Kurse. Beide auf MacBooks mit Apple Silicon.
 | Thema | Entscheidung |
 |---|---|
 | Plattform | macOS, cross-platform akzeptabel |
-| Dateiformate | nur PDF |
+| Dateiformate | PDF, Word, PowerPoint, Excel, Markdown (erweitert 23.07.2026, ADR-018 — ursprünglich „nur PDF", auf Nutzerwunsch geöffnet) |
 | Synchronisierung | **keine** — alles lokal |
 | Backups | **keine** — bewusst |
 | Austausch | Kurs-Export als Datei |
@@ -2843,6 +2850,84 @@ nachfragen/erneut bestätigen lassen, nicht stillschweigend überspringen.
 aktualisiert, letztes Zip per `SendUserFile` verschickt. `npx tsc --noEmit`,
 `npm test` (415 Tests am Ende, +100 gegenüber Sitzungsbeginn), `npm run
 build`, `cargo check` liefen vor jedem Release fehlerfrei.
+
+### Word/PowerPoint/Excel/Markdown-Import (v0.21.0)
+
+Direkt aus der Nachtsitzungs-Ideenliste (Punkt 1) aufgegriffen, auf
+Rückfrage zur Themenerkennungs-Tiefe: **deterministisch aus der
+Dokumentstruktur, keine KI** (ADR-018 für die vollständige Begründung je
+Format). Branch `feat/multi-format-import`.
+
+- **Vier neue Extraktionspipelines**, alle liefern dieselbe
+  `ExtractedDocument`-Form wie PDF, `data/importTopics.ts`
+  `persistExtractedDocument` bleibt dadurch unverändert:
+  - `ingest/docx.ts` — `mammoth` wandelt Word-Formatvorlagen
+    („Überschrift 1/2/…") in HTML-`<h#>`-Tags um, eigener
+    Regex-HTML→Text-Parser (kein `DOMParser`, siehe Kommentar dort).
+  - `ingest/pptx.ts` — echte Titel-Platzhalter (`<p:ph type="title"/>`)
+    statt Schriftgrößen-Heuristik; Trennfolien-Erkennung
+    wiederverwendet `ingest/chapters.ts`s bereits validierte Logik
+    (neu exportiert: `detectChaptersFromSlides`).
+  - `ingest/xlsx.ts` — ein Tabellenblatt = ein Kapitel.
+  - `ingest/markdown.ts` — `#`/`##`/… als Kapitelsignal.
+  - `ingest/headingStructure.ts` (neu, geteilt zwischen docx/markdown):
+    flachste Überschriftsebene = Kapitelgrenze, tiefere Ebenen = Folien
+    im Kapitel.
+  - `ingest/documentImport.ts` (neu): `extractAnyDocument` wählt anhand
+    der Dateiendung die passende Pipeline — einziger Ort, der
+    Dateiendungen kennt.
+- **Neue Abhängigkeiten** `mammoth`, `jszip`, `fast-xml-parser` (nach der
+  am 23.07.2026 pauschal erweiterten Freigabe) — bewusst **nicht** das
+  npm-Paket `xlsx` (zwei unbehobene hoch eingestufte CVEs) oder
+  `exceljs` (69 transitive Pakete, eigene CVE), siehe ADR-018 für den
+  vollständigen Abwägungsweg. `npm audit`: keine neue Schwachstelle.
+- **Bugfix während der Entwicklung:** `mammoth`s Node-Paket akzeptiert
+  nur `{path}`/`{buffer}`, nicht `{arrayBuffer}` (wirft „Could not find
+  file in options") — `{arrayBuffer}` ist der Browser-Eingang, auf den
+  Vite automatisch umschaltet. `ingest/docx.ts` verzweigt über denselben
+  `typeof window`-Guard wie der pdf.js-Worker (`ingest/pdf.ts`), nur mit
+  vertauschten Zweigen.
+- **`ui/SourceViewer.tsx` angepasst:** `documentBytes` ist jetzt nicht
+  mehr automatisch ein PDF — neue `documents`-Prop, `PdfViewer` wird nur
+  noch für tatsächliche `.pdf`-Dateien gerendert, sonst ein Hinweis
+  („Vorschau nur für PDF verfügbar"). **Bekannte, bewusst nicht
+  geschlossene Lücke:** „Markieren im Dokument → Karteikarte"
+  (ROADMAP.md Phase 4) bleibt für die vier neuen Formate vorerst nicht
+  verfügbar — kein PDF-Viewer-Äquivalent gebaut, siehe ADR-018.
+- **`platform/folderImport.ts`**: `readPdfFilesRecursively`/
+  `PickedPdfFile` zu `readDocumentFilesRecursively`/`PickedDocumentFile`
+  umbenannt, Dateifilter nutzt jetzt `isSupportedDocument` statt fest
+  `.pdf`. Bewusst **nicht** dabei: CSV/HTML (reine Datendateien im
+  gesichteten Material, kein Lernmaterial, siehe „Nachtsitzung" oben).
+- **`App.tsx`**: `importPdfs`/`importRegularPdf` zu `importDocuments`/
+  `importRegularDocument` umbenannt. Datei-Input zeigt jetzt „Dokumente
+  … (PDF, Word, PowerPoint, Excel, Markdown)", `accept` deckt alle
+  unterstützten Endungen ab, vom Browser durchgelassene, nicht
+  unterstützte Dateien (z. B. bei „Alle Dateien" im Systemdialog) werden
+  sichtbar gemeldet statt still ignoriert. Der KI-gestützte
+  „Zusammenfassung"-Weg (ADR-015) bleibt PDF-exklusiv — bei anderen
+  Formaten mit diesem Dokumenttyp greift stattdessen deren eigene
+  deterministische Erkennung (Word-Überschriften, Markdown-Überschriften).
+- **51 neue Tests** (`headingStructure`, `markdown`, `docx`, `pptx`,
+  `xlsx`, `documentImport`, plus Erweiterungen in `chapters.test.ts` und
+  `SourceViewer.test.tsx`) — `npx tsc --noEmit`, `npm test` (502 Tests),
+  `npm run build` liefen fehlerfrei. Bundle-Größe geprüft: keine
+  `fs`/`Buffer`-Referenzen aus `mammoth` im Browser-Bundle (bestätigt
+  `grep` über `dist/assets/index-*.js`) — die Node/Browser-Weiche
+  funktioniert wie vorgesehen.
+- **Grenze der Plausibilitätsprüfung, ehrlich festgehalten:** kein
+  Testmaterial in Word/PowerPoint/Excel verfügbar (anders als bei PDF,
+  `Beispiel pdfs/`) — die drei OOXML-Formate sind stattdessen gegen
+  selbst gebaute, minimale, aber gültige Testdateien geprüft (`jszip`
+  direkt im Test, siehe `tests/ingest/docx.test.ts`/`pptx.test.ts`/
+  `xlsx.test.ts`). Im Dev-Server bestätigt: App lädt fehlerfrei, keine
+  neuen Konsolenfehler durch die drei neuen Abhängigkeiten — die
+  eigentliche Import-UI war nicht erreichbar (kein Fach ohne echtes
+  Tauri-Fenster anlegbar, dieselbe bereits mehrfach dokumentierte
+  Einschränkung). **Nächste Sitzung: fragen, ob der Nutzer echtes Word-/
+  PowerPoint-/Excel-Material importiert hat und wie die
+  Themenerkennung dabei aussah** — das ist der erste echte Test dieser
+  vier Pipelines.
 
 ---
 
