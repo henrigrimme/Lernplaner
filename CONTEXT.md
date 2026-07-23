@@ -3242,6 +3242,72 @@ danach fragen oder im Schlüsselbund danach suchen.
 
 ---
 
+### Apple-nativer Design-Durchgang + Nachtsitzung Sicherheit/Bedienbarkeit (v0.25.0 → v0.27.0, 23./24.07.2026)
+
+**Nachmittags, mit `impeccable`:** Nutzerwunsch — App "bedienungsfreundlicher"
+und "cleaner"/mehr Apple-like machen (Vorbild GoodNotes/Claude), Farben und
+Farbwahl bewusst unverändert lassen. Per Screenshot-Analyse (Vite-Dev-Server,
+leere Zustände) sechs rohe `<fieldset><legend>`-Stellen (Timer, Quiz-
+Assistent ×3, KI-Anbieter, Erscheinungsbild-Theme, Schwierigkeits-Feedback,
+Prüfungsformat) auf eine gemeinsame `.segmented-fieldset`/`.segmented-
+options`-Pille umgestellt (Optik der bereits bestehenden `.tab-strip`-
+Reiter wiederverwendet), die Paletten-Auswahl in `AppearanceSetting.tsx` von
+einer Radioliste zu anklickbaren Farbkreisen mit Auswahlring (wie macOS'
+eigene Systemeinstellungen), Karte-in-der-Karte in "Fächer & Ordner
+verwalten" behoben, Wochenmuster in `AvailabilitySetup.tsx` von drei Zeilen
+auf eine kompakte Zeile je Tag, zentrierte Empty-States eingeführt, Quiz-
+Assistent mit Schritt-Punkten. Dabei nebenbei den vom Nutzer gemeldeten
+Sidebar-Bug behoben (Klick auf ein Fach schaltete `activeSection` nicht mit
+um) und den ungewollten "Balken" (bewusster Bleed-Effekt aus einer früheren
+Sitzung, per Screenshot als Störung identifiziert) entfernt. Dabei auch der
+neue vierte Fach-Reiter "Anweisungen" (Migration 0007, Claude-Projects-Stil)
+entstanden. Releases v0.25.0/v0.26.0.
+
+**Danach, PR #62 von Theodor Klink:** neuer CI-Workflow
+(`.github/workflows/release.yml`) für eine unsignierte, universelle `.dmg`
+bei Tag-Push — unabhängig vom bestehenden signierten Auto-Updater-Weg.
+Erster Testlauf schlug mit `no identity found` fehl (lokale Signing-
+Identität existiert nicht auf GitHub-Runnern), dann ein zweiter Versuch mit
+falschem Anführungszeichen-Escaping für `--config`. Beide behoben (PR
+#64/#65) — jetzt läuft er sauber ad-hoc-signiert durch.
+
+**Nachtsitzung (Nutzer schlief, volle Autonomie zugesagt):** 20 vorab
+abgestimmte, sichere Verbesserungen umgesetzt, in vier PRs (#66–#69) plus
+einem spontanen Fund (#70):
+- **Sicherheit:** `window.confirm` vor dem Löschen eines Fachs (kaskadiert
+  über `ON DELETE CASCADE` auf Themen/Prüfungen/Dokumente/Quizze — bisher
+  gab es im ganzen Projekt keine einzige Lösch-Bestätigung), einer Prüfung,
+  eines Paper-Schritts, eines Fach-Ordners, sowie vor "Plan neu übernehmen"
+  (überschreibt den heutigen Fortschritt). Bewusst **nicht** bei
+  Verfügbarkeits-Ausnahmen/wiederkehrenden Blockern (zu trivial/schnell
+  neu anlegbar, ein Dialog wäre dort reine Reibung).
+- **Intuitivität:** `autoFocus` auf das erste Feld beim Öffnen eines
+  On-Demand-Formulars (nicht bei ständig sichtbaren Formularen — hätte dort
+  ungewollt Fokus gestohlen), Esc bricht offene Formulare ab, Tooltip mit
+  vollem Namen bei abgeschnittenen Fach-Namen, dezenter "Lade Fächer …"-
+  Zustand beim Start, leichtere Empty-State-Variante für Seiten mit
+  mehreren Abschnitten (`.empty-state-inline`).
+- **Barrierefreiheit:** fehlendes `role="status"` bei einer Erfolgsmeldung
+  ergänzt (Rest des Projekts nutzte das Muster schon konsistent),
+  kontextreiche `aria-label`s an zuvor mehrdeutigen "Löschen"/"Entfernen"-
+  Buttons (Verfügbarkeit, Quellen-Betrachter, Themenbaum).
+- **Geprüft, aber kein Änderungsbedarf gefunden:** `prefers-reduced-motion`
+  deckt neue Übergänge bereits per Wildcard ab, alle Zahlenfelder haben
+  schon sinnvolle Grenzen, Dark-Mode-Kontrast der neuen Segmented-
+  Controls/Paletten-Auswahl nutzt ausschließlich bereits bewährte
+  Token-Paare.
+- **Doku/Tests:** `CONTRIBUTING.md` um den neuen CI-Workflow ergänzt,
+  `CourseGroups.tsx` hatte noch gar keine Testdatei — vier Tests ergänzt.
+- **Spontaner Fund beim weiteren `impeccable`-Durchgang:** `input[type=
+  file]` zeigte den nackten Browser-Standard ("Choose File"/"No file
+  chosen") — über `::file-selector-button` an die App-Button-Optik
+  angeglichen, rein visuell, kein Verhaltensrisiko.
+
+Jede Änderung ging durch `tsc`/Testlauf/`vite build`/`cargo check`, bevor
+sie gemerged wurde — alle vier Nacht-PRs grün. Release v0.27.0.
+
+---
+
 ## 9. Bekannte Einschränkungen
 
 - **Kein Backup** — Gerätedefekt bedeutet Totalverlust (bewusst)
