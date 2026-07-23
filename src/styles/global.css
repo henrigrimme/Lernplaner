@@ -558,13 +558,18 @@ section[aria-label] ul.document-list > li.document-list-item {
   border-bottom-left-radius: 2px;
 }
 
-/* ---------- Fach-Detailansicht (Reiter) ---------- */
+/* ---------- Reiter (ui/TabbedPanel.tsx) ---------- */
 
-/* `CourseWorkspace.tsx` — dieselbe "aktueller Ort"-Sprache wie die
-   Sidebar-Navigation (`.app-nav-item[aria-current='page']`): Terrakotta
-   markiert nur den gewählten Reiter, sonst nirgends verwendet (DESIGN.md
-   „One Accent Rule"). */
-.course-tabs {
+/* Geteiltes Reiter-Muster für jede Seite mit mehreren gleichrangigen
+   Bereichen — zuerst für die Fach-Detailansicht gebaut
+   (`ui/CourseWorkspace.tsx`), seit dem Einstellungen-Redesign
+   (23.07.2026) auch dort verwendet, statt für dieselbe Art Problem ein
+   zweites Muster zu erfinden (Nielsen „Konsistenz"). Dieselbe "aktueller
+   Ort"-Sprache wie die Sidebar-Navigation
+   (`.app-nav-item[aria-current='page']`): Terrakotta markiert nur den
+   gewählten Reiter, sonst nirgends verwendet (DESIGN.md „One Accent
+   Rule"). */
+.tab-strip {
   display: flex;
   gap: var(--space-2xs);
   padding: var(--space-2xs);
@@ -574,7 +579,7 @@ section[aria-label] ul.document-list > li.document-list-item {
   border-radius: var(--radius-md);
 }
 
-.course-tab {
+.tab-strip-button {
   padding: 6px var(--space-md);
   border: none;
   background: transparent;
@@ -586,21 +591,34 @@ section[aria-label] ul.document-list > li.document-list-item {
   transition: background var(--duration-fast) var(--ease-out-quart);
 }
 
-.course-tab:hover {
+.tab-strip-button:hover {
   background: oklch(from var(--color-ink) l c h / 0.06);
 }
 
-.course-tab[aria-selected='true'] {
+.tab-strip-button[aria-selected='true'] {
   background: var(--color-primary);
   color: var(--color-primary-ink);
   font-weight: 560;
 }
 
-.course-tabpanel {
+.tab-panel {
   display: flex;
   flex-direction: column;
   gap: var(--space-xl);
   padding-top: var(--space-md);
+}
+
+/* Ohne diese Regel gewinnt `.tab-panel`s eigenes `display: flex` gegen den
+   nativen `[hidden]`-UA-Stil (gleiche Selektor-Spezifität, Autoren-Regel
+   kommt in der Kaskade später) — das inaktive Panel bliebe sichtbar,
+   obwohl React das `hidden`-Attribut korrekt setzt. Höhere Spezifität
+   (Klasse + Attribut) erzwingt das Ausblenden zuverlässig. Nur im echten
+   Browser sichtbar geworden, nicht in jsdom-Komponententests (siehe
+   `tests/ui/CourseWorkspace.test.tsx`/`SettingsView.test.tsx` — deren
+   `toBeVisible()` prüft nur das Attribut, nicht die kaskadierte
+   Stylesheet-Regel). */
+.tab-panel[hidden] {
+  display: none;
 }
 
 /* `<details>` um Fach-/Ordner-Verwaltung (App.tsx „Fächer & Themen") —
@@ -736,4 +754,17 @@ button:disabled {
 .quiz-wizard-nav {
   display: flex;
   gap: var(--space-xs);
+}
+
+/* ---------- Planungs-Hinweis (ui/PlanView.tsx) ---------- */
+
+/* Erklärt, dass der angezeigte Lernplan eine Live-Vorschau ist, bevor
+   "Plan übernehmen" ihn zum tatsächlichen Tagesplan macht (Redesign
+   23.07.2026, impeccable-Durchgang: vorher war dieser Unterschied nicht
+   erklärt). Gedämpft statt normaler Fließtext-Farbe — es ist eine
+   Erklärung, kein Teil des eigentlichen Planinhalts. */
+.plan-preview-hint {
+  font-size: 12px;
+  color: var(--color-muted);
+  max-width: 60ch;
 }

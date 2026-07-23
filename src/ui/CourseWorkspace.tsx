@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { TabbedPanel } from './TabbedPanel'
 import type { Course } from '../data/schema'
 
 /**
@@ -19,16 +19,11 @@ import type { Course } from '../data/schema'
  * Alle drei Panels bleiben permanent im DOM (`hidden`-Attribut statt
  * bedingtem Rendern) — ein Wechsel zurück zu „Prüfungen" darf keinen
  * offenen Bearbeitungszustand in „Material" (z. B. ein angefangenes
- * Formular) verwerfen.
+ * Formular) verwerfen. Die eigentliche Reiter-Mechanik lebt seit dem
+ * Einstellungen-Redesign (23.07.2026) in `ui/TabbedPanel.tsx` — geteilt,
+ * damit nicht zwei Seiten mit demselben Grundproblem („mehrere
+ * gleichrangige Bereiche") zwei verschiedene Lösungen bekommen.
  */
-
-export type CourseWorkspaceTab = 'pruefungen' | 'material' | 'themen'
-
-const TABS: { key: CourseWorkspaceTab; label: string }[] = [
-  { key: 'pruefungen', label: 'Prüfungen' },
-  { key: 'material', label: 'Material' },
-  { key: 'themen', label: 'Themen & Quellen' },
-]
 
 export interface CourseWorkspaceProps {
   course: Course
@@ -38,44 +33,16 @@ export interface CourseWorkspaceProps {
 }
 
 export function CourseWorkspace({ course, pruefungenContent, materialContent, themenContent }: CourseWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<CourseWorkspaceTab>('pruefungen')
-  const contentByTab: Record<CourseWorkspaceTab, ReactNode> = {
-    pruefungen: pruefungenContent,
-    material: materialContent,
-    themen: themenContent,
-  }
-
   return (
     <section aria-label={`Fach-Detail: ${course.name}`} className="course-workspace">
-      <div role="tablist" aria-label="Fach-Bereiche" className="course-tabs">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            role="tab"
-            id={`course-tab-${tab.key}`}
-            aria-selected={activeTab === tab.key}
-            aria-controls={`course-tabpanel-${tab.key}`}
-            className="course-tab"
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {TABS.map((tab) => (
-        <div
-          key={tab.key}
-          role="tabpanel"
-          id={`course-tabpanel-${tab.key}`}
-          aria-labelledby={`course-tab-${tab.key}`}
-          hidden={activeTab !== tab.key}
-          className="course-tabpanel"
-        >
-          {contentByTab[tab.key]}
-        </div>
-      ))}
+      <TabbedPanel
+        tablistLabel="Fach-Bereiche"
+        tabs={[
+          { key: 'pruefungen', label: 'Prüfungen', content: pruefungenContent },
+          { key: 'material', label: 'Material', content: materialContent },
+          { key: 'themen', label: 'Themen & Quellen', content: themenContent },
+        ]}
+      />
     </section>
   )
 }

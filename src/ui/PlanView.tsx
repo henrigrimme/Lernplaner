@@ -80,6 +80,11 @@ export function PlanView({
   return (
     <section aria-label="Lernplan">
       <h2>Lernplan</h2>
+      <p className="plan-preview-hint">
+        Live-Vorschau aus deinen aktuellen Fächern, Prüfungen und deiner Verfügbarkeit — ändert sich sofort mit, ist
+        aber noch nicht aktiv. Erst der Knopf „Plan übernehmen" darunter macht daraus deinen tatsächlichen Tagesplan
+        (sichtbar unter „Heute").
+      </p>
 
       {result.topicsConsideredCount === 0 ? (
         <p>Noch kein Thema mit bevorstehender Prüfung und geschätztem Aufwand.</p>

@@ -154,4 +154,22 @@ describe('PlanView', () => {
     expect(screen.getByText(/noch kein thema/i)).toBeInTheDocument()
     expect(screen.queryByText('Kein Umfang')).not.toBeInTheDocument()
   })
+
+  it('erklärt, dass der angezeigte Plan eine Vorschau ist, bevor er übernommen wird', () => {
+    render(
+      <PlanView
+        topics={[]}
+        topicSections={[]}
+        assessments={[]}
+        courses={[]}
+        pattern={DAILY_60}
+        exceptions={[]}
+        blockers={[]}
+        recurringBlockers={[]}
+        from="2026-08-03"
+      />,
+    )
+    expect(screen.getByText(/Live-Vorschau/)).toBeInTheDocument()
+    expect(screen.getByText(/„Plan übernehmen"/)).toBeInTheDocument()
+  })
 })

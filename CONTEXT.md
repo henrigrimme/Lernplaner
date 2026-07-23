@@ -3093,6 +3093,68 @@ Konfigurationsdialog mit echten Rückfragen, wie bei Claude".
   Fach-Reiter-Redesign, Quiz-Assistent) — siehe jeweils eigene
   Abschnitte oben für Details.
 
+### App-weiter Design-Durchgang mit `impeccable` — Einstellungen gruppiert, Planung-Vorschau erklärt
+
+Nutzerwunsch direkt im Anschluss: „Design intuitiver und aufgeräumter
+machen, orientiert an der Claude-App/anderen KI-/Lernapps". Mit dem
+`impeccable`-Skill (Critique-Ablauf, eigene Durchsicht statt vollem
+Sub-Agent-Orchestrierungsaufwand) durchgeführt. Deterministischer Scan
+lieferte nur Fehlalarme (Em-Dash-/Nummerierungs-Zähler griffen auf
+CSS-Kommentare, nicht sichtbaren UI-Text). Eigener Fund: „Einstellungen"
+stapelte sechs unabhängige Blöcke ohne jede Gruppierung — dieselbe „lange
+Liste"-Schwäche, die bei „Fächer & Themen" gerade erst behoben wurde,
+zusätzlich eine Konsistenz-Verletzung (drei verschiedene „viele Dinge auf
+einer Seite"-Lösungen nebeneinander: flache Liste, Reiter, Assistent).
+
+- **`ui/TabbedPanel.tsx` (neu):** die Reiter-Mechanik aus
+  `ui/CourseWorkspace.tsx` extrahiert und generisch gemacht — beide Seiten
+  nutzen jetzt dieselbe Komponente/CSS-Klassen (`tab-strip`/
+  `tab-strip-button`/`tab-panel`, vorher `course-*` benannt), statt dass
+  Einstellungen ein viertes Organisationsmuster bekommt.
+- **`ui/SettingsView.tsx` (neu):** die sechs bisherigen Einstellungs-
+  Komponenten unverändert übernommen, nur in fünf Kategorien gruppiert
+  (Allgemein/Erscheinungsbild/KI-Anbindung/Benachrichtigungen/Daten —
+  Kalender-Export und Kurs-Export/Import in „Daten" zusammengefasst, weil
+  beide „Daten raus/rein" sind). An der Claude-App/macOS-
+  Systemeinstellungen orientiert, die Einstellungen ebenfalls nach
+  Kategorie statt als eine lange Seite zeigen.
+- **Echter Bug beim Browser-Plausi-Check gefunden, den jsdom nicht
+  gefunden hätte:** `.tab-panel { display: flex }` gewann in der
+  CSS-Kaskade gegen den nativen `[hidden]`-UA-Stil (gleiche
+  Selektor-Spezifität, Autoren-Regel kommt später) — das inaktive Panel
+  blieb im echten Browser sichtbar, obwohl React `hidden` korrekt setzte.
+  jsdom-Komponententests (`CourseWorkspace.test.tsx`/`SettingsView.test.tsx`)
+  liefen trotzdem grün, weil `toBeVisible()` dort nur das Attribut prüft,
+  nicht die kaskadierte Stylesheet-Regel — **dieselbe Kategorie Fehler wie
+  beim PDF-Worker/ArrayBuffer-Detach zuvor** (CONTEXT.md „Import-Bug-
+  Serie"): ein Testweg, der die tatsächliche Browser-Kaskade nicht
+  nachbildet, kann diese Klasse Fehler grundsätzlich nicht fangen. Behoben
+  mit `.tab-panel[hidden] { display: none }` (höhere Spezifität erzwingt
+  das Ausblenden). **Lehre für jede künftige `hidden`-basierte Komponente:
+  eine eigene `display`-Regel auf demselben Element braucht immer eine
+  begleitende `&[hidden] { display: none }`-Regel, sonst gewinnt sie
+  gegen `[hidden]`.**
+- **`ui/PlanView.tsx`:** neuer Hinweistext direkt unter der
+  „Lernplan"-Überschrift — erklärt, dass die Ansicht eine Live-Vorschau
+  ist, die erst durch „Plan übernehmen" zum tatsächlichen, unter „Heute"
+  sichtbaren Tagesplan wird. Vorher stand das nirgends, ein Erstnutzer
+  hätte den Unterschied zwischen „ich sehe hier schon einen Plan" und
+  „ich muss noch etwas übernehmen" nicht zwingend verstanden.
+- **12 neue/geänderte Tests** (`TabbedPanel` 4, `SettingsView` 4,
+  `PlanView` +1, `CourseWorkspace` unverändert grün) — `npx tsc --noEmit`,
+  `npm test` (491 Tests), `npm run build` liefen fehlerfrei. **Im echten
+  Browser bestätigt** (Playwright-Screenshots): „Einstellungen" zeigt
+  jetzt genau einen Reiterinhalt gleichzeitig, „Daten" bündelt Kalender-
+  und Kurs-Export sinnvoll, „Planung" erklärt die Vorschau — alles ohne
+  neue Konsolenfehler, „Fächer & Themen" (nutzt dieselbe `TabbedPanel`-
+  Komponente) läuft unverändert weiter.
+- **Nicht angefasst:** die Haupt-Seitenleiste hat weiterhin acht flache
+  Einträge (über der oft empfohlenen „≤5 Top-Level-Punkte ohne
+  Gruppierung"-Faustregel) — bewusst nicht umgebaut, jeder Punkt ist eine
+  genuin eigenständige Hauptaufgabe (kein Unterpunkt eines anderen), und
+  die Claude-App selbst zeigt ihre eigene linke Leiste (Chats/Projekte/
+  Artefakte/…) ebenfalls flach. Reine Beobachtung, kein Priorität-1-Fund.
+
 ---
 
 ## 9. Bekannte Einschränkungen
