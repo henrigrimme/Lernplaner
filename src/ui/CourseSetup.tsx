@@ -106,7 +106,15 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
               <button type="button" onClick={() => onArchive(course.id, course.archived === 0)}>
                 {course.archived === 0 ? 'Archivieren' : 'Wiederherstellen'}
               </button>
-              <button type="button" onClick={() => onRemove(course.id)}>
+              <button
+                type="button"
+                aria-label={`${course.name} löschen`}
+                onClick={() => {
+                  if (window.confirm(`"${course.name}" wirklich löschen? Alle Themen, Prüfungen, Dokumente und Quizze dieses Fachs werden dabei ebenfalls gelöscht.`)) {
+                    onRemove(course.id)
+                  }
+                }}
+              >
                 Löschen
               </button>
             </li>

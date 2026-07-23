@@ -148,7 +148,13 @@ export function AssessmentSetup({ course, assessments, onAdd, onUpdate, onRemove
             <button type="button" onClick={() => startEdit(a)}>
               Bearbeiten
             </button>
-            <button type="button" onClick={() => onRemove(a.id)}>
+            <button
+              type="button"
+              aria-label={`Prüfung "${a.title}" löschen`}
+              onClick={() => {
+                if (window.confirm(`Prüfung "${a.title}" wirklich löschen?`)) onRemove(a.id)
+              }}
+            >
               Löschen
             </button>
           </li>

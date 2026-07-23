@@ -86,7 +86,13 @@ export function PaperSteps({ course, assessments, steps, onAdd, onUpdate, onRemo
                       </option>
                     ))}
                   </select>
-                  <button type="button" onClick={() => onRemove(step.id)}>
+                  <button
+                    type="button"
+                    aria-label={`Schritt "${step.title}" löschen`}
+                    onClick={() => {
+                      if (window.confirm(`Schritt "${step.title}" wirklich löschen?`)) onRemove(step.id)
+                    }}
+                  >
                     Löschen
                   </button>
                 </li>

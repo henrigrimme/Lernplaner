@@ -1555,7 +1555,18 @@ export function App() {
             />
 
             <div>
-              <button type="button" className="button-primary" onClick={generateStudyBlocks}>
+              <button
+                type="button"
+                className="button-primary"
+                onClick={() => {
+                  if (
+                    studyBlocks.length === 0 ||
+                    window.confirm('Plan wirklich neu übernehmen? Der bisherige Fortschritt für heute geht dabei verloren.')
+                  ) {
+                    generateStudyBlocks()
+                  }
+                }}
+              >
                 {studyBlocks.length === 0 ? 'Plan übernehmen' : 'Plan neu übernehmen (überschreibt heutigen Fortschritt)'}
               </button>
             </div>
