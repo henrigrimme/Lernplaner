@@ -20,6 +20,7 @@ const COURSE: Course = {
   created_at: 'x',
   language: 'de',
   group_id: null,
+  instructions: '',
 }
 
 const ASSESSMENT: Assessment = {

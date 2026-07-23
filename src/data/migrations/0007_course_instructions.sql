@@ -1,0 +1,12 @@
+-- Migration 0007: Eigene Anweisungen je Fach (Nutzerwunsch 2026-07-23).
+--
+-- Der Nutzer will pro Fach eine "Projects"-artige Ansicht (Vorbild: Claude
+-- Projects) inklusive frei formulierbarer Anweisungen, die die KI bei
+-- allen Generierungen für genau dieses Fach berücksichtigt (z. B. "Fokus
+-- auf Rechenaufgaben" oder "immer mit Beispiel erklären") — unabhängig von
+-- `courses.language` (Migration 0004), das nur die Sprache steuert, nicht
+-- den Inhalt/Stil. `NOT NULL DEFAULT ''` statt NULL: der Aufrufer
+-- (`ai/*Provider.ts`) muss dann nicht zwischen "keine Anweisungen" und
+-- "leerer Text" unterscheiden — beides bedeutet dasselbe (Zeile im Prompt
+-- weglassen).
+ALTER TABLE courses ADD COLUMN instructions TEXT NOT NULL DEFAULT '';

@@ -50,6 +50,7 @@ import {
 } from './data/courseGroups'
 import { CourseGroups } from './ui/CourseGroups'
 import { CourseWorkspace } from './ui/CourseWorkspace'
+import { CourseInstructions } from './ui/CourseInstructions'
 import { deleteAssessmentRow, insertAssessment, loadAssessments, updateAssessmentRow } from './data/assessmentsRepo'
 import { removeAssessment, updateAssessment, type NewAssessmentInput } from './data/assessments'
 import { deletePaperStepRow, insertPaperStep, loadPaperSteps, updatePaperStepRow } from './data/paperStepsRepo'
@@ -172,13 +173,17 @@ function readStoredPalette(): PalettePreference {
  * Ordner als reine, nicht klickbare Zwischenüberschriften (`app-nav-label`,
  * eingerückt je Tiefe), Fächer darunter wie bisher als `app-nav-item`.
  * Modulweite Funktion statt Komponenteninterna, weil sie keinen eigenen
- * Zustand braucht — nur die bereits vorhandenen `selectedCourseId`/
- * `setSelectedCourseId` von `App()` durchreicht.
+ * Zustand braucht — nur `selectedCourseId`/`onSelectCourse` von `App()`
+ * durchreicht. `onSelectCourse` (statt nur `setSelectedCourseId`) fasst
+ * bewusst auch den Wechsel von `activeSection` mit ein (siehe `App()`,
+ * Fehlerbericht: ein Klick auf ein Fach landete sonst "unsichtbar" unter
+ * dem zuvor aktiven Seitenleisten-Bereich, weil nur die Auswahl, nicht
+ * aber der sichtbare Bereich wechselte).
  */
 function renderSidebarCourseTree(
   nodes: CourseGroupTreeNode[],
   selectedCourseId: number | null,
-  setSelectedCourseId: (id: number) => void,
+  onSelectCourse: (id: number) => void,
   depth = 0,
 ): ReactNode[] {
   return nodes.flatMap((node) => [
@@ -192,12 +197,12 @@ function renderSidebarCourseTree(
         className="app-nav-item"
         style={{ paddingLeft: 12 + (depth + 1) * 12 }}
         aria-current={selectedCourseId === c.id ? 'page' : undefined}
-        onClick={() => setSelectedCourseId(c.id)}
+        onClick={() => onSelectCourse(c.id)}
       >
         <span className="app-nav-item-label">{c.name}</span>
       </button>
     )),
-    ...renderSidebarCourseTree(node.children, selectedCourseId, setSelectedCourseId, depth + 1),
+    ...renderSidebarCourseTree(node.children, selectedCourseId, onSelectCourse, depth + 1),
   ])
 }
 
@@ -251,6 +256,17 @@ export function App() {
   const [palette, setPalette] = useState<PalettePreference>(readStoredPalette)
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
+
+  // Klick auf ein Fach in der Seitenleiste muss zusätzlich zur Auswahl
+  // selbst auch den sichtbaren Bereich auf "Fächer & Themen" umschalten —
+  // sonst blieb bei aktivem anderen Bereich (z. B. "Quiz") die
+  // `CourseWorkspace`-Detailansicht des neu gewählten Fachs unsichtbar,
+  // weil sie nur bei `activeSection === 'faecher'` gerendert wird
+  // (gemeldeter Bug: Fach "verschwindet unter dem vorher gewählten Inhalt").
+  const selectCourse = (id: number) => {
+    setSelectedCourseId(id)
+    setActiveSection('faecher')
+  }
 
   // Automatischer Update-Check: beim Start, ein Retry nach 5s bei
   // Fehlschlag (Verdacht: Netzwerk nach Mac-Neustart/-Aufwachen noch nicht
@@ -939,7 +955,9 @@ export function App() {
   const handleGenerateQuiz = async (input: GenerateQuizInput) => {
     const provider = await getConfiguredAIProvider(logAiUsage)
     if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
-    const courseLanguage = courses.find((c) => c.id === input.courseId)?.language ?? 'de'
+    const course = courses.find((c) => c.id === input.courseId)
+    const courseLanguage = course?.language ?? 'de'
+    const courseInstructions = course?.instructions ?? ''
 
     const generated: { sectionId: number; suggestion: Awaited<ReturnType<typeof provider.generateQuestions>>[number] }[] = []
     for (const sectionId of input.sectionIds) {
@@ -956,6 +974,7 @@ export function App() {
         input.difficulty,
         courseLanguage,
         input.focus,
+        courseInstructions,
       )
       for (const suggestion of suggestions) generated.push({ sectionId, suggestion })
     }
@@ -1282,7 +1301,7 @@ export function App() {
               {renderSidebarCourseTree(
                 buildCourseGroupTree(courseGroups, courses.filter((c) => c.archived === 0)),
                 selectedCourseId,
-                setSelectedCourseId,
+                selectCourse,
               )}
               {ungroupedCourses(courses.filter((c) => c.archived === 0)).map((c) => (
                 <button
@@ -1290,7 +1309,7 @@ export function App() {
                   type="button"
                   className="app-nav-item"
                   aria-current={selectedCourseId === c.id ? 'page' : undefined}
-                  onClick={() => setSelectedCourseId(c.id)}
+                  onClick={() => selectCourse(c.id)}
                 >
                   <span className="app-nav-item-label">{c.name}</span>
                 </button>
@@ -1494,6 +1513,12 @@ export function App() {
                       onDeleteCard={handleDeleteCard}
                     />
                   </>
+                }
+                anweisungenContent={
+                  <CourseInstructions
+                    course={selectedCourse}
+                    onSave={(instructions) => handleUpdateCourse(selectedCourse.id, { instructions })}
+                  />
                 }
               />
             ) : (

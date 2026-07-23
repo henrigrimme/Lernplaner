@@ -14,6 +14,7 @@ function courseFixture(overrides: Partial<Course> = {}): Course {
     created_at: 'x',
     language: 'de',
     group_id: null,
+    instructions: '',
     ...overrides,
   }
 }

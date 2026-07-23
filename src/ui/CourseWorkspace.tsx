@@ -10,13 +10,15 @@ import type { Course } from '../data/schema'
  * Vorher standen Prüfungen, Paper-Schritte, Import, Dokumentenliste,
  * Altklausur-Analyse, Themenbaum und Quellen-Betrachter alle
  * untereinander auf einer einzigen, sehr langen Seite. Diese Komponente
- * bündelt sie stattdessen in drei Reitern — reine Präsentation
+ * bündelt sie stattdessen in Reitern — reine Präsentation
  * (ARCHITECTURE.md „ui/ … keine Geschäftslogik"): jeder Reiterinhalt
  * kommt fertig zusammengesetzt von `App.tsx` als `ReactNode` herein,
  * `CourseWorkspace` kennt weder Themen noch Dokumente noch Prüfungen im
- * Detail, nur die Reiter-Umschaltung selbst.
+ * Detail, nur die Reiter-Umschaltung selbst. Vierter Reiter „Anweisungen"
+ * (Migration 0007, Nutzerwunsch 2026-07-23: eigene Fach-Ansicht mit Custom
+ * Instructions wie bei Claude-Projects) kam später dazu.
  *
- * Alle drei Panels bleiben permanent im DOM (`hidden`-Attribut statt
+ * Alle Panels bleiben permanent im DOM (`hidden`-Attribut statt
  * bedingtem Rendern) — ein Wechsel zurück zu „Prüfungen" darf keinen
  * offenen Bearbeitungszustand in „Material" (z. B. ein angefangenes
  * Formular) verwerfen. Die eigentliche Reiter-Mechanik lebt seit dem
@@ -30,9 +32,17 @@ export interface CourseWorkspaceProps {
   pruefungenContent: ReactNode
   materialContent: ReactNode
   themenContent: ReactNode
+  /** Reiter „Anweisungen" (Migration 0007) — Nutzerwunsch: eigene, dedizierte Fach-Ansicht mit Custom Instructions wie bei Claude-Projects. */
+  anweisungenContent: ReactNode
 }
 
-export function CourseWorkspace({ course, pruefungenContent, materialContent, themenContent }: CourseWorkspaceProps) {
+export function CourseWorkspace({
+  course,
+  pruefungenContent,
+  materialContent,
+  themenContent,
+  anweisungenContent,
+}: CourseWorkspaceProps) {
   return (
     <section aria-label={`Fach-Detail: ${course.name}`} className="course-workspace">
       <TabbedPanel
@@ -41,6 +51,7 @@ export function CourseWorkspace({ course, pruefungenContent, materialContent, th
           { key: 'pruefungen', label: 'Prüfungen', content: pruefungenContent },
           { key: 'material', label: 'Material', content: materialContent },
           { key: 'themen', label: 'Themen & Quellen', content: themenContent },
+          { key: 'anweisungen', label: 'Anweisungen', content: anweisungenContent },
         ]}
       />
     </section>

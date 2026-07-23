@@ -35,7 +35,10 @@ export interface AIProvider {
    * `focus` steuert den Fragenschwerpunkt (Nutzerwunsch 2026-07-23, siehe
    * `QuestionFocus`) — ans Ende gestellt, damit der bereits bestehende
    * Aufrufer in `App.tsx` beim Nachrüsten nicht seine anderen Argumente
-   * verschieben musste.
+   * verschieben musste. `instructions` sind die frei formulierten
+   * Fach-Anweisungen (`Course.instructions`, Migration 0007, Nutzerwunsch
+   * "wie die Custom Instructions eines Claude-Projects") — leerer String
+   * bedeutet keine, dann lässt der Prompt die Zeile ganz weg.
    */
   generateQuestions(
     topicName: string,
@@ -44,6 +47,7 @@ export interface AIProvider {
     difficulty: QuizDifficulty,
     language: CourseLanguage,
     focus: QuestionFocus,
+    instructions: string,
   ): Promise<QuestionSuggestion[]>
   /** Ordnet Altklausur-Text den übergebenen Themen zu — Grundlage für `domain/examWeighting.ts`. */
   classifyExamContent(topics: { id: number; name: string }[], examText: string): Promise<ExamTopicMatch[]>

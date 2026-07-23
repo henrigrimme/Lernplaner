@@ -20,6 +20,8 @@ export interface NewCourseInput {
   priority: 1 | 2 | 3 | 4 | 5
   difficulty: 1 | 2 | 3 | 4 | 5
   language: CourseLanguage
+  /** Optional, weil sie typischerweise erst nach dem Anlegen im eigenen Anweisungen-Reiter eingetragen werden (Migration 0007). */
+  instructions?: string
 }
 
 export function updateCourse(

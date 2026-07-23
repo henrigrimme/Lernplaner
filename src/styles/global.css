@@ -132,8 +132,9 @@ p {
    wirklich schwebend). `--main-inset` kommt per Inline-Style von App.tsx
    (Laufzeitwert `sidebarWidth`/`sidebarCollapsed`) und hält Toolbar/Inhalt
    exakt an der bisherigen Position — siehe `.app-toolbar`/`.app-content`
-   unten und `--bleed` bei `.grouped-list--bleed-left` für die einzige
-   bewusste Ausnahme davon. */
+   unten. (Ein früherer Pilot ließ die Fächer-Liste bewusst unter die
+   Sidebar bleeden — nach Nutzerfeedback 2026-07-23 als optische Störung
+   wieder entfernt, siehe `ui/CourseSetup.tsx`.) */
 .app-main {
   display: flex;
   flex-direction: column;
@@ -360,11 +361,6 @@ p {
 .app-content {
   flex: 1;
   overflow-y: auto;
-  /* Verhindert, dass `.grouped-list--bleed-left`s negativer `margin-left`
-     (siehe dort) bei eingeklappter Sidebar (`--main-inset: 0`, kein Glas
-     mehr vorhanden, das den Überstand kaschieren würde) sichtbar über den
-     linken Fensterrand hinausragt — wird an dieser eigenen Box-Kante
-     abgeschnitten, nicht am Viewport. */
   overflow-x: hidden;
   /* Dieselbe `--main-inset`-Logik wie `.app-toolbar` oben — Text/Karten
      bleiben exakt an ihrer bisherigen Position. */
@@ -405,31 +401,6 @@ section[aria-label] ul:not(.topic-tree):not(.topic-tree ul) > li {
 
 section[aria-label] ul:not(.topic-tree):not(.topic-tree ul) > li:last-child {
   border-bottom: none;
-}
-
-/* Bewusste, einzeln zugewiesene Ausnahme von „Text bleibt exakt an seiner
-   Position" oben: die Box selbst (Fläche, Rand, abgerundete Ecken einer
-   gruppierten Liste) darf ein kleines Stück unter die schwebende Glas-
-   Sidebar reichen, ihr Inhalt (Text in `li`) nicht. Funktioniert, weil
-   `margin-left` die Box nach links verschiebt, aber `padding-left` beim
-   `li` um genau denselben Betrag *zusätzlich* wächst — der Text landet
-   dadurch exakt an derselben Stelle wie ohne Bleed, nur die Box dahinter
-   reicht weiter. `--bleed` muss größer sein als `.app-content`s eigener
-   linker Innenabstand (`--space-2xl`, 48px) — sonst hebt der Innenabstand
-   den Versatz vollständig auf und die Box bliebe trotzdem vor dem
-   Sidebar-Rand stehen, ohne je wirklich darunter zu reichen (genau der
-   Rechenfehler des ersten, verworfenen Versuchs). 72px = 48px Innenabstand
-   + 24px echte, sichtbare Überlappung. Bewusst nur hier verwendet (Pilot
-   „Fächer & Themen", siehe CONTEXT.md), nicht pauschal auf jede gruppierte
-   Liste — jedes weitere Vorkommen ist eine eigene, geprüfte Entscheidung,
-   keine globale Regel. */
-section[aria-label] ul.grouped-list--bleed-left:not(.topic-tree):not(.topic-tree ul) {
-  --bleed: 72px;
-  margin-left: calc(-1 * var(--bleed));
-}
-
-section[aria-label] ul.grouped-list--bleed-left:not(.topic-tree):not(.topic-tree ul) > li {
-  padding-left: calc(var(--space-md) + var(--bleed));
 }
 
 /* ---------- Formulare ---------- */

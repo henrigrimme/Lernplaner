@@ -16,6 +16,7 @@ function course(overrides: Partial<Course> = {}): Course {
     created_at: 'x',
     language: 'de',
     group_id: null,
+    instructions: '',
     ...overrides,
   }
 }
@@ -28,11 +29,13 @@ describe('CourseWorkspace', () => {
         pruefungenContent={<p>Prüfungsinhalt</p>}
         materialContent={<p>Materialinhalt</p>}
         themenContent={<p>Themeninhalt</p>}
+        anweisungenContent={<p>Anweisungsinhalt</p>}
       />,
     )
     expect(screen.getByText('Prüfungsinhalt')).toBeVisible()
     expect(screen.getByText('Materialinhalt')).not.toBeVisible()
     expect(screen.getByText('Themeninhalt')).not.toBeVisible()
+    expect(screen.getByText('Anweisungsinhalt')).not.toBeVisible()
   })
 
   it('wechselt beim Klick auf einen Reiter den sichtbaren Inhalt', async () => {
@@ -43,6 +46,7 @@ describe('CourseWorkspace', () => {
         pruefungenContent={<p>Prüfungsinhalt</p>}
         materialContent={<p>Materialinhalt</p>}
         themenContent={<p>Themeninhalt</p>}
+        anweisungenContent={<p>Anweisungsinhalt</p>}
       />,
     )
 
@@ -54,7 +58,7 @@ describe('CourseWorkspace', () => {
     expect(screen.getByRole('tab', { name: 'Prüfungen' })).toHaveAttribute('aria-selected', 'false')
   })
 
-  it('behält alle drei Panels im DOM (nur "hidden", kein bedingtes Unmounten)', async () => {
+  it('behält alle vier Panels im DOM (nur "hidden", kein bedingtes Unmounten)', async () => {
     const user = userEvent.setup()
     render(
       <CourseWorkspace
@@ -62,6 +66,7 @@ describe('CourseWorkspace', () => {
         pruefungenContent={<input placeholder="Notiz" />}
         materialContent={<p>Materialinhalt</p>}
         themenContent={<p>Themeninhalt</p>}
+        anweisungenContent={<p>Anweisungsinhalt</p>}
       />,
     )
 
@@ -72,6 +77,23 @@ describe('CourseWorkspace', () => {
     expect(screen.getByPlaceholderText('Notiz')).toHaveValue('Entwurf')
   })
 
+  it('zeigt den vierten Reiter "Anweisungen"', async () => {
+    const user = userEvent.setup()
+    render(
+      <CourseWorkspace
+        course={course()}
+        pruefungenContent={<p>A</p>}
+        materialContent={<p>B</p>}
+        themenContent={<p>C</p>}
+        anweisungenContent={<p>Anweisungsinhalt</p>}
+      />,
+    )
+
+    await user.click(screen.getByRole('tab', { name: 'Anweisungen' }))
+
+    expect(screen.getByText('Anweisungsinhalt')).toBeVisible()
+  })
+
   it('benennt die Reiter-Sektion nach dem Fachnamen', () => {
     render(
       <CourseWorkspace
@@ -79,6 +101,7 @@ describe('CourseWorkspace', () => {
         pruefungenContent={<p>A</p>}
         materialContent={<p>B</p>}
         themenContent={<p>C</p>}
+        anweisungenContent={<p>D</p>}
       />,
     )
     expect(screen.getByRole('region', { name: 'Fach-Detail: Money & Banking' })).toBeInTheDocument()
