@@ -947,3 +947,83 @@ zugrundeliegenden Daten (`GenerateQuizInput`) sich ändern müssten.
 `ai/anthropicProvider.ts`/`openaiProvider.ts` (`FOCUS_INSTRUCTION`,
 Parameter), `ui/QuizSetup.tsx` (vollständig zum Assistenten umgebaut),
 `App.tsx` (`handleGenerateQuiz` reicht `input.focus` durch).
+
+---
+
+## ADR-021 — Stabile lokale Code-Signing-Identität statt Ad-hoc-Signatur (löst wiederkehrenden Schlüsselbund-Dialog)
+**2026-07-23 · angenommen**
+
+**Kontext:** Nutzerbericht: beim Öffnen von „Einstellungen" (KI-Anbindung
+liest den API-Schlüssel aus der macOS-Keychain, ADR-011) erscheint
+**bei jedem neuen Release erneut** ein Passwort-Dialog, obwohl v0.16.0
+(„Keychain-Cache") das eigentlich schon lösen sollte. Der Cache aus
+v0.16.0 verhindert nur wiederholte Nachfragen *innerhalb* eines
+laufenden App-Starts — das eigentliche Problem lag eine Ebene tiefer:
+`tauri build` signiert den `.app`-Bundle bisher **ad-hoc**
+(`codesign -s -`), und eine Ad-hoc-Signatur hängt vom Inhalt des
+Binaries ab — **jeder neue Build erzeugt dadurch zwangsläufig eine
+andere Signatur**. macOS bindet die „immer erlauben"-Freigabe für
+Schlüsselbund-Zugriffe an genau diese Signatur-Identität; ändert sie
+sich, gilt die alte Freigabe nicht mehr, und der Dialog erscheint erneut
+— bei jedem Release, unabhängig vom Cache.
+
+**Nutzerwunsch, vorab beantwortet:** eine kostenlose Apple Developer ID
+für Non-Profit-Zwecke gibt es nicht — Apples Gebührenerlass gilt
+ausschließlich für eingetragene gemeinnützige Organisationen,
+akkreditierte Bildungseinrichtungen und Regierungsstellen, ausdrücklich
+**nicht** für Einzelpersonen oder Ein-Personen-Projekte, unabhängig von
+Monetarisierungsabsicht
+([Apple](https://developer.apple.com/help/account/membership/fee-waivers/)).
+Diese Entscheidung braucht also **keine** Developer ID.
+
+**Entscheidung:** Ein lokal erzeugtes, selbstsigniertes Code-Signing-
+Zertifikat („Lernplaner Local Code Signing", RSA 2048, `extendedKeyUsage
+= codeSigning`, 10 Jahre gültig) ersetzt die Ad-hoc-Signatur.
+Entscheidend: die Zertifikats-Identität bleibt über **jeden** künftigen
+Build hinweg gleich (im Gegensatz zur inhaltsabhängigen Ad-hoc-Signatur)
+— die einmal erteilte Schlüsselbund-Freigabe gilt dadurch dauerhaft über
+alle künftigen Releases hinweg.
+
+- Zertifikat + Schlüssel liegen lokal unter `~/.tauri/lernplaner-codesign.*`
+  (Backup, analog zum Updater-Signierschlüssel, ADR-008) — **nicht** im
+  Repository, gleiche Begründung wie beim Updater-Schlüssel.
+- Import in den Login-Schlüsselbund mit `-T /usr/bin/codesign` (erlaubt
+  dem Signiervorgang selbst den Zugriff auf den privaten Schlüssel ohne
+  Rückfrage) und `security add-trusted-cert -p codeSign` (vertraut dem
+  Zertifikat **ausschließlich** für den Zweck Code-Signing, nicht als
+  allgemeine Stammzertifizierungsstelle) — beide Schritte einmalig,
+  nutzerbestätigt (zwei macOS-eigene Sicherheitsdialoge, siehe unten).
+- `src-tauri/tauri.conf.json` → `bundle.macOS.signingIdentity: "Lernplaner
+  Local Code Signing"` (Konfigurationsfeld, ins Repository committet —
+  siehe „Bekannte Einschränkung" unten).
+- **Getestet:** zweimaliges Signieren derselben Testdatei hintereinander
+  löste nur beim ersten Mal einen Schlüsselbund-Dialog aus, danach kein
+  weiterer — bestätigt, dass die Freigabe dauerhaft ist. Ein echter
+  `tauri build` mit der neuen Identität lief ohne jeden Dialog durch
+  (`codesign`-Berechtigung war schon erteilt), der gebaute
+  `lernplaner.app` startet und läuft.
+
+**Was das NICHT löst** (bewusst, unverändert gegenüber ADR-008/009):
+- **Gatekeeper-Erstinstall** („kann nicht geöffnet werden" beim allerersten
+  Download) — das braucht weiterhin echte Apple-Notarisierung
+  (kostenpflichtige Developer ID), bleibt über `scripts/Install.command`
+  abgefangen.
+- **Native macOS-Push-Benachrichtigungen** — `UNUserNotificationCenter`
+  prüft Apples eigene Vertrauenskette, die ein selbstsigniertes
+  Zertifikat strukturell nicht erfüllen kann (ADR-009, dort bereits
+  geprüft und verworfen — anderer Mechanismus als der hier gelöste
+  Schlüsselbund-Zugriff). Bleibt beim In-App-Banner.
+
+**Bekannte Einschränkung:** `signingIdentity` steht als Klartext-Name im
+committeten `tauri.conf.json` — ein vollständiger `tauri build`
+(nicht `tauri dev`, nicht `cargo check`, siehe CI) schlägt auf jedem
+Rechner ohne dieses lokale Zertifikat fehl („no identity found"). Nach
+der stehenden Projektpraxis baut/veröffentlicht ohnehin nur dieser eine
+Rechner Releases (CONTRIBUTING.md „Releases"); für `theodorklink` oder
+einen neuen Rechner wäre entweder ein eigenes lokales Zertifikat (gleicher
+Ablauf, anderer Zertifikatsname in der Config) oder ein Rechnerwechsel
+mit Zertifikats-Übertragung nötig. Zertifikat/Schlüssel/Passwort-Datei
+sind unter `~/.tauri/lernplaner-codesign.{key,crt,p12}` gesichert — ohne
+sie (und ohne die einmalige Schlüsselbund-Freigabe) müsste diese ADR bei
+einem Rechnerverlust erneut komplett durchlaufen werden, mit derselben
+einmaligen Nutzerinteraktion an den zwei Sicherheitsdialogen.
