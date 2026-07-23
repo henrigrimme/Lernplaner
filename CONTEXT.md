@@ -2908,10 +2908,14 @@ Format). Branch `feat/multi-format-import`.
   „Zusammenfassung"-Weg (ADR-015) bleibt PDF-exklusiv — bei anderen
   Formaten mit diesem Dokumenttyp greift stattdessen deren eigene
   deterministische Erkennung (Word-Überschriften, Markdown-Überschriften).
-- **51 neue Tests** (`headingStructure`, `markdown`, `docx`, `pptx`,
-  `xlsx`, `documentImport`, plus Erweiterungen in `chapters.test.ts` und
-  `SourceViewer.test.tsx`) — `npx tsc --noEmit`, `npm test` (502 Tests),
-  `npm run build` liefen fehlerfrei. Bundle-Größe geprüft: keine
+- **36 neue Tests** (`headingStructure` 7, `markdown` 6, `docx` 4, `pptx`
+  5, `xlsx` 5, `documentImport` 5, plus 3 in `chapters.test.ts` und 1 in
+  `SourceViewer.test.tsx`) — Zahl gegen den tatsächlichen Testlauf
+  geprüft (415 vorher + 36 neu = 451, `npm test` bestätigt „451 passed"),
+  nicht nur geschätzt (CONTRIBUTING.md „Tests" nennt einen früheren Fall,
+  in dem genau das versäumt wurde, siehe PR-#5-Korrektur in Abschnitt 8
+  weiter oben). `npx tsc --noEmit`, `npm run build` liefen ebenfalls
+  fehlerfrei. Bundle-Größe geprüft: keine
   `fs`/`Buffer`-Referenzen aus `mammoth` im Browser-Bundle (bestätigt
   `grep` über `dist/assets/index-*.js`) — die Node/Browser-Weiche
   funktioniert wie vorgesehen.
