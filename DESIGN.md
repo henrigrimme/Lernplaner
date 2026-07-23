@@ -259,6 +259,27 @@ Navigationspunkts links und — sobald ein Fach gewählt ist — dessen Namen
 rechts. Trennt sich vom Inhalt ausschließlich über Vibrancy + Hairline,
 nicht über Schatten (siehe Elevation, „Glass-Not-Shadow Rule").
 
+### Fach-Reiter (Signature Component, seit Redesign 2026-07-23)
+`ui/CourseWorkspace.tsx` — sobald ein Fach gewählt ist, zeigt „Fächer &
+Themen" nicht mehr alle Bereiche (Prüfungen, Material, Themen) unterein-
+ander, sondern in drei Reitern: „Prüfungen", „Material", „Themen &
+Quellen". Segmented-Control-Optik: `--color-surface`-Fläche mit
+Hairline-Rand als Behälter (`--radius-md`), jeder Reiter ein
+`button[role="tab"]`, `--radius-sm`, transparent im Ruhezustand. Aktiver
+Reiter (`aria-selected="true"`) trägt Kraft Terracotta + warmweißen
+Text — dieselbe „aktueller Ort"-Sprache wie der aktive Sidebar-Eintrag
+(`.app-nav-item[aria-current='page']`), kein zweiter Ort mit derselben
+Bedeutung (DESIGN.md „One Accent Rule" bleibt gewahrt: nur eine von
+mehreren „aktueller Zustand"-Stellen, nicht eine zweite Akzentfarbe).
+Alle drei Panels bleiben über `hidden` im DOM (kein bedingtes Unmounten),
+damit ein Reiterwechsel keinen offenen Formularzustand verwirft.
+
+Darüber, in einem eigenen `<details>`-Element (`.course-management`,
+natives Aufklappen statt selbstgebautem Akkordeon), bleibt die
+Fach-/Ordner-Verwaltung erreichbar — eingeklappt, sobald ein Fach gewählt
+ist, damit die fokussierte Reiteransicht des gewählten Fachs den ersten
+Blick bekommt.
+
 ## 6. Do's and Don'ts
 
 ### Do:

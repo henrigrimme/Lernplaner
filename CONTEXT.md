@@ -2979,6 +2979,69 @@ zurückgestellt), jetzt nachgeholt. Branch `feat/recurring-blockers`.
 - **Keine weitere offene Aufgabe aus diesem Wunsch** — vollständig
   umgesetzt.
 
+### Redesign „Fächer & Themen": fokussierte Fach-Reiter statt Ein-Seiten-Liste
+
+Mit dem `impeccable`-Skill umgesetzt (kompakter Shape-Brief-Ablauf,
+PRODUCT.md/DESIGN.md beantworteten Umfang/Richtung bereits eindeutig,
+gleiches Vorgehen wie beim Sidebar-Redesign v0.17.0). Löst den in der
+Nachtsitzung zurückgestellten Punkt „fokussierte Detailansicht pro Fach
+statt einer langen Ein-Seiten-Liste".
+
+- **Neue Komponente `ui/CourseWorkspace.tsx`:** sobald ein Fach gewählt
+  ist, erscheinen Prüfungen/Paper, Material (Import + Dokumentenliste +
+  Altklausur-Analyse) und Themen & Quellen (Themenbaum + Quellen-
+  Betrachter) in drei Reitern statt untereinander. Reine Präsentation
+  (ARCHITECTURE.md „ui/") — `App.tsx` reicht jeden Reiterinhalt fertig
+  zusammengesetzt als `ReactNode` herein, `CourseWorkspace` kennt selbst
+  weder Themen noch Dokumente. Alle drei Panels bleiben über `hidden` im
+  DOM (kein bedingtes Unmounten), ein Reiterwechsel verwirft daher keinen
+  offenen Formularzustand in einem anderen Reiter. Siehe DESIGN.md „Fach-
+  Reiter" für die vollständige Optik-Begründung.
+- **Echter Korrektheits-Nebenfund beim Umbau:** `TopicTree`/`SourceViewer`
+  bekamen bisher die **komplette, ungefilterte** `topics`/`topicSections`-
+  Liste über alle Fächer hinweg — der Themenbaum eines gewählten Fachs
+  zeigte technisch auch die Themen aller anderen Fächer mit an. Beide
+  Komponenten filtern jetzt in `App.tsx` auf `course_id === selectedCourse.id`,
+  bevor sie hereingereicht werden; `TopicTree`s `onChange` führt die
+  geänderte Teilmenge anschließend wieder mit den unveränderten Themen der
+  übrigen Fächer zusammen, bevor `handleChangeTopics` (Diff-Persistenz)
+  aufgerufen wird. War vorher nicht sichtbar aufgefallen, weil beide
+  Sitzungs-Nutzer bisher nie mehrere Fächer gleichzeitig mit Themen
+  angelegt hatten, um es zu bemerken.
+- **`<details>` für Fach-/Ordner-Verwaltung:** `CourseSetup`/`CourseGroups`
+  bleiben unverändert als eigene Komponenten, stecken jetzt aber in einem
+  nativen `<details>` (kein selbstgebautes Akkordeon, PRODUCT.md „Native
+  vor custom") — eingeklappt, sobald ein Fach gewählt ist, aufgeklappt,
+  solange keins gewählt ist. `key={selectedCourseId}` sorgt dafür, dass
+  nur ein tatsächlicher Fachwechsel den Standardzustand neu setzt, ein
+  manuelles Auf-/Zuklappen durch den Nutzer bleibt zwischen anderen
+  Re-Renders erhalten (`<details open>` als React-Prop ist sonst
+  unkontrollierbar, sobald es an denselben State-Wert gebunden bleibt, der
+  sich durch andere Re-Renders nicht ändert — hier kein Problem, weil
+  React eine unveränderte Prop nicht erneut ins DOM schreibt, aber beim
+  Fachwechsel selbst soll jedes Fach unabhängig mit seinem eigenen
+  Standardzustand starten).
+- **9 neue Tests** (`CourseWorkspace.test.tsx`) — `npx tsc --noEmit`,
+  `npm test` (475 Tests), `npm run build` liefen fehlerfrei. Alle
+  bestehenden Komponententests (`CourseSetup`/`AssessmentSetup`/
+  `PaperSteps`/`TopicTree`/`SourceViewer` usw.) liefen unverändert durch —
+  sie testen die Komponenten isoliert, nicht über `App.tsx`s
+  Zusammensetzung, daher unberührt vom Umbau.
+- **Im Dev-Server geprüft, mit einer ehrlichen Lücke:** der
+  „kein Fach gewählt"-Zustand (Fach-/Ordner-Verwaltung aufgeklappt, Hinweis
+  „Fach auswählen …") ist per Playwright-Screenshot bestätigt, keine neuen
+  Konsolenfehler. **Der „Fach gewählt"-Zustand mit den drei Reitern selbst
+  ist NICHT visuell im Browser bestätigt** — dieselbe, bereits x-fach
+  dokumentierte Einschränkung (kein Fach ohne echtes Tauri-Fenster
+  anlegbar). Die Reiter-Logik selbst (Umschalten, ARIA, DOM-Erhalt) ist
+  über die neuen Komponententests abgedeckt, die Optik stützt sich auf
+  bereits an anderer Stelle visuell bestätigte, hier nur wiederverwendete
+  Muster (aktiver Sidebar-Eintrag, Standard-Button). **Nächste Sitzung:
+  sobald ein Fach existiert, einmal auf die drei Reiter schauen und
+  melden, ob es wie gewünscht wirkt.**
+- **Keine weitere offene Aufgabe aus diesem Wunsch** — vollständig
+  umgesetzt.
+
 ---
 
 ## 9. Bekannte Einschränkungen

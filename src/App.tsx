@@ -52,6 +52,7 @@ import {
   type CourseGroupTreeNode,
 } from './data/courseGroups'
 import { CourseGroups } from './ui/CourseGroups'
+import { CourseWorkspace } from './ui/CourseWorkspace'
 import { deleteAssessmentRow, insertAssessment, loadAssessments, updateAssessmentRow } from './data/assessmentsRepo'
 import { removeAssessment, updateAssessment, type NewAssessmentInput } from './data/assessments'
 import { deletePaperStepRow, insertPaperStep, loadPaperSteps, updatePaperStepRow } from './data/paperStepsRepo'
@@ -1324,152 +1325,182 @@ export function App() {
 
         {activeSection === 'faecher' && (
           <>
-            <CourseSetup
-              courses={courses}
-              onAdd={handleAddCourse}
-              onUpdate={handleUpdateCourse}
-              onArchive={handleArchiveCourse}
-              onRemove={handleRemoveCourse}
-            />
-
-            <CourseGroups
-              courseGroups={courseGroups}
-              courses={courses}
-              onAdd={handleAddCourseGroup}
-              onRename={handleRenameCourseGroup}
-              onMove={handleMoveCourseGroup}
-              onRemove={handleRemoveCourseGroup}
-              onAssignCourse={handleSetCourseGroup}
-            />
-
-            {selectedCourse && (
-              <AssessmentSetup
-                course={selectedCourse}
-                assessments={assessments}
-                onAdd={handleAddAssessment}
-                onUpdate={handleUpdateAssessment}
-                onRemove={handleRemoveAssessment}
+            {/* Eingeklappt, sobald ein Fach gewählt ist — die fokussierte
+                Detailansicht unten (`CourseWorkspace`) soll den ersten Blick
+                bekommen, nicht die Verwaltungsliste aller Fächer (Redesign
+                2026-07-23, CONTEXT.md „Nachtsitzung"). `key` sorgt dafür,
+                dass nur ein tatsächlicher Fachwechsel den Standardzustand
+                neu setzt — ein manuelles Auf-/Zuklappen durch den Nutzer
+                bleibt zwischen anderen Re-Renders erhalten (natives
+                `<details>` ist sonst unkontrollierbar, sobald `open` an
+                React-State hängt). */}
+            <details className="course-management" key={selectedCourseId ?? 'none'} open={selectedCourseId === null}>
+              <summary>Fächer &amp; Ordner verwalten</summary>
+              <CourseSetup
+                courses={courses}
+                onAdd={handleAddCourse}
+                onUpdate={handleUpdateCourse}
+                onArchive={handleArchiveCourse}
+                onRemove={handleRemoveCourse}
               />
-            )}
-            {selectedCourse && (
-              <PaperSteps
-                course={selectedCourse}
-                assessments={assessments}
-                steps={paperSteps}
-                onAdd={handleAddPaperStep}
-                onUpdate={handleUpdatePaperStep}
-                onRemove={handleRemovePaperStep}
-              />
-            )}
 
-            {selectedCourse && (
-              <>
-                <label>
-                  Dokumenttyp
-                  <select value={importDocType} onChange={(e) => setImportDocType(e.target.value as DocumentType)}>
-                    {DOCUMENT_TYPE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <p>
-                  Wird beim Dateiauswählen automatisch aus dem Dateinamen vorgeschlagen (z. B. „Altklausur" oder
-                  „Zusammenfassung" im Namen) — falsch erkannt? Danach jederzeit unten in „Importierte Dokumente"
-                  korrigierbar.
-                </p>
-                {importDocType === 'sonstiges' && (
-                  <label>
-                    Eigene Bezeichnung
-                    <input
-                      value={importDocTypeLabel}
-                      onChange={(e) => setImportDocTypeLabel(e.target.value)}
-                      placeholder="z. B. Formelsammlung"
-                      list="doc-type-label-suggestions"
+              <CourseGroups
+                courseGroups={courseGroups}
+                courses={courses}
+                onAdd={handleAddCourseGroup}
+                onRename={handleRenameCourseGroup}
+                onMove={handleMoveCourseGroup}
+                onRemove={handleRemoveCourseGroup}
+                onAssignCourse={handleSetCourseGroup}
+              />
+            </details>
+
+            {selectedCourse ? (
+              <CourseWorkspace
+                course={selectedCourse}
+                pruefungenContent={
+                  <>
+                    <AssessmentSetup
+                      course={selectedCourse}
+                      assessments={assessments}
+                      onAdd={handleAddAssessment}
+                      onUpdate={handleUpdateAssessment}
+                      onRemove={handleRemoveAssessment}
                     />
-                    <datalist id="doc-type-label-suggestions">
-                      {Array.from(new Set(documents.map((d) => d.doc_type_label).filter((label): label is string => !!label))).map(
-                        (label) => (
-                          <option key={label} value={label} />
-                        ),
+                    <PaperSteps
+                      course={selectedCourse}
+                      assessments={assessments}
+                      steps={paperSteps}
+                      onAdd={handleAddPaperStep}
+                      onUpdate={handleUpdatePaperStep}
+                      onRemove={handleRemovePaperStep}
+                    />
+                  </>
+                }
+                materialContent={
+                  <>
+                    <section aria-label="Import">
+                      <h2>Import</h2>
+                      <label>
+                        Dokumenttyp
+                        <select value={importDocType} onChange={(e) => setImportDocType(e.target.value as DocumentType)}>
+                          {DOCUMENT_TYPE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <p>
+                        Wird beim Dateiauswählen automatisch aus dem Dateinamen vorgeschlagen (z. B. „Altklausur"
+                        oder „Zusammenfassung" im Namen) — falsch erkannt? Danach jederzeit unten in „Importierte
+                        Dokumente" korrigierbar.
+                      </p>
+                      {importDocType === 'sonstiges' && (
+                        <label>
+                          Eigene Bezeichnung
+                          <input
+                            value={importDocTypeLabel}
+                            onChange={(e) => setImportDocTypeLabel(e.target.value)}
+                            placeholder="z. B. Formelsammlung"
+                            list="doc-type-label-suggestions"
+                          />
+                          <datalist id="doc-type-label-suggestions">
+                            {Array.from(
+                              new Set(documents.map((d) => d.doc_type_label).filter((label): label is string => !!label)),
+                            ).map((label) => (
+                              <option key={label} value={label} />
+                            ))}
+                          </datalist>
+                        </label>
                       )}
-                    </datalist>
-                  </label>
-                )}
-                <label>
-                  Dokumente für {selectedCourse.name} importieren (PDF, Word, PowerPoint, Excel, Markdown)
-                  <input
-                    type="file"
-                    accept={SUPPORTED_EXTENSIONS.join(',')}
-                    multiple
-                    onChange={(e) => {
-                      const files = e.target.files
-                      if (!files || files.length === 0) return
-                      const rejected = Array.from(files).filter((f) => !isSupportedDocument(f.name))
-                      const accepted = Array.from(files).filter((f) => isSupportedDocument(f.name))
-                      if (rejected.length > 0) {
-                        setImportInfo(
-                          `${rejected.length} Datei(en) übersprungen (Format wird derzeit nicht unterstützt): ${rejected.map((f) => f.name).slice(0, 5).join(', ')}${rejected.length > 5 ? ', …' : ''}.`,
-                        )
-                      }
-                      if (accepted.length === 0) {
-                        e.target.value = ''
-                        return
-                      }
-                      // "folien" gilt als noch nicht bewusst gewählt (Default) — nur dann
-                      // übernimmt die Erkennung aus dem Dateinamen die Auswahl automatisch,
-                      // eine bewusst getroffene Wahl wird nie überschrieben (siehe
-                      // ingest/docType.ts-Kommentar).
-                      const resolvedType = importDocType === 'folien' ? inferDocType(accepted[0]!.name) : importDocType
-                      if (resolvedType !== importDocType) setImportDocType(resolvedType)
-                      const dataTransfer = new DataTransfer()
-                      accepted.forEach((f) => dataTransfer.items.add(f))
-                      importDocuments(dataTransfer.files, resolvedType)
-                      e.target.value = ''
-                    }}
-                  />
-                </label>
-                <button type="button" onClick={() => importFolder()}>
-                  Oder ganzen Ordner importieren
-                </button>
-                <p>
-                  Unterordner des gewählten Ordners werden 1:1 als verschachtelte Themen übernommen — praktisch, wenn
-                  Material schon nach Unterthemen sortiert in Ordnern liegt. Dokumente direkt im gewählten Ordner
-                  (ohne Unterordner) verhalten sich wie beim normalen Import oben. Unterstützte Formate: PDF, Word
-                  (.docx), PowerPoint (.pptx), Excel (.xlsx), Markdown (.md).
-                </p>
-                {importError && <p role="alert">{importError}</p>}
-                {importInfo && <p role="status">{importInfo}</p>}
-              </>
-            )}
+                      <label>
+                        Dokumente für {selectedCourse.name} importieren (PDF, Word, PowerPoint, Excel, Markdown)
+                        <input
+                          type="file"
+                          accept={SUPPORTED_EXTENSIONS.join(',')}
+                          multiple
+                          onChange={(e) => {
+                            const files = e.target.files
+                            if (!files || files.length === 0) return
+                            const rejected = Array.from(files).filter((f) => !isSupportedDocument(f.name))
+                            const accepted = Array.from(files).filter((f) => isSupportedDocument(f.name))
+                            if (rejected.length > 0) {
+                              setImportInfo(
+                                `${rejected.length} Datei(en) übersprungen (Format wird derzeit nicht unterstützt): ${rejected.map((f) => f.name).slice(0, 5).join(', ')}${rejected.length > 5 ? ', …' : ''}.`,
+                              )
+                            }
+                            if (accepted.length === 0) {
+                              e.target.value = ''
+                              return
+                            }
+                            // "folien" gilt als noch nicht bewusst gewählt (Default) — nur dann
+                            // übernimmt die Erkennung aus dem Dateinamen die Auswahl automatisch,
+                            // eine bewusst getroffene Wahl wird nie überschrieben (siehe
+                            // ingest/docType.ts-Kommentar).
+                            const resolvedType = importDocType === 'folien' ? inferDocType(accepted[0]!.name) : importDocType
+                            if (resolvedType !== importDocType) setImportDocType(resolvedType)
+                            const dataTransfer = new DataTransfer()
+                            accepted.forEach((f) => dataTransfer.items.add(f))
+                            importDocuments(dataTransfer.files, resolvedType)
+                            e.target.value = ''
+                          }}
+                        />
+                      </label>
+                      <button type="button" onClick={() => importFolder()}>
+                        Oder ganzen Ordner importieren
+                      </button>
+                      <p>
+                        Unterordner des gewählten Ordners werden 1:1 als verschachtelte Themen übernommen —
+                        praktisch, wenn Material schon nach Unterthemen sortiert in Ordnern liegt. Dokumente direkt
+                        im gewählten Ordner (ohne Unterordner) verhalten sich wie beim normalen Import oben.
+                        Unterstützte Formate: PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), Markdown (.md).
+                      </p>
+                      {importError && <p role="alert">{importError}</p>}
+                      {importInfo && <p role="status">{importInfo}</p>}
+                    </section>
 
-            {selectedCourse && (
-              <DocumentList course={selectedCourse} documents={documents} onChangeType={handleChangeDocumentType} />
-            )}
+                    <DocumentList course={selectedCourse} documents={documents} onChangeType={handleChangeDocumentType} />
 
-            {selectedCourse && (
-              <AltklausurAnalysis
-                course={selectedCourse}
-                topics={topics.filter((t) => t.course_id === selectedCourse.id)}
-                documents={documents}
-                documentBytes={documentBytes}
-                onAnalyze={handleAnalyzeAltklausur}
-                onApply={handleApplyWeightSuggestions}
+                    <AltklausurAnalysis
+                      course={selectedCourse}
+                      topics={topics.filter((t) => t.course_id === selectedCourse.id)}
+                      documents={documents}
+                      documentBytes={documentBytes}
+                      onAnalyze={handleAnalyzeAltklausur}
+                      onApply={handleApplyWeightSuggestions}
+                    />
+                  </>
+                }
+                themenContent={
+                  <>
+                    <TopicTree
+                      topics={topics.filter((t) => t.course_id === selectedCourse.id)}
+                      onChange={(nextForCourse) =>
+                        handleChangeTopics([
+                          ...topics.filter((t) => t.course_id !== selectedCourse.id),
+                          ...nextForCourse,
+                        ])
+                      }
+                    />
+
+                    <SourceViewer
+                      topics={topics.filter((t) => t.course_id === selectedCourse.id)}
+                      topicSections={topicSections.filter(
+                        (s) => topics.find((t) => t.id === s.topic_id)?.course_id === selectedCourse.id,
+                      )}
+                      documents={documents.filter((d) => d.course_id === selectedCourse.id)}
+                      documentBytes={documentBytes}
+                      cards={cards}
+                      onCreateCard={handleCreateCard}
+                      onDeleteCard={handleDeleteCard}
+                    />
+                  </>
+                }
               />
+            ) : (
+              <p>Fach auswählen (links in der Seitenleiste), um Prüfungen, Material und Themen zu sehen.</p>
             )}
-
-            <TopicTree topics={topics} onChange={handleChangeTopics} />
-
-            <SourceViewer
-              topics={topics}
-              topicSections={topicSections}
-              documents={documents}
-              documentBytes={documentBytes}
-              cards={cards}
-              onCreateCard={handleCreateCard}
-              onDeleteCard={handleDeleteCard}
-            />
           </>
         )}
 

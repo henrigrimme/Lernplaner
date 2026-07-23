@@ -558,6 +558,93 @@ section[aria-label] ul.document-list > li.document-list-item {
   border-bottom-left-radius: 2px;
 }
 
+/* ---------- Fach-Detailansicht (Reiter) ---------- */
+
+/* `CourseWorkspace.tsx` — dieselbe "aktueller Ort"-Sprache wie die
+   Sidebar-Navigation (`.app-nav-item[aria-current='page']`): Terrakotta
+   markiert nur den gewählten Reiter, sonst nirgends verwendet (DESIGN.md
+   „One Accent Rule"). */
+.course-tabs {
+  display: flex;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs);
+  width: fit-content;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.course-tab {
+  padding: 6px var(--space-md);
+  border: none;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 550;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out-quart);
+}
+
+.course-tab:hover {
+  background: oklch(from var(--color-ink) l c h / 0.06);
+}
+
+.course-tab[aria-selected='true'] {
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+  font-weight: 560;
+}
+
+.course-tabpanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  padding-top: var(--space-md);
+}
+
+/* `<details>` um Fach-/Ordner-Verwaltung (App.tsx „Fächer & Themen") —
+   native Offenlegungssteuerung statt eines selbstgebauten Akkordeons
+   (PRODUCT.md „Native vor custom"). Standardmäßig eingeklappt, sobald ein
+   Fach gewählt ist (`open`-Attribut kommt aus React-State in App.tsx),
+   damit die fokussierte Fach-Detailansicht (`CourseWorkspace`) den ersten
+   Blick bekommt, nicht die Verwaltungsliste aller Fächer. */
+.course-management {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm) var(--space-md);
+}
+
+.course-management[open] {
+  padding-bottom: var(--space-md);
+}
+
+/* Native Aufklapp-Markierung (`list-style: disclosure-*`) statt eines
+   selbst gezeichneten Pfeils — derselbe Browser-eigene Dreieck-Indikator,
+   den `<details>` auch ohne jede Anpassung zeigen würde, nur farblich auf
+   `--color-muted` gebracht (`::marker`, breit unterstützt). */
+.course-management summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-muted);
+  padding: var(--space-2xs) 0;
+  list-style: disclosure-closed;
+}
+
+.course-management[open] summary {
+  list-style: disclosure-open;
+}
+
+.course-management summary::marker {
+  color: var(--color-muted);
+}
+
+.course-management > section[aria-label] {
+  margin-top: var(--space-md);
+}
+
 /* ---------- Buttons ---------- */
 
 button {
