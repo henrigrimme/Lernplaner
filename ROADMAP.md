@@ -77,9 +77,6 @@ Nach Dringlichkeit aus echter Nutzung, grobe Reihenfolge:
 - Übungsblatt-Zerlegung in Einzelaufgaben
 - OCR, Handschrift
 - iOS-Version zum Wiederholen unterwegs
-- Wiederkehrende Tages-Blocker in der Verfügbarkeit (Mittagspause, Abendessen,
-  Gym o. ä. als feste Zeitfenster an bestimmten Wochentagen) — Nutzerwunsch
-  22.07.2026, zurückgestuft zugunsten des Import-Bugs, Details CONTEXT.md
 - Tieferer Quiz-Konfigurationsdialog mit echten Rückfragen (Konversation
   statt Formular) — Schwierigkeit/Anzahl/Sprache sind seit v0.19.0 schon
   vorab wählbar, das ist der nächste, größere Schritt

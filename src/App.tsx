@@ -64,6 +64,8 @@ import {
   upsertAvailabilityPatternRow,
 } from './data/availabilityRepo'
 import { removeAvailabilityException, setAvailabilityException, setAvailabilityPattern } from './data/availability'
+import { deleteRecurringBlockerRow, insertRecurringBlocker, loadRecurringBlockers } from './data/recurringBlockersRepo'
+import { removeRecurringBlocker, type NewRecurringBlockerInput } from './data/recurringBlockers'
 import { loadTopics, syncTopics } from './data/topicsRepo'
 import { loadTopicSections } from './data/topicSectionsRepo'
 import { loadStudyBlocks, syncStudyBlocks } from './data/studyBlocksRepo'
@@ -99,6 +101,7 @@ import type {
   PlanVersion,
   Question,
   Quiz,
+  RecurringBlocker,
   Review,
   StudyBlock,
   Topic,
@@ -223,6 +226,7 @@ export function App() {
   const [pattern, setPattern] = useState<AvailabilityPattern[]>([])
   const [exceptions, setExceptions] = useState<AvailabilityException[]>([])
   const [blockers] = useState<Blocker[]>([])
+  const [recurringBlockers, setRecurringBlockers] = useState<RecurringBlocker[]>([])
   const [studyBlocks, setStudyBlocks] = useState<StudyBlock[]>([])
   const [planVersions, setPlanVersions] = useState<PlanVersion[]>([])
   const [cards, setCards] = useState<Card[]>([])
@@ -391,11 +395,12 @@ export function App() {
   useEffect(() => {
     let cancelled = false
     getDb()
-      .then((db) => Promise.all([loadAvailabilityPattern(db), loadAvailabilityExceptions(db)]))
-      .then(([patternRows, exceptionRows]) => {
+      .then((db) => Promise.all([loadAvailabilityPattern(db), loadAvailabilityExceptions(db), loadRecurringBlockers(db)]))
+      .then(([patternRows, exceptionRows, recurringBlockerRows]) => {
         if (!cancelled) {
           setPattern(patternRows)
           setExceptions(exceptionRows)
+          setRecurringBlockers(recurringBlockerRows)
         }
       })
       .catch(() => {
@@ -775,6 +780,26 @@ export function App() {
     }
   }
 
+  const handleAddRecurringBlocker = async (input: NewRecurringBlockerInput) => {
+    try {
+      const db = await getDb()
+      const inserted = await insertRecurringBlocker(db, input)
+      setRecurringBlockers((prev) => [...prev, inserted])
+    } catch (error) {
+      console.error('Wiederkehrender Blocker konnte nicht gespeichert werden', error)
+    }
+  }
+
+  const handleRemoveRecurringBlocker = async (id: number) => {
+    try {
+      const db = await getDb()
+      await deleteRecurringBlockerRow(db, id)
+      setRecurringBlockers((prev) => removeRecurringBlocker(prev, id))
+    } catch (error) {
+      console.error('Wiederkehrender Blocker konnte nicht gelöscht werden', error)
+    }
+  }
+
   const handleChangeTopics = async (nextTopics: Topic[]) => {
     try {
       const db = await getDb()
@@ -806,7 +831,7 @@ export function App() {
   }
 
   const generateStudyBlocks = async () => {
-    const schedule = buildSchedule({ topics, topicSections, assessments, courses, pattern, exceptions, blockers, from: today })
+    const schedule = buildSchedule({ topics, topicSections, assessments, courses, pattern, exceptions, blockers, recurringBlockers, from: today })
     await handleChangeStudyBlocks(materializeStudyBlocks(schedule.blocks))
   }
 
@@ -1455,6 +1480,9 @@ export function App() {
             onSetPatternMinutes={handleSetPatternMinutes}
             onAddException={handleAddException}
             onRemoveException={handleRemoveException}
+            recurringBlockers={recurringBlockers}
+            onAddRecurringBlocker={handleAddRecurringBlocker}
+            onRemoveRecurringBlocker={handleRemoveRecurringBlocker}
           />
         )}
 
@@ -1468,6 +1496,7 @@ export function App() {
               pattern={pattern}
               exceptions={exceptions}
               blockers={blockers}
+              recurringBlockers={recurringBlockers}
               from={today}
             />
 
@@ -1484,6 +1513,7 @@ export function App() {
               pattern={pattern}
               exceptions={exceptions}
               blockers={blockers}
+              recurringBlockers={recurringBlockers}
               from={today}
               onApply={applyReplan}
             />

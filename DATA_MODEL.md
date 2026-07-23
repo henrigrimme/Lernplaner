@@ -94,8 +94,12 @@ availability_pattern           -- Wochenmuster
 availability_exception         -- einzelne abweichende Tage
   date, minutes, note
 
-blockers                       -- Vorlesungen, Termine
+blockers                       -- Vorlesungen, Termine (absolutes Datum)
   id, starts_at, ends_at, title, source   -- manuell | kalender
+
+recurring_blockers             -- wiederkehrende Wochentag-Zeitfenster (Migration 0006)
+  id, weekday (0–6), starts_at, ends_at,  -- starts_at/ends_at: "HH:MM", kein Datum
+  label                                    -- z. B. "Mittagspause", "Gym"
 
 study_blocks                   -- die geplanten Lerneinheiten
   id, topic_id, assessment_id,

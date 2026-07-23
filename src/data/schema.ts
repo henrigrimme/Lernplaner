@@ -126,6 +126,21 @@ export interface Blocker {
   source: 'manuell' | 'kalender'
 }
 
+/**
+ * Wiederkehrender Tages-Blocker (Migration 0006, Nutzerwunsch
+ * 22.07.2026) — anders als `Blocker` kein absolutes Datum, sondern ein
+ * Wochentag + Uhrzeitfenster (z. B. "täglich 12:00–13:00 Mittagspause").
+ * `starts_at`/`ends_at` sind reine "HH:MM"-Uhrzeiten, siehe
+ * `domain/capacity.ts` für die Umrechnung auf einen konkreten Tag.
+ */
+export interface RecurringBlocker {
+  id: number
+  weekday: 0 | 1 | 2 | 3 | 4 | 5 | 6
+  starts_at: string
+  ends_at: string
+  label: string
+}
+
 export type StudyBlockKind =
   | 'erstdurchgang'
   | 'wiederholung'

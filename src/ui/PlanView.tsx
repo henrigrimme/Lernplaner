@@ -6,6 +6,7 @@ import type {
   AvailabilityPattern,
   Blocker,
   Course,
+  RecurringBlocker,
   Topic,
   TopicSection,
 } from '../data/schema'
@@ -28,6 +29,8 @@ export interface PlanViewProps {
   pattern: AvailabilityPattern[]
   exceptions: AvailabilityException[]
   blockers: Blocker[]
+  /** Wochentag-Zeitfenster wie eine tägliche Mittagspause (Migration 0006). */
+  recurringBlockers: RecurringBlocker[]
   /** "Heute", ISO-Datum — vom Aufrufer übergeben, keine Systemuhr in `domain/`. */
   from: string
 }
@@ -48,10 +51,21 @@ export function PlanView({
   pattern,
   exceptions,
   blockers,
+  recurringBlockers,
   from,
 }: PlanViewProps) {
   const topicById = new Map(topics.map((t) => [t.id, t]))
-  const result = buildSchedule({ topics, topicSections, assessments, courses, pattern, exceptions, blockers, from })
+  const result = buildSchedule({
+    topics,
+    topicSections,
+    assessments,
+    courses,
+    pattern,
+    exceptions,
+    blockers,
+    recurringBlockers,
+    from,
+  })
 
   const blocksByWeek = new Map<string, Map<string, typeof result.blocks>>()
   for (const block of [...result.blocks].sort((a, b) => a.planned_date.localeCompare(b.planned_date))) {

@@ -7,6 +7,7 @@ import type {
   AvailabilityException,
   AvailabilityPattern,
   Blocker,
+  RecurringBlocker,
   StudyBlock,
   Topic,
 } from '../data/schema'
@@ -28,6 +29,8 @@ export interface ReplanViewProps {
   pattern: AvailabilityPattern[]
   exceptions: AvailabilityException[]
   blockers: Blocker[]
+  /** Wochentag-Zeitfenster wie eine tägliche Mittagspause (Migration 0006). */
+  recurringBlockers: RecurringBlocker[]
   /** "Heute", ISO-Datum — vom Aufrufer übergeben, keine Systemuhr in der Komponente. */
   from: string
   onApply: (blocks: StudyBlock[], reason: string) => void
@@ -45,7 +48,17 @@ function sideLabel(side: { dates: string[]; minutes: number } | null): string {
   return `${side.dates.join(', ')} (${side.minutes} Min.)`
 }
 
-export function ReplanView({ studyBlocks, topics, assessments, pattern, exceptions, blockers, from, onApply }: ReplanViewProps) {
+export function ReplanView({
+  studyBlocks,
+  topics,
+  assessments,
+  pattern,
+  exceptions,
+  blockers,
+  recurringBlockers,
+  from,
+  onApply,
+}: ReplanViewProps) {
   const [preview, setPreview] = useState<ReplanResult | null>(null)
   const topicById = new Map(topics.map((t) => [t.id, t]))
 
@@ -53,7 +66,7 @@ export function ReplanView({ studyBlocks, topics, assessments, pattern, exceptio
 
   const compute = () => {
     const schedulingAssessments = assessments.map((a) => ({ id: a.id, date: a.date }))
-    setPreview(replan(studyBlocks, schedulingAssessments, from, pattern, exceptions, blockers))
+    setPreview(replan(studyBlocks, schedulingAssessments, from, pattern, exceptions, blockers, {}, recurringBlockers))
   }
 
   const apply = () => {

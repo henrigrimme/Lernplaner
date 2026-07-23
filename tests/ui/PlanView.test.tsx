@@ -69,6 +69,7 @@ describe('PlanView', () => {
         pattern={[]}
         exceptions={[]}
         blockers={[]}
+        recurringBlockers={[]}
         from="2026-08-03"
       />,
     )
@@ -87,6 +88,7 @@ describe('PlanView', () => {
         pattern={DAILY_60}
         exceptions={[]}
         blockers={[]}
+        recurringBlockers={[]}
         from="2026-08-03"
       />,
     )
@@ -107,6 +109,7 @@ describe('PlanView', () => {
         pattern={DAILY_60}
         exceptions={[]}
         blockers={[]}
+        recurringBlockers={[]}
         from="2026-08-03"
       />,
     )
@@ -125,6 +128,7 @@ describe('PlanView', () => {
         pattern={DAILY_60}
         exceptions={[]}
         blockers={[]}
+        recurringBlockers={[]}
         from="2026-08-03"
       />,
     )
@@ -143,6 +147,7 @@ describe('PlanView', () => {
         pattern={DAILY_60}
         exceptions={[]}
         blockers={[]}
+        recurringBlockers={[]}
         from="2026-08-03"
       />,
     )

@@ -1,5 +1,5 @@
 import { availableMinutesForDay, datesInRange } from './capacity'
-import type { AvailabilityException, AvailabilityPattern, Blocker, StudyBlockKind } from '../data/schema'
+import type { AvailabilityException, AvailabilityPattern, Blocker, RecurringBlocker, StudyBlockKind } from '../data/schema'
 
 /**
  * Terminierung: weist Themen (aus `estimation.ts`) konkrete Tage zu, unter
@@ -144,6 +144,10 @@ export function scheduleStudyBlocks(
   exceptions: AvailabilityException[],
   blockers: Blocker[],
   options: ScheduleOptions = {},
+  // Ans Ende gestellt (nicht vor `options`), damit bestehende Aufrufer mit
+  // `options` als siebtem Positionsargument unverändert funktionieren
+  // (Migration 0006, Nutzerwunsch "wiederkehrende Tages-Blocker").
+  recurringBlockers: RecurringBlocker[] = [],
 ): ScheduleResult {
   const sessionChunkMinutes = options.sessionChunkMinutes ?? DEFAULT_SESSION_CHUNK_MINUTES
   const reviewFraction = options.reviewFraction ?? DEFAULT_REVIEW_FRACTION
@@ -171,7 +175,7 @@ export function scheduleStudyBlocks(
   const blocks: ScheduledBlock[] = []
 
   for (const date of datesInRange(from, horizon)) {
-    let dayRemaining = availableMinutesForDay(date, pattern, exceptions, blockers)
+    let dayRemaining = availableMinutesForDay(date, pattern, exceptions, blockers, recurringBlockers)
     if (dayRemaining <= 0) continue
 
     // EDF: nähere Prüfungstermine zuerst in der Rotation, stabil nach topicId.

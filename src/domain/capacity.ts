@@ -1,4 +1,4 @@
-import type { AvailabilityException, AvailabilityPattern, Blocker } from '../data/schema'
+import type { AvailabilityException, AvailabilityPattern, Blocker, RecurringBlocker } from '../data/schema'
 
 /**
  * Kapazitätsrechnung: verfügbare vs. benötigte Zeit, Defiziterkennung
@@ -25,18 +25,83 @@ import type { AvailabilityException, AvailabilityPattern, Blocker } from '../dat
  */
 
 /**
+ * Ein "HH:MM"-Zeitpunkt an einem gegebenen Kalendertag (UTC) als
+ * absoluter Zeitstempel in Millisekunden. Kein eigenes Datum für das Ende
+ * nötig — `recurring_blockers` überspannt nie Mitternacht (Migration
+ * 0006: reine Uhrzeit je Wochentag, ein Mittagessen o. Ä. endet immer am
+ * selben Tag).
+ */
+function timeOnDayMs(dateStartMs: number, hhmm: string): number {
+  const [hours, minutes] = hhmm.split(':').map(Number)
+  return dateStartMs + (hours! * 60 + minutes!) * 60_000
+}
+
+/**
+ * Wiederkehrende Blocker, die auf `weekday` dieses Tages passen, als
+ * absolute [Start, Ende]-Intervalle (ms) für genau diesen Kalendertag.
+ */
+function recurringBlockerIntervalsForDay(
+  dayStartMs: number,
+  weekday: number,
+  recurringBlockers: RecurringBlocker[],
+): { start: number; end: number }[] {
+  return recurringBlockers
+    .filter((b) => b.weekday === weekday)
+    .map((b) => ({ start: timeOnDayMs(dayStartMs, b.starts_at), end: timeOnDayMs(dayStartMs, b.ends_at) }))
+}
+
+/**
+ * Summe der von `intervals` überdeckten Zeit innerhalb von
+ * [`rangeStart`, `rangeEnd`) in Minuten — als **Vereinigung**, nicht als
+ * naive Summe der Einzeldauern: zwei sich überschneidende Blocker (z. B.
+ * eine Vorlesung, die zufällig mit der Mittagspause zusammenfällt) dürfen
+ * ihre gemeinsame Zeit nicht doppelt abziehen, sonst würde die verfügbare
+ * Zeit unterschätzt.
+ */
+function mergedOverlapMinutes(
+  intervals: { start: number; end: number }[],
+  rangeStart: number,
+  rangeEnd: number,
+): number {
+  const clipped = intervals
+    .map(({ start, end }) => ({ start: Math.max(start, rangeStart), end: Math.min(end, rangeEnd) }))
+    .filter(({ start, end }) => end > start)
+    .sort((a, b) => a.start - b.start)
+
+  let totalMs = 0
+  let currentStart = -Infinity
+  let currentEnd = -Infinity
+  for (const { start, end } of clipped) {
+    if (start > currentEnd) {
+      if (currentEnd > currentStart) totalMs += currentEnd - currentStart
+      currentStart = start
+      currentEnd = end
+    } else {
+      currentEnd = Math.max(currentEnd, end)
+    }
+  }
+  if (currentEnd > currentStart) totalMs += currentEnd - currentStart
+
+  return totalMs / 60_000
+}
+
+/**
  * Verfügbare Minuten an einem einzelnen Tag: `availability_exception`
  * ersetzt den Wochenmuster-Wert vollständig, wenn eine für dieses Datum
  * existiert (DATA_MODEL.md „einzelne abweichende Tage" — ein Override, kein
- * Zuschlag). Danach wird die Dauer aller `blockers` abgezogen, die an
- * diesem Tag liegen (Uhrzeit-genau, ein Termin über Mitternacht wird auf
- * die betroffenen Tage aufgeteilt). Ergebnis nie negativ.
+ * Zuschlag). Danach wird die Dauer aller `blockers` (absolut datiert,
+ * Uhrzeit-genau, ein Termin über Mitternacht wird auf die betroffenen Tage
+ * aufgeteilt) und `recurringBlockers` (Wochentag + Uhrzeit, Migration
+ * 0006 — z. B. eine tägliche Mittagspause) abgezogen — beide zusammen als
+ * **eine** Vereinigungsmenge (`mergedOverlapMinutes`), damit sich
+ * überschneidende Blocker nicht doppelt zählen. Ergebnis nie negativ.
  */
 export function availableMinutesForDay(
   dateISO: string,
   pattern: AvailabilityPattern[],
   exceptions: AvailabilityException[],
   blockers: Blocker[],
+  recurringBlockers: RecurringBlocker[] = [],
 ): number {
   const exception = exceptions.find((e) => e.date === dateISO)
   const dayStart = new Date(`${dateISO}T00:00:00.000Z`)
@@ -45,15 +110,14 @@ export function availableMinutesForDay(
   const baseMinutes =
     exception?.minutes ?? pattern.find((p) => p.weekday === weekday)?.minutes ?? 0
 
-  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
-  const blockedMinutes = blockers.reduce((sum, blocker) => {
-    const start = new Date(blocker.starts_at)
-    const end = new Date(blocker.ends_at)
-    const overlapStart = Math.max(start.getTime(), dayStart.getTime())
-    const overlapEnd = Math.min(end.getTime(), dayEnd.getTime())
-    const overlapMs = Math.max(0, overlapEnd - overlapStart)
-    return sum + overlapMs / 60_000
-  }, 0)
+  const dayStartMs = dayStart.getTime()
+  const dayEndMs = dayStartMs + 24 * 60 * 60 * 1000
+
+  const intervals = [
+    ...blockers.map((b) => ({ start: new Date(b.starts_at).getTime(), end: new Date(b.ends_at).getTime() })),
+    ...recurringBlockerIntervalsForDay(dayStartMs, weekday, recurringBlockers),
+  ]
+  const blockedMinutes = mergedOverlapMinutes(intervals, dayStartMs, dayEndMs)
 
   return Math.max(0, baseMinutes - blockedMinutes)
 }
@@ -81,9 +145,10 @@ export function availableMinutesInRange(
   pattern: AvailabilityPattern[],
   exceptions: AvailabilityException[],
   blockers: Blocker[],
+  recurringBlockers: RecurringBlocker[] = [],
 ): number {
   return datesInRange(from, to).reduce(
-    (sum, date) => sum + availableMinutesForDay(date, pattern, exceptions, blockers),
+    (sum, date) => sum + availableMinutesForDay(date, pattern, exceptions, blockers, recurringBlockers),
     0,
   )
 }
@@ -96,6 +161,8 @@ export interface CapacityInput {
   pattern: AvailabilityPattern[]
   exceptions: AvailabilityException[]
   blockers: Blocker[]
+  /** Wochentag-Zeitfenster wie eine tägliche Mittagspause (Migration 0006) — optional, Default keine. */
+  recurringBlockers?: RecurringBlocker[]
   /** Summe aus `estimateMinutes` (siehe `estimation.ts`) über alle Themen im Zeitraum. */
   neededMinutes: number
   /**
@@ -127,6 +194,7 @@ export function checkCapacity(input: CapacityInput): CapacityResult {
     input.pattern,
     input.exceptions,
     input.blockers,
+    input.recurringBlockers ?? [],
   )
   const usable = availableMinutes - bufferMinutes
   const deficitMinutes = input.neededMinutes - usable

@@ -11,6 +11,7 @@ import type {
   AvailabilityPattern,
   Blocker,
   Course,
+  RecurringBlocker,
   Topic,
   TopicSection,
 } from '../data/schema'
@@ -38,6 +39,8 @@ export interface BuildScheduleInput {
   pattern: AvailabilityPattern[]
   exceptions: AvailabilityException[]
   blockers: Blocker[]
+  /** Wochentag-Zeitfenster wie eine tägliche Mittagspause (Migration 0006) — optional, Default keine. */
+  recurringBlockers?: RecurringBlocker[]
   from: string
 }
 
@@ -48,7 +51,7 @@ export interface BuildScheduleResult extends ScheduleResult {
 }
 
 export function buildSchedule(input: BuildScheduleInput): BuildScheduleResult {
-  const { topics, topicSections, assessments, courses, pattern, exceptions, blockers, from } = input
+  const { topics, topicSections, assessments, courses, pattern, exceptions, blockers, recurringBlockers, from } = input
   const courseById = new Map(courses.map((c) => [c.id, c]))
   const assessmentById = new Map(assessments.map((a) => [a.id, a]))
 
@@ -89,7 +92,7 @@ export function buildSchedule(input: BuildScheduleInput): BuildScheduleResult {
   const result: ScheduleResult =
     schedulingTopics.length === 0
       ? { blocks: [], unscheduled: [] }
-      : scheduleStudyBlocks(schedulingTopics, schedulingAssessments, from, pattern, exceptions, blockers)
+      : scheduleStudyBlocks(schedulingTopics, schedulingAssessments, from, pattern, exceptions, blockers, {}, recurringBlockers ?? [])
 
   return { ...result, topicsWithoutAssessment, topicsConsideredCount: schedulingTopics.length }
 }

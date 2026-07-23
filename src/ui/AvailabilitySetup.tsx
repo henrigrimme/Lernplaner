@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { AvailabilityException, AvailabilityPattern } from '../data/schema'
+import type { AvailabilityException, AvailabilityPattern, RecurringBlocker } from '../data/schema'
+import type { NewRecurringBlockerInput } from '../data/recurringBlockers'
 
 /**
  * Verfügbarkeits-Setup: Wochenmuster (Minuten je Wochentag) plus einzelne
@@ -36,6 +37,9 @@ export interface AvailabilitySetupProps {
   onSetPatternMinutes: (weekday: AvailabilityPattern['weekday'], minutes: number) => void
   onAddException: (date: string, minutes: number, note: string | null) => void
   onRemoveException: (date: string) => void
+  recurringBlockers: RecurringBlocker[]
+  onAddRecurringBlocker: (input: NewRecurringBlockerInput) => void
+  onRemoveRecurringBlocker: (id: number) => void
 }
 
 export function AvailabilitySetup({
@@ -44,11 +48,19 @@ export function AvailabilitySetup({
   onSetPatternMinutes,
   onAddException,
   onRemoveException,
+  recurringBlockers,
+  onAddRecurringBlocker,
+  onRemoveRecurringBlocker,
 }: AvailabilitySetupProps) {
   const [draftDate, setDraftDate] = useState('')
   const [selectedDates, setSelectedDates] = useState<string[]>([])
   const [minutes, setMinutes] = useState('')
   const [note, setNote] = useState('')
+
+  const [blockerWeekday, setBlockerWeekday] = useState<AvailabilityPattern['weekday']>(1)
+  const [blockerStart, setBlockerStart] = useState('12:00')
+  const [blockerEnd, setBlockerEnd] = useState('13:00')
+  const [blockerLabel, setBlockerLabel] = useState('')
 
   const minutesFor = (weekday: number) => pattern.find((p) => p.weekday === weekday)?.minutes ?? 0
 
@@ -77,6 +89,15 @@ export function AvailabilitySetup({
     setSelectedDates([])
     setMinutes('')
     setNote('')
+  }
+
+  const addRecurringBlocker = (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmedLabel = blockerLabel.trim()
+    if (trimmedLabel.length === 0) return
+    if (blockerEnd <= blockerStart) return
+    onAddRecurringBlocker({ weekday: blockerWeekday, starts_at: blockerStart, ends_at: blockerEnd, label: trimmedLabel })
+    setBlockerLabel('')
   }
 
   return (
@@ -146,6 +167,57 @@ export function AvailabilitySetup({
           <input value={note} onChange={(e) => setNote(e.target.value)} />
         </label>
         <button type="submit">Ausnahme hinzufügen</button>
+      </form>
+
+      <h3>Wiederkehrende Blocker</h3>
+      <p>
+        Feste Zeitfenster an einem Wochentag, die automatisch von der verfügbaren Lernzeit abgezogen werden — z. B.
+        eine tägliche Mittagspause oder ein wöchentlicher Gym-Termin.
+      </p>
+      <ul>
+        {recurringBlockers.map((blocker) => (
+          <li key={blocker.id}>
+            {WEEKDAY_LABELS[blocker.weekday]}, {blocker.starts_at}–{blocker.ends_at}: {blocker.label}
+            <button type="button" onClick={() => onRemoveRecurringBlocker(blocker.id)}>
+              Entfernen
+            </button>
+          </li>
+        ))}
+      </ul>
+      <form onSubmit={addRecurringBlocker} aria-label="Wiederkehrenden Blocker hinzufügen">
+        <label>
+          Wochentag
+          <select
+            value={blockerWeekday}
+            onChange={(e) => setBlockerWeekday(Number(e.target.value) as AvailabilityPattern['weekday'])}
+          >
+            {WEEKDAY_LABELS.map((label, weekday) => (
+              <option key={weekday} value={weekday}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Von
+          <input type="time" value={blockerStart} onChange={(e) => setBlockerStart(e.target.value)} />
+        </label>
+        <label>
+          Bis
+          <input type="time" value={blockerEnd} onChange={(e) => setBlockerEnd(e.target.value)} />
+        </label>
+        <label>
+          Bezeichnung
+          <input
+            value={blockerLabel}
+            onChange={(e) => setBlockerLabel(e.target.value)}
+            placeholder="z. B. Mittagspause"
+          />
+        </label>
+        <button type="submit" disabled={blockerEnd <= blockerStart}>
+          Blocker hinzufügen
+        </button>
+        {blockerEnd <= blockerStart && <p role="alert">„Bis" muss nach „Von" liegen.</p>}
       </form>
     </section>
   )
