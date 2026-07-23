@@ -83,6 +83,12 @@ pub fn run() {
       sql: include_str!("../../src/data/migrations/0006_recurring_blockers.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 7,
+      description: "course_instructions",
+      sql: include_str!("../../src/data/migrations/0007_course_instructions.sql"),
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

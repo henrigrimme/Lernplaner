@@ -23,6 +23,7 @@ const MIGRATION_0003 = readFileSync(resolve(__dirname, '../../src/data/migration
 const MIGRATION_0004 = readFileSync(resolve(__dirname, '../../src/data/migrations/0004_quiz_language_and_options.sql'), 'utf-8')
 const MIGRATION_0005 = readFileSync(resolve(__dirname, '../../src/data/migrations/0005_course_groups.sql'), 'utf-8')
 const MIGRATION_0006 = readFileSync(resolve(__dirname, '../../src/data/migrations/0006_recurring_blockers.sql'), 'utf-8')
+const MIGRATION_0007 = readFileSync(resolve(__dirname, '../../src/data/migrations/0007_course_instructions.sql'), 'utf-8')
 
 export function createTestConnection(): SqlConnection {
   const db = new Database(':memory:')
@@ -33,6 +34,7 @@ export function createTestConnection(): SqlConnection {
   db.exec(MIGRATION_0004)
   db.exec(MIGRATION_0005)
   db.exec(MIGRATION_0006)
+  db.exec(MIGRATION_0007)
 
   return {
     async execute(sql, params = []) {

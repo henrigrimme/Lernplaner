@@ -94,7 +94,7 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
         Archivierte anzeigen
       </label>
 
-      <ul className="grouped-list--bleed-left">
+      <ul>
         {visible.map((course) => (
           <li key={course.id} data-course-id={course.id}>
             <span>{course.name}</span> <span>({course.semester})</span>

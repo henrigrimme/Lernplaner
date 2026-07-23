@@ -19,6 +19,7 @@ function course(overrides: Partial<Course> & { id: number }): Course {
     created_at: 'x',
     language: 'de',
     group_id: null,
+    instructions: '',
     ...overrides,
   }
 }

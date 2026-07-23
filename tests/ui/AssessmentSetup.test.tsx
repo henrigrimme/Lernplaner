@@ -15,6 +15,7 @@ const COURSE: Course = {
   created_at: 'x',
   language: 'de',
   group_id: null,
+  instructions: '',
 }
 
 function assessment(overrides: Partial<Assessment> & { id: number }): Assessment {

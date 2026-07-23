@@ -159,6 +159,7 @@ export class AnthropicProvider implements AIProvider {
     difficulty: QuizDifficulty,
     language: CourseLanguage,
     focus: QuestionFocus,
+    instructions: string,
   ): Promise<QuestionSuggestion[]> {
     const prompt = [
       `Erzeuge ${count} Quizfragen zum Thema "${topicName}" ausschließlich auf Basis des folgenden`,
@@ -169,6 +170,7 @@ export class AnthropicProvider implements AIProvider {
       DIFFICULTY_INSTRUCTION[difficulty],
       LANGUAGE_INSTRUCTION[language],
       FOCUS_INSTRUCTION[focus],
+      ...(instructions.trim() ? [`Zusätzliche Anweisung für dieses Fach: ${instructions.trim()}`] : []),
       '',
       'Antworte ausschließlich mit einem JSON-Array von',
       'Objekten der Form {"type": "mc"|"freitext", "prompt": string, "options": string[] (nur bei "mc",',

@@ -14,7 +14,7 @@ describe('coursesRepo', () => {
   it('legt ein Fach an und liefert es mit der echten AUTOINCREMENT-id zurück', async () => {
     const conn = createTestConnection()
     const course = await insertCourse(conn, INPUT, '2026-07-21T00:00:00.000Z')
-    expect(course).toMatchObject({ id: 1, ...INPUT, archived: 0, created_at: '2026-07-21T00:00:00.000Z' })
+    expect(course).toMatchObject({ id: 1, ...INPUT, archived: 0, created_at: '2026-07-21T00:00:00.000Z', instructions: '' })
     expect(await loadCourses(conn)).toEqual([course])
   })
 
@@ -23,6 +23,16 @@ describe('coursesRepo', () => {
     await insertCourse(conn, INPUT, 'x')
     const second = await insertCourse(conn, { ...INPUT, name: 'Money & Banking' }, 'x')
     expect(second.id).toBe(2)
+  })
+
+  it('speichert Anweisungen (Migration 0007) und aktualisiert sie nachträglich', async () => {
+    const conn = createTestConnection()
+    const course = await insertCourse(conn, { ...INPUT, instructions: 'Fokus auf Rechenaufgaben' }, 'x')
+    expect(course.instructions).toBe('Fokus auf Rechenaufgaben')
+
+    await updateCourseRow(conn, course.id, { instructions: 'Nur noch Konzeptfragen' })
+    const [updated] = await loadCourses(conn)
+    expect(updated).toMatchObject({ instructions: 'Nur noch Konzeptfragen' })
   })
 
   it('aktualisiert nur die angegebenen Felder', async () => {

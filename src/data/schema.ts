@@ -26,6 +26,8 @@ export interface Course {
   language: CourseLanguage
   /** Ordner in der Seitenleiste (Migration 0005), `null` = oberste Ebene wie bisher. */
   group_id: number | null
+  /** Frei formulierte Anweisungen für dieses Fach (Migration 0007) — fließen in die KI-Fragen-Generierung ein, ähnlich den "Custom Instructions" eines Claude-Projects. Leerstring = keine. */
+  instructions: string
 }
 
 /** Frei benannter Ordner, um Fächer in der Seitenleiste zu gruppieren (Migration 0005) — unabhängig vom Themenbaum. */
