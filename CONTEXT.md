@@ -24,20 +24,43 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 23. Juli 2026 — fünf Punkte in einer Sitzung:
-(1) Import akzeptiert jetzt auch Word/PowerPoint/Excel/Markdown,
-deterministisch ohne KI (v0.21.0, ADR-018); (2) `scripts/Install.command`
-reduziert die Gatekeeper-Erstinstall-Reibung ohne Apple Developer ID;
-(3) wiederkehrende Tages-Blocker in der Verfügbarkeit (ADR-019); (4)
-„Fächer & Themen" zeigt das gewählte Fach jetzt in drei Reitern statt
-einer langen Ein-Seiten-Liste; (5) der Quiz-Konfigurationsdialog ist ein
-Fünf-Schritt-Assistent mit neuem Fragenschwerpunkt-Parameter (ADR-020).
-Details jeweils in eigenen Abschnitten am Ende von Abschnitt 8.
-**Größere, noch unbeantwortete offene Fragen aus dieser Sitzung:** Nutzer
-hat noch keine Rückmeldung zu echtem Word-/PowerPoint-/Excel-Testmaterial
-gegeben, und der „Fach gewählt"-Zustand der neuen Fach-Reiter ist noch
-nicht visuell im Browser bestätigt (kein Fach ohne echtes Tauri-Fenster
-anlegbar) — beides zuerst nachfragen/nachholen.
+**Letzte Aktualisierung:** 23. Juli 2026, **aktuelle Version: v0.24.0.**
+Sieben Punkte in einer sehr langen Sitzung, jeweils eigener Abschnitt am
+Ende von Abschnitt 8 (chronologisch, unten weiter hinten = neuer):
+
+1. **Word/PowerPoint/Excel/Markdown-Import**, deterministisch ohne KI
+   (v0.21.0, ADR-018) — „Word/PowerPoint/Excel/Markdown-Import".
+2. **`scripts/Install.command`** reduziert die Gatekeeper-Erstinstall-
+   Reibung ohne Apple Developer ID (Teil von v0.22.0).
+3. **Wiederkehrende Tages-Blocker** in der Verfügbarkeit (ADR-019, Teil
+   von v0.22.0) — „Wiederkehrende Tages-Blocker".
+4. **„Fächer & Themen"-Redesign**: gewähltes Fach in drei Reitern statt
+   einer langen Liste (Teil von v0.22.0) — „Redesign 'Fächer & Themen'".
+5. **Quiz-Assistent**: Fünf-Schritt-Dialog mit neuem
+   Fragenschwerpunkt-Parameter (ADR-020, Teil von v0.22.0) — „Quiz-
+   Konfiguration als Schritt-für-Schritt-Assistent".
+6. **App-weiter Design-Durchgang mit `impeccable`** (v0.23.0): „Einstellungen"
+   jetzt nach Kategorie gruppiert (`ui/TabbedPanel.tsx`/`SettingsView.tsx`)
+   statt sechs gestapelter Blöcke, „Planung" erklärt jetzt, dass der
+   gezeigte Plan eine Vorschau ist. **Dabei einen echten CSS-Bug gefunden
+   und behoben**, den jsdom-Tests nicht gefunden hätten (`[hidden]` gegen
+   eigene `display`-Regel) — „App-weiter Design-Durchgang mit impeccable".
+7. **Stabile Code-Signing-Identität** (ADR-021, v0.24.0): behebt das
+   wiederkehrende Schlüsselbund-Passwort-Fenster dauerhaft, ganz ohne
+   Apple Developer ID (die für Einzelpersonen/Non-Profit-Zwecke ohnehin
+   nicht kostenlos verfügbar ist, recherchiert) — „Stabile Code-Signing-
+   Identität".
+
+**Offene Fragen für die nächste Sitzung, der Reihe nach:**
+- Ist das Schlüsselbund-Passwort-Fenster nach dem v0.24.0-Übergang
+  (dort einmalig nochmal erwartet) jetzt wirklich verschwunden?
+- Wie fühlen sich die neuen Fach-Reiter im „Fach gewählt"-Zustand an
+  (bisher nur per Komponententest geprüft, nicht visuell im Browser
+  bestätigt, siehe „Redesign 'Fächer & Themen'" — kein Fach ohne echtes
+  Tauri-Fenster anlegbar)?
+- Hat der Nutzer inzwischen echtes Word-/PowerPoint-/Excel-Material
+  importiert, und wie sah die Themenerkennung dabei aus?
+- Wie wirkt das neue „Einstellungen"-Layout mit den fünf Reitern?
 
 **Davor (22./23. Juli 2026, v0.20.0 — Nachtsitzung, Nutzer
 schlief während der Umsetzung, siehe „Nachtsitzung 22.07.→23.07.2026" ganz am
@@ -3154,6 +3177,62 @@ einer Seite"-Lösungen nebeneinander: flache Liste, Reiter, Assistent).
   genuin eigenständige Hauptaufgabe (kein Unterpunkt eines anderen), und
   die Claude-App selbst zeigt ihre eigene linke Leiste (Chats/Projekte/
   Artefakte/…) ebenfalls flach. Reine Beobachtung, kein Priorität-1-Fund.
+
+### Stabile Code-Signing-Identität — wiederkehrender Schlüsselbund-Dialog behoben (ADR-021, v0.24.0)
+
+Nutzerbericht direkt im Anschluss: das Passwort-Fenster beim Öffnen von
+„Einstellungen" kam trotz des Keychain-Caches (v0.16.0) bei **jedem
+neuen Release erneut**. Zwei Fragen dazu beantwortet, bevor gehandelt
+wurde:
+
+- **„Gibt es eine kostenlose Apple Developer ID für Non-Profit-Zwecke?"
+  — recherchiert, klar Nein.** Apples Gebührenerlass gilt ausschließlich
+  für eingetragene gemeinnützige Organisationen/Bildungseinrichtungen/
+  Regierungsstellen mit Nachweispflicht, ausdrücklich **nicht** für
+  Einzelpersonen — unabhängig von Monetarisierungsabsicht. Zwei Studenten
+  mit einer privaten App fallen nicht darunter.
+- **Ursache des Passwort-Fensters gefunden:** `tauri build` signierte
+  bisher ad-hoc (`codesign -s -`) — eine Ad-hoc-Signatur hängt vom
+  Binärinhalt ab, ändert sich also bei **jedem** Build. macOS bindet
+  Schlüsselbund-„Immer erlauben"-Freigaben an genau diese Signatur; ändert
+  sie sich, ist die Freigabe weg. Der v0.16.0-Cache verhinderte nur
+  Wiederholungen *innerhalb* eines App-Starts, nicht das eigentliche
+  Problem.
+
+**Fix, ohne Developer ID:** ein lokal erzeugtes, selbstsigniertes
+Code-Signing-Zertifikat („Lernplaner Local Code Signing", `~/.tauri/
+lernplaner-codesign.*`, Backup analog zum Updater-Schlüssel), das über
+**jeden künftigen Build hinweg gleich bleibt** — anders als die
+inhaltsabhängige Ad-hoc-Signatur. `tauri.conf.json` →
+`bundle.macOS.signingIdentity`. Zwei einmalige, vom Nutzer ausdrücklich
+freigegebene macOS-Sicherheitsdialoge nötig (Zertifikat in den
+Login-Schlüsselbund importieren, dann als vertrauenswürdig **nur für
+Code-Signing** markieren — nicht als allgemeine Stammzertifizierungsstelle).
+Getestet: zweites Signieren derselben Datei brauchte keinen erneuten
+Dialog mehr, ein echter `tauri build` mit der neuen Identität lief ohne
+jeden Dialog durch.
+
+**Löst nicht** (unverändert, ADR-008/009): den Gatekeeper-Erstinstall
+(bleibt `Install.command`) und native Push-Benachrichtigungen (bleibt
+In-App-Banner) — beide brauchen echte Apple-Notarisierung/-Vertrauenskette,
+die nur eine bezahlte Developer ID liefert.
+
+**Einmaliger Übergang, dem Nutzer in den Release-Notes angekündigt:**
+weil sich die Signatur mit v0.24.0 tatsächlich ändert (von ad-hoc zur
+neuen stabilen Identität), zeigt macOS bei diesem einen Update noch
+einmal den Passwort-Dialog — danach, mit jeder künftigen Version (gleiche
+Identität), nicht mehr.
+
+**Bekannte Einschränkung:** `signingIdentity` steht als Klartext im
+committeten `tauri.conf.json` — ein vollständiger `tauri build` auf einem
+anderen Rechner ohne dieses lokale Zertifikat schlägt mit „no identity
+found" fehl. Betrifft nach aktueller Praxis nur diesen einen Rechner
+(CONTRIBUTING.md „Releases": nur hier werden Releases gebaut). CI bleibt
+unberührt, da deren `tauri`-Job nur `cargo check --locked` läuft, keinen
+vollen Bundle-Build.
+
+**Nächste Sitzung: nachfragen, ob das Passwort-Fenster nach diesem einen
+Übergangs-Update tatsächlich verschwunden ist.**
 
 ---
 
