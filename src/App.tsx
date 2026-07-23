@@ -198,6 +198,7 @@ function renderSidebarCourseTree(
         style={{ paddingLeft: 12 + (depth + 1) * 12 }}
         aria-current={selectedCourseId === c.id ? 'page' : undefined}
         onClick={() => onSelectCourse(c.id)}
+        title={c.name}
       >
         <span className="app-nav-item-label">{c.name}</span>
       </button>
@@ -223,6 +224,7 @@ export function App() {
   const [topics, setTopics] = useState<Topic[]>([])
   const [topicSections, setTopicSections] = useState<TopicSection[]>([])
   const [courses, setCourses] = useState<Course[]>([])
+  const [coursesLoading, setCoursesLoading] = useState(true)
   const [courseGroups, setCourseGroups] = useState<CourseGroup[]>([])
   const [assessments, setAssessments] = useState<Assessment[]>([])
   const [paperSteps, setPaperSteps] = useState<PaperStep[]>([])
@@ -355,6 +357,9 @@ export function App() {
       })
       .catch(() => {
         // Kein echtes Tauri-Fenster (z. B. Vite-Dev-Server/Browser) — bleibt beim leeren Anfangszustand.
+      })
+      .finally(() => {
+        if (!cancelled) setCoursesLoading(false)
       })
     return () => {
       cancelled = true
@@ -1294,6 +1299,13 @@ export function App() {
           ))}
         </div>
 
+        {coursesLoading && courses.length === 0 && (
+          <div>
+            <div className="app-nav-label">Fach</div>
+            <p className="app-nav-loading">Lade Fächer …</p>
+          </div>
+        )}
+
         {courses.length > 0 && (
           <div>
             <div className="app-nav-label">Fach</div>
@@ -1310,6 +1322,7 @@ export function App() {
                   className="app-nav-item"
                   aria-current={selectedCourseId === c.id ? 'page' : undefined}
                   onClick={() => selectCourse(c.id)}
+                  title={c.name}
                 >
                   <span className="app-nav-item-label">{c.name}</span>
                 </button>

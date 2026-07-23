@@ -127,10 +127,16 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
           Fach hinzufügen
         </button>
       ) : (
-        <form onSubmit={submit} aria-label={editingId === -1 ? 'Neues Fach' : 'Fach bearbeiten'}>
+        <form
+          onSubmit={submit}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') cancel()
+          }}
+          aria-label={editingId === -1 ? 'Neues Fach' : 'Fach bearbeiten'}
+        >
           <label>
             Name
-            <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} required />
+            <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} required autoFocus />
           </label>
           <label>
             Semester

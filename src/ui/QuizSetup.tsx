@@ -175,6 +175,7 @@ export function QuizSetup({ courses, topics, topicSections, documents, documentB
                 setCourseId(Number(e.target.value))
                 setSelectedSectionIds(new Set())
               }}
+              autoFocus
             >
               {activeCourses.map((c) => (
                 <option key={c.id} value={c.id}>
