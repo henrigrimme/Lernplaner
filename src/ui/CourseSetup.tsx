@@ -94,23 +94,25 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
         Archivierte anzeigen
       </label>
 
-      <ul>
-        {visible.map((course) => (
-          <li key={course.id} data-course-id={course.id}>
-            <span>{course.name}</span> <span>({course.semester})</span>
-            {course.archived === 1 && <span> — archiviert</span>}
-            <button type="button" onClick={() => startEdit(course)}>
-              Bearbeiten
-            </button>
-            <button type="button" onClick={() => onArchive(course.id, course.archived === 0)}>
-              {course.archived === 0 ? 'Archivieren' : 'Wiederherstellen'}
-            </button>
-            <button type="button" onClick={() => onRemove(course.id)}>
-              Löschen
-            </button>
-          </li>
-        ))}
-      </ul>
+      {visible.length > 0 && (
+        <ul>
+          {visible.map((course) => (
+            <li key={course.id} data-course-id={course.id}>
+              <span>{course.name}</span> <span>({course.semester})</span>
+              {course.archived === 1 && <span> — archiviert</span>}
+              <button type="button" onClick={() => startEdit(course)}>
+                Bearbeiten
+              </button>
+              <button type="button" onClick={() => onArchive(course.id, course.archived === 0)}>
+                {course.archived === 0 ? 'Archivieren' : 'Wiederherstellen'}
+              </button>
+              <button type="button" onClick={() => onRemove(course.id)}>
+                Löschen
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {editingId === null ? (
         <button type="button" onClick={startAdd}>

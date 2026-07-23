@@ -35,30 +35,37 @@ export function AppearanceSetting({ theme, onChangeTheme, palette, onChangePalet
   return (
     <section aria-label="Erscheinungsbild">
       <h2>Erscheinungsbild</h2>
-      <div role="radiogroup" aria-label="Hell/Dunkel-Modus">
-        {THEME_OPTIONS.map((opt) => (
-          <label key={opt.value}>
-            <input type="radio" name="theme" value={opt.value} checked={theme === opt.value} onChange={() => onChangeTheme(opt.value)} />
-            {opt.label}
-          </label>
-        ))}
-      </div>
 
-      <div role="radiogroup" aria-label="Farbpalette">
-        {PALETTE_OPTIONS.map((opt) => (
-          <label key={opt.value}>
-            <input
-              type="radio"
-              name="palette"
-              value={opt.value}
-              checked={palette === opt.value}
-              onChange={() => onChangePalette(opt.value)}
-            />
-            <span className="color-swatch" style={{ backgroundColor: opt.swatch }} aria-hidden="true" />
-            {opt.label}
-          </label>
-        ))}
-      </div>
+      <fieldset className="segmented-fieldset">
+        <legend>Hell/Dunkel-Modus</legend>
+        <div className="segmented-options">
+          {THEME_OPTIONS.map((opt) => (
+            <label key={opt.value}>
+              <input type="radio" name="theme" value={opt.value} checked={theme === opt.value} onChange={() => onChangeTheme(opt.value)} />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="segmented-fieldset">
+        <legend>Farbpalette</legend>
+        <div className="palette-picker">
+          {PALETTE_OPTIONS.map((opt) => (
+            <label key={opt.value}>
+              <input
+                type="radio"
+                name="palette"
+                value={opt.value}
+                checked={palette === opt.value}
+                onChange={() => onChangePalette(opt.value)}
+              />
+              <span className="palette-swatch" style={{ backgroundColor: opt.swatch }} aria-hidden="true" />
+              <span className="palette-picker-label">{opt.label}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
     </section>
   )
 }

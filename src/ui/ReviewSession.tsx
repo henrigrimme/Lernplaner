@@ -31,7 +31,7 @@ export function ReviewSession({ cards, reviews, topics, now, onReview }: ReviewS
     return (
       <section aria-label="Wiederholung">
         <h2>Wiederholung</h2>
-        <p>Keine fällige Karte.</p>
+        <p>Keine fällige Karte — alles für heute erledigt.</p>
       </section>
     )
   }

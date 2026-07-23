@@ -107,19 +107,20 @@ export function AvailabilitySetup({
       <h3>Wochenmuster</h3>
       <ul>
         {WEEKDAY_LABELS.map((label, weekday) => (
-          <li key={weekday}>
-            <label>
-              {label}
+          <li key={weekday} className="field-row">
+            <span>{label}</span>
+            <span className="field-row-input">
               <input
                 type="number"
                 min={0}
+                aria-label={label}
                 value={minutesFor(weekday)}
                 onChange={(e) =>
                   onSetPatternMinutes(weekday as AvailabilityPattern['weekday'], Math.max(0, Number(e.target.value) || 0))
                 }
               />
               Minuten
-            </label>
+            </span>
           </li>
         ))}
       </ul>

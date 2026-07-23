@@ -1522,7 +1522,7 @@ export function App() {
                 }
               />
             ) : (
-              <p>Fach auswählen (links in der Seitenleiste), um Prüfungen, Material und Themen zu sehen.</p>
+              <p className="empty-state">Fach auswählen (links in der Seitenleiste), um Prüfungen, Material und Themen zu sehen.</p>
             )}
           </>
         )}
@@ -1555,7 +1555,7 @@ export function App() {
             />
 
             <div>
-              <button type="button" onClick={generateStudyBlocks}>
+              <button type="button" className="button-primary" onClick={generateStudyBlocks}>
                 {studyBlocks.length === 0 ? 'Plan übernehmen' : 'Plan neu übernehmen (überschreibt heutigen Fortschritt)'}
               </button>
             </div>

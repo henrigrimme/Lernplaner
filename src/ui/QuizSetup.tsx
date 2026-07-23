@@ -147,6 +147,20 @@ export function QuizSetup({ courses, topics, topicSections, documents, documentB
   return (
     <section aria-label="Quiz erzeugen">
       <h2>Neues Quiz</h2>
+      <div className="quiz-wizard-steps" aria-hidden="true">
+        {STEPS.map((s, i) => (
+          <span
+            key={s.key}
+            className={
+              i === stepIndex
+                ? 'quiz-wizard-step-dot quiz-wizard-step-dot--active'
+                : i < stepIndex
+                  ? 'quiz-wizard-step-dot quiz-wizard-step-dot--done'
+                  : 'quiz-wizard-step-dot'
+            }
+          />
+        ))}
+      </div>
       <p className="quiz-wizard-progress">
         Schritt {stepIndex + 1} von {STEPS.length}: {STEPS[stepIndex]!.label}
       </p>
@@ -199,38 +213,42 @@ export function QuizSetup({ courses, topics, topicSections, documents, documentB
       )}
 
       {step === 'fokus' && (
-        <fieldset>
+        <fieldset className="segmented-fieldset">
           <legend>Was für Fragen möchtest du?</legend>
-          {FOCUS_OPTIONS.map((opt) => (
-            <label key={opt.value}>
-              <input type="radio" name="quiz-focus" checked={focus === opt.value} onChange={() => setFocus(opt.value)} />
-              {opt.label} — {opt.hint}
-            </label>
-          ))}
+          <div className="segmented-options">
+            {FOCUS_OPTIONS.map((opt) => (
+              <label key={opt.value}>
+                <input type="radio" name="quiz-focus" checked={focus === opt.value} onChange={() => setFocus(opt.value)} />
+                {opt.label} — {opt.hint}
+              </label>
+            ))}
+          </div>
         </fieldset>
       )}
 
       {step === 'umfang' && (
-        <fieldset>
+        <fieldset className="segmented-fieldset">
           <legend>Wie viel möchtest du üben?</legend>
-          {SCOPE_PRESETS.map((preset) => (
-            <label key={preset.minutes}>
-              <input
-                type="radio"
-                name="quiz-scope"
-                checked={!customTotal && totalQuestions === preset.totalQuestions}
-                onChange={() => {
-                  setCustomTotal(false)
-                  setTotalQuestions(preset.totalQuestions)
-                }}
-              />
-              {preset.label}
+          <div className="segmented-options">
+            {SCOPE_PRESETS.map((preset) => (
+              <label key={preset.minutes}>
+                <input
+                  type="radio"
+                  name="quiz-scope"
+                  checked={!customTotal && totalQuestions === preset.totalQuestions}
+                  onChange={() => {
+                    setCustomTotal(false)
+                    setTotalQuestions(preset.totalQuestions)
+                  }}
+                />
+                {preset.label}
+              </label>
+            ))}
+            <label>
+              <input type="radio" name="quiz-scope" checked={customTotal} onChange={() => setCustomTotal(true)} />
+              Eigene Anzahl
             </label>
-          ))}
-          <label>
-            <input type="radio" name="quiz-scope" checked={customTotal} onChange={() => setCustomTotal(true)} />
-            Eigene Anzahl
-          </label>
+          </div>
           {customTotal && (
             <label>
               Fragen insgesamt
@@ -254,21 +272,23 @@ export function QuizSetup({ courses, topics, topicSections, documents, documentB
 
       {step === 'art' && (
         <>
-          <fieldset>
+          <fieldset className="segmented-fieldset">
             <legend>Art</legend>
-            <label>
-              <input type="radio" name="quiz-mode" checked={mode === 'quiz'} onChange={() => setMode('quiz')} />
-              Quiz
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="quiz-mode"
-                checked={mode === 'probeklausur'}
-                onChange={() => setMode('probeklausur')}
-              />
-              Probeklausur (zeitbegrenzt)
-            </label>
+            <div className="segmented-options">
+              <label>
+                <input type="radio" name="quiz-mode" checked={mode === 'quiz'} onChange={() => setMode('quiz')} />
+                Quiz
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="quiz-mode"
+                  checked={mode === 'probeklausur'}
+                  onChange={() => setMode('probeklausur')}
+                />
+                Probeklausur (zeitbegrenzt)
+              </label>
+            </div>
           </fieldset>
 
           {mode === 'probeklausur' && (

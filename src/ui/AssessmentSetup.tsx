@@ -184,14 +184,16 @@ export function AssessmentSetup({ course, assessments, onAdd, onUpdate, onRemove
               ))}
             </select>
           </label>
-          <fieldset>
+          <fieldset className="segmented-fieldset">
             <legend>Format (mehrere möglich)</legend>
-            {SELECTABLE_FORMATS.map((f) => (
-              <label key={f}>
-                <input type="checkbox" checked={draft.formats.includes(f)} onChange={(e) => toggleFormat(f, e.target.checked)} />
-                {FORMAT_LABELS[f]}
-              </label>
-            ))}
+            <div className="segmented-options">
+              {SELECTABLE_FORMATS.map((f) => (
+                <label key={f}>
+                  <input type="checkbox" checked={draft.formats.includes(f)} onChange={(e) => toggleFormat(f, e.target.checked)} />
+                  {FORMAT_LABELS[f]}
+                </label>
+              ))}
+            </div>
             {draft.formats.length === 0 && <p role="alert">Mindestens ein Format wählen.</p>}
           </fieldset>
           <label>

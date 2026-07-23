@@ -71,7 +71,12 @@ export function TodayView({ studyBlocks, topics, onChange, today, now }: TodayVi
     <section aria-label="Heute">
       <h2>Heute — {today}</h2>
 
-      {todaysBlocks.length === 0 && <p>Für heute ist nichts geplant.</p>}
+      {todaysBlocks.length === 0 && (
+        <p className="empty-state">
+          Für heute ist nichts geplant. Sobald ein Plan übernommen wurde (siehe „Planung"), erscheinen die
+          heutigen Lernblöcke hier.
+        </p>
+      )}
 
       {current && (
         <div>
@@ -91,19 +96,21 @@ export function TodayView({ studyBlocks, topics, onChange, today, now }: TodayVi
             />
           </label>
 
-          <fieldset>
+          <fieldset className="segmented-fieldset">
             <legend>Schwierigkeit</legend>
-            {FEEDBACK_OPTIONS.map((opt) => (
-              <label key={opt.value}>
-                <input
-                  type="radio"
-                  name={`feedback-${current.id}`}
-                  checked={feedback === opt.value}
-                  onChange={() => setFeedback(opt.value)}
-                />
-                {opt.label}
-              </label>
-            ))}
+            <div className="segmented-options">
+              {FEEDBACK_OPTIONS.map((opt) => (
+                <label key={opt.value}>
+                  <input
+                    type="radio"
+                    name={`feedback-${current.id}`}
+                    checked={feedback === opt.value}
+                    onChange={() => setFeedback(opt.value)}
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
           </fieldset>
 
           <button type="button" onClick={submit} disabled={feedback === null}>
