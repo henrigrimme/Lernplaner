@@ -126,7 +126,7 @@ export function SourceViewer({ topics, topicSections, documents, documentBytes, 
             {cardsForTopic.map((card) => (
               <li key={card.id}>
                 {card.front}
-                <button type="button" onClick={() => onDeleteCard(card.id)}>
+                <button type="button" aria-label={`Karteikarte "${card.front}" löschen`} onClick={() => onDeleteCard(card.id)}>
                   Löschen
                 </button>
               </li>

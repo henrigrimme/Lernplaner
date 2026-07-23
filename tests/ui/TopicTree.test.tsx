@@ -130,11 +130,11 @@ describe('TopicTree', () => {
     const onChange = vi.fn()
     render(<TopicTree topics={topics} onChange={onChange} />)
 
-    await user.click(screen.getByRole('button', { name: 'Löschen' }))
+    await user.click(screen.getByRole('button', { name: 'Thema "Cost Minimization" löschen' }))
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.getByText(/wirklich löschen/i)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Ja' }))
+    await user.click(screen.getByRole('button', { name: '"Cost Minimization" wirklich löschen — bestätigen' }))
     expect(onChange).toHaveBeenCalledWith([])
   })
 

@@ -180,7 +180,7 @@ export function AiSettings() {
         </>
       )}
 
-      {message && <p>{message}</p>}
+      {message && <p role="status">{message}</p>}
       {error && <p role="alert">{error}</p>}
     </section>
   )

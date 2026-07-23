@@ -224,7 +224,7 @@ describe('SourceViewer', () => {
     expect(screen.getByText('Was ist X?')).toBeInTheDocument()
     expect(screen.queryByText('Anderes Thema')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Löschen' }))
+    await user.click(screen.getByRole('button', { name: 'Karteikarte "Was ist X?" löschen' }))
     expect(onDeleteCard).toHaveBeenCalledWith(5)
   })
 

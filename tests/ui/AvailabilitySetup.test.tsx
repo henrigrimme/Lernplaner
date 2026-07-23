@@ -99,7 +99,7 @@ describe('AvailabilitySetup', () => {
     const onRemoveException = vi.fn()
     render(<AvailabilitySetup pattern={[]} exceptions={exceptions} {...noop()} onRemoveException={onRemoveException} />)
 
-    await user.click(screen.getByRole('button', { name: 'Entfernen' }))
+    await user.click(screen.getByRole('button', { name: 'Ausnahme am 2026-08-03 entfernen' }))
     expect(onRemoveException).toHaveBeenCalledWith('2026-08-03')
   })
 
@@ -171,7 +171,7 @@ describe('AvailabilitySetup', () => {
         />,
       )
 
-      await user.click(screen.getByRole('button', { name: 'Entfernen' }))
+      await user.click(screen.getByRole('button', { name: 'Blocker "Abendessen" entfernen' }))
       expect(onRemoveRecurringBlocker).toHaveBeenCalledWith(5)
     })
   })
