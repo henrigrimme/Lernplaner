@@ -958,6 +958,7 @@ export function App() {
         input.questionsPerSection,
         input.difficulty,
         courseLanguage,
+        input.focus,
       )
       for (const suggestion of suggestions) generated.push({ sectionId, suggestion })
     }

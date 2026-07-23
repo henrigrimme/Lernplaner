@@ -5,6 +5,15 @@ import type { CourseLanguage, Topic } from '../data/schema'
 export type QuizDifficulty = 'einfach' | 'mittel' | 'schwer'
 
 /**
+ * Fragenschwerpunkt (Nutzerwunsch: „tieferer Quiz-Konfigurationsdialog mit
+ * echten Rückfragen, wie bei Claude" — CONTEXT.md/ROADMAP.md „Später/
+ * offen"). Löst einen Teil dieses Wunsches: statt eines einzigen Formulars
+ * fragt `ui/QuizSetup.tsx` jetzt in eigenen Schritten gezielt nach, u. a.
+ * nach diesem Schwerpunkt, bevor Fragen erzeugt werden.
+ */
+export type QuestionFocus = 'gemischt' | 'rechnen' | 'konzept'
+
+/**
  * Austauschbare KI-Anbieter-Schnittstelle (ARCHITECTURE.md „ai/ —
  * austauschbar"). Ein Anbieterwechsel ist Konfiguration, kein Umbau — siehe
  * `ai/index.ts`. `generateQuestions`/`classifyExamContent` tragen
@@ -23,6 +32,10 @@ export interface AIProvider {
    * 2026-07-22, vorher nicht wählbar). `language`: Fragen/Erklärungen
    * entstehen in der Sprache des Fachs (`Course.language`, Migration
    * 0004) — unabhängig von der (immer deutschen) App-Oberfläche selbst.
+   * `focus` steuert den Fragenschwerpunkt (Nutzerwunsch 2026-07-23, siehe
+   * `QuestionFocus`) — ans Ende gestellt, damit der bereits bestehende
+   * Aufrufer in `App.tsx` beim Nachrüsten nicht seine anderen Argumente
+   * verschieben musste.
    */
   generateQuestions(
     topicName: string,
@@ -30,6 +43,7 @@ export interface AIProvider {
     count: number,
     difficulty: QuizDifficulty,
     language: CourseLanguage,
+    focus: QuestionFocus,
   ): Promise<QuestionSuggestion[]>
   /** Ordnet Altklausur-Text den übergebenen Themen zu — Grundlage für `domain/examWeighting.ts`. */
   classifyExamContent(topics: { id: number; name: string }[], examText: string): Promise<ExamTopicMatch[]>

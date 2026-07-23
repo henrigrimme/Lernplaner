@@ -24,12 +24,20 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 23. Juli 2026 — Import akzeptiert jetzt auch
-Word/PowerPoint/Excel/Markdown, deterministisch ohne KI (v0.21.0, ADR-018,
-siehe „Word/PowerPoint/Excel/Markdown-Import" am Ende von Abschnitt 8).
-Größere, noch unbeantwortete offene Frage aus dieser Sitzung: Nutzer hat
-noch keine Rückmeldung zu echtem Word-/PowerPoint-/Excel-Testmaterial
-gegeben — dort zuerst nachfragen.
+**Letzte Aktualisierung:** 23. Juli 2026 — fünf Punkte in einer Sitzung:
+(1) Import akzeptiert jetzt auch Word/PowerPoint/Excel/Markdown,
+deterministisch ohne KI (v0.21.0, ADR-018); (2) `scripts/Install.command`
+reduziert die Gatekeeper-Erstinstall-Reibung ohne Apple Developer ID;
+(3) wiederkehrende Tages-Blocker in der Verfügbarkeit (ADR-019); (4)
+„Fächer & Themen" zeigt das gewählte Fach jetzt in drei Reitern statt
+einer langen Ein-Seiten-Liste; (5) der Quiz-Konfigurationsdialog ist ein
+Fünf-Schritt-Assistent mit neuem Fragenschwerpunkt-Parameter (ADR-020).
+Details jeweils in eigenen Abschnitten am Ende von Abschnitt 8.
+**Größere, noch unbeantwortete offene Fragen aus dieser Sitzung:** Nutzer
+hat noch keine Rückmeldung zu echtem Word-/PowerPoint-/Excel-Testmaterial
+gegeben, und der „Fach gewählt"-Zustand der neuen Fach-Reiter ist noch
+nicht visuell im Browser bestätigt (kein Fach ohne echtes Tauri-Fenster
+anlegbar) — beides zuerst nachfragen/nachholen.
 
 **Davor (22./23. Juli 2026, v0.20.0 — Nachtsitzung, Nutzer
 schlief während der Umsetzung, siehe „Nachtsitzung 22.07.→23.07.2026" ganz am
@@ -3041,6 +3049,49 @@ statt einer langen Ein-Seiten-Liste".
   melden, ob es wie gewünscht wirkt.**
 - **Keine weitere offene Aufgabe aus diesem Wunsch** — vollständig
   umgesetzt.
+
+### Quiz-Konfiguration als Schritt-für-Schritt-Assistent (ADR-020)
+
+Letzter der vier vom Nutzer am 23.07.2026 in einer Nachricht georderten
+Punkte (Install.command, wiederkehrende Blocker, Fach-Reiter-Redesign,
+dieser). Löst den in der Nachtsitzung genannten Wunsch „tieferer Quiz-
+Konfigurationsdialog mit echten Rückfragen, wie bei Claude".
+
+- **`ui/QuizSetup.tsx` komplett zum Fünf-Schritt-Assistenten umgebaut:**
+  Material (Fach + Themenabschnitte) → Fragen-Fokus → Umfang → Art &
+  Schwierigkeit → Zusammenfassung. „Weiter" bleibt gesperrt, bis ein
+  Schritt sinnvoll abgeschlossen ist. Reiner UI-Zustand, keine neue
+  Geschäftslogik — `onGenerate` unverändert erst im letzten Schritt
+  aufgerufen.
+- **Neuer `QuestionFocus`-Parameter** (`gemischt`/`rechnen`/`konzept`,
+  `ai/types.ts`) beantwortet direkt die erste im Nachtsitzungs-Wunsch
+  genannte Beispiel-Rückfrage („nur Rechenfragen?") — durchgereicht an
+  beide `AIProvider`-Implementierungen (Anthropic/OpenAI), verändert dort
+  die Prompt-Anweisung.
+- **Umfang als Zeit-Voreinstellungen** (Kurz/Mittel/Lang, je mit einer
+  Gesamtfragenzahl über alle gewählten Abschnitte, plus „Eigene Anzahl")
+  statt einer rohen „Fragen je Abschnitt"-Zahl — beantwortet die zweite
+  genannte Beispiel-Rückfrage („ungefähre Zieldauer?").
+- **Bewusst keine KI-gestützte Konversation** — die Frage-Antwort-Sammlung
+  selbst bleibt eine gewöhnliche React-Zustandsmaschine, kein
+  zusätzlicher KI-Aufruf nur für die Konfiguration (Kosten/Latenz ohne
+  echten Mehrwert, ADR-007), siehe ADR-020 für die volle Begründung.
+- **16 neue/geänderte Tests** (`QuizSetup.test.tsx` 7 neu) — `npx tsc
+  --noEmit`, `npm test` (482 Tests), `npm run build` liefen fehlerfrei.
+  Im Dev-Server geprüft (kein Fach im laufenden Dev-Server anlegbar,
+  bekannte Einschränkung): Assistent rendert fehlerfrei im
+  „kein Fach"-Ausgangszustand, „Weiter" korrekt gesperrt, keine
+  Konsolenfehler. Die eigentliche Schritt-Navigation/Validierung ist über
+  die neuen Komponententests abgedeckt (alle fünf Schritte durchlaufen,
+  Zurück ohne Datenverlust, Umfangs-Umrechnung, `onGenerate`-Aufruf mit
+  allen gesammelten Angaben).
+- **Nicht Teil dieser Änderung:** die Reihenfolge/Anzahl der Schritte ist
+  eine erste plausible Aufteilung, nicht an echtem Nutzerverhalten
+  validiert — bei Bedarf später nachjustierbar (ADR-020).
+- **Damit sind alle vier in dieser Sitzung angeforderten Punkte
+  vollständig umgesetzt** (Install.command, wiederkehrende Blocker,
+  Fach-Reiter-Redesign, Quiz-Assistent) — siehe jeweils eigene
+  Abschnitte oben für Details.
 
 ---
 
