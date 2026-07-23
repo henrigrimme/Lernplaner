@@ -82,6 +82,9 @@ Art (`fix`, `docs`, `test`, `chore`).
 > **Ohne erneute Rückfrage** — das ist der ganze Sinn dieser Anweisung:
 > der Nutzer soll jede Änderung direkt in der laufenden App sehen können,
 > ohne bei jedem Mal erneut nach einem Release zu fragen (siehe ADR-008).
+> **Das Zip nicht mehr zusätzlich per `SendUserFile` verschicken**
+> (Nutzerwunsch 2026-07-23) — der Auto-Updater reicht, GitHub-Release
+> genügt.
 >
 > Ablauf, der sich bewährt hat (PR #32/#33 als Präzedenzfall):
 > 1. Feature-Branch → PR → **Merge automatisch autorisiert** (Nutzerwunsch,
@@ -89,7 +92,14 @@ Art (`fix`, `docs`, `test`, `chore`).
 > 2. Version an der dritten Stelle (Minor) anheben, nicht Patch — jede
 >    veröffentlichte Änderung ist für die zwei Nutzer sichtbar, nicht nur
 >    intern.
-> 3. Build + Signierung + Release wie oben.
+> 3. Build + Signierung + Release wie oben. **Das Zip fürs manuelle
+>    Nachinstallieren enthält seit v0.22.0 zusätzlich `scripts/Install.command`**
+>    neben `lernplaner.app` (nicht nur die App allein) — das Skript nimmt
+>    dem Gatekeeper-Erstinstall-Problem (ADR-008/009, kein Apple-
+>    Developer-ID-Zertifikat) die Terminal-Hürde: Doppelklick entfernt die
+>    Quarantänemarkierung und öffnet die App. Nur beim allerersten
+>    Doppelklick pro Person relevant, spätere Auto-Updates sind
+>    unbetroffen (siehe Kommentar im Skript).
 > 4. Kurze Release-Notes: was hat sich geändert, in einfachen Worten (nicht
 >    Commit-Message-Jargon) — die Nutzer sind keine Entwickler.
 
