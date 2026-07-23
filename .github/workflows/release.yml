@@ -63,4 +63,13 @@ jobs:
             `xattr -cr "/Applications/lernplaner.app"`.
           releaseDraft: false
           prerelease: false
-          args: --target universal-apple-darwin --bundles dmg
+          # `tauri.conf.json` verweist fest auf das lokale Code-Signing-Zertifikat
+          # "Lernplaner Local Code Signing" (ADR-021) — das liegt nur auf dem
+          # Rechner, der signierte Releases baut, nicht auf GitHubs Runnern.
+          # Ohne diese Überschreibung schlägt der Build hier mit
+          # "no identity found" fehl (siehe Lauf vom 23.07.2026). "-" signiert
+          # ad-hoc statt mit einer benannten Identität — passt zum bereits in
+          # der Release-Beschreibung dokumentierten "nicht signiert"-Hinweis.
+          args: >-
+            --target universal-apple-darwin --bundles dmg
+            --config "{\"bundle\":{\"macOS\":{\"signingIdentity\":\"-\"}}}"
