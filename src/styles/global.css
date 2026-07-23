@@ -456,6 +456,39 @@ textarea {
     box-shadow var(--duration-fast) var(--ease-out-quart);
 }
 
+/* `input[type=file]` rendert sonst den nackten Browser-Standard ("Choose
+   File" + "No file chosen", Chrome-Systemschrift) — das einzige Element im
+   Projekt, das nicht durch die generische `input`-Regel oben gefasst wird
+   (Datei-Inputs ignorieren `background`/`border`/`padding` am Wurzelelement
+   selbst). `::file-selector-button` stylt nur den Auswahl-Button passend
+   zu `button` weiter unten, ohne die native Dateiauswahl-Funktion
+   anzufassen — kein JS, kein verstecktes Ersatzelement nötig. */
+input[type='file'] {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+input[type='file']::file-selector-button {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  padding: 6px var(--space-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  cursor: pointer;
+  margin-right: var(--space-xs);
+  transition: background var(--duration-fast) var(--ease-out-quart);
+}
+
+input[type='file']::file-selector-button:hover {
+  background: var(--color-surface-2);
+}
+
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
