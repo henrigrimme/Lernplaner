@@ -479,6 +479,153 @@ input[type='radio'] {
   flex-shrink: 0;
 }
 
+/* ---------- Segmentierte Auswahl (ersetzt rohe fieldset/legend/Radio-Optik) ---------- */
+/* Sechs Stellen im Projekt (Timer-Dauer, Quiz-Assistent ×3, KI-Anbieter,
+   Erscheinungsbild-Theme, Schwierigkeits-Feedback, Prüfungsformat) nutzten
+   bisher ein unverändertes `<fieldset><legend>` mit Browser-Default-Rahmen
+   und einzeln untereinanderstehenden Radio-Kreisen (kein macOS-natives
+   Bild — System Settings/Notizen zeigen sowas nie so). Gleiches Problem an
+   sechs Stellen bekommt hier eine gemeinsame Lösung statt sechs eigenen:
+   `.segmented-fieldset` entfernt nur den Fieldset-/Legend-Rahmen, die
+   eigentlichen Optionen (radio/checkbox + Label) wandern in
+   `.segmented-options` und werden zu Pillen im Stil der bereits
+   bestehenden `.tab-strip-button` (Einstellungen-Reiter) — dieselbe
+   "aktueller Zustand"-Sprache wiederverwendet statt eine vierte Optik
+   einzuführen. Native `<input>` bleibt bestehen (Tastatur/Screenreader),
+   nur visuell versteckt (`position:absolute`, nicht `display:none` —
+   bleibt fokussierbar). */
+fieldset.segmented-fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+fieldset.segmented-fieldset > legend {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--color-muted);
+}
+
+.segmented-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 3px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.segmented-options > label {
+  position: relative;
+  flex: 1 1 auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+  cursor: pointer;
+  text-align: center;
+  transition:
+    background var(--duration-fast) var(--ease-out-quart),
+    color var(--duration-fast) var(--ease-out-quart);
+}
+
+.segmented-options > label:hover {
+  background: oklch(from var(--color-ink) l c h / 0.06);
+}
+
+.segmented-options > label:has(input:checked) {
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+  font-weight: 560;
+}
+
+.segmented-options > label:has(input:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 3px oklch(from var(--color-accent) l c h / 0.2);
+}
+
+.segmented-options input[type='radio'],
+.segmented-options input[type='checkbox'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  margin: 0;
+}
+
+/* ---------- Palette-Auswahl (ui/AppearanceSetting.tsx) ---------- */
+/* Ersetzt dieselbe vertikale Radio-Liste wie oben, hier aber als Klick auf
+   die Farbe selbst statt auf einen danebenstehenden Kreis — wie macOS'
+   eigener Akzentfarben-Auswahl unter Systemeinstellungen → Erscheinungsbild
+   (dieselbe fünf/sechs kleine Kreise nebeneinander, ein Ring markiert die
+   aktive Farbe). Nutzerwunsch ausdrücklich: die fünf Paletten-Werte selbst
+   bleiben unverändert, nur die Bedienung wird nativer. */
+.palette-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.palette-picker label {
+  position: relative;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2xs);
+  width: 76px;
+  cursor: pointer;
+}
+
+.palette-picker input[type='radio'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.palette-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  border: 1px solid oklch(0 0 0 / 0.1);
+  box-shadow: 0 0 0 3px transparent;
+  transition: box-shadow var(--duration-fast) var(--ease-out-quart);
+}
+
+.palette-picker label:hover .palette-swatch {
+  box-shadow: 0 0 0 3px oklch(from var(--color-ink) l c h / 0.08);
+}
+
+.palette-picker label:has(input:checked) .palette-swatch {
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink);
+}
+
+.palette-picker label:has(input:focus-visible) .palette-swatch {
+  box-shadow: 0 0 0 3px oklch(from var(--color-accent) l c h / 0.3);
+}
+
+.palette-picker-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-muted);
+  text-align: center;
+  line-height: 1.25;
+}
+
+.palette-picker label:has(input:checked) .palette-picker-label {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
 /* ---------- Dokumentenliste (ui/DocumentList.tsx) ---------- */
 /* Kompakte Zeile statt langem Fließtext (Nutzerwunsch 2026-07-22:
    "PDF-Icons und kurze Beschreibung statt komplett ausgeschriebenem
@@ -634,6 +781,77 @@ section[aria-label] ul.document-list > li.document-list-item {
   margin-top: var(--space-md);
 }
 
+/* Die generische `form`-Regel (weiter unten: Fläche + Rand + Radius) macht
+   aus jedem Formular eine eigene Karte — richtig auf einer sonst leeren
+   Fläche, aber innerhalb von `.course-management` (selbst schon eine
+   Karte) entsteht sonst eine Karte-in-der-Karte (z. B. "Ordner
+   hinzufügen" in `ui/CourseGroups.tsx`, "Fach hinzufügen"/"bearbeiten" in
+   `ui/CourseSetup.tsx` — beide zeigten das im Screenshot als doppelten,
+   optisch überlappenden Rahmen). Innerhalb dieses Panels bekommt ein
+   Formular stattdessen nur eine Trennlinie nach oben, keine eigene Fläche
+   mehr — liest sich als neuer Abschnitt desselben Panels, nicht als
+   zweites, verschachteltes Panel. */
+.course-management form {
+  background: none;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+  padding: var(--space-md) 0 0;
+  margin-top: var(--space-sm);
+}
+
+/* ---------- Kompakte Zeile (Label + Eingabe + Einheit in einer Zeile) ---------- */
+/* Für Listen mit vielen gleichartigen, kurzen Eingaben (z. B. Minuten je
+   Wochentag in `ui/AvailabilitySetup.tsx`) — die generische `label`-Regel
+   (Text über dem Feld, weiter unten) verschwendet hier Zeilenhöhe: sieben
+   Wochentage brauchten je drei Zeilen statt einer. macOS-Einstellungen
+   zeigen genau solche Zeilen einzeilig ("Bezeichnung ... Wert"). */
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.field-row > span:first-child {
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.field-row-input {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2xs);
+  color: var(--color-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.field-row-input input {
+  width: 64px;
+  text-align: right;
+}
+
+/* ---------- Leerer Zustand ---------- */
+/* Bisher ein einzelner, linksbündiger Absatz direkt unter dem Panel/der
+   Toolbar (z. B. "Für heute ist nichts geplant." — ausgerechnet die
+   Ansicht, die laut PRODUCT.md täglich in kurzen Sessions geöffnet wird).
+   Zentriert und zurückhaltend wie in Notizen/Erinnerungen bei einer leeren
+   Liste, statt wie ein normaler Fließtext-Satz irgendwo auf der Seite zu
+   stehen. */
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  color: var(--color-muted);
+  font-size: 14px;
+  text-align: center;
+  max-width: 44ch;
+  margin: 0 auto;
+}
+
 /* ---------- Buttons ---------- */
 
 button {
@@ -666,6 +884,22 @@ button[type='submit'] {
 }
 
 button[type='submit']:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+/* Für die eine Primäraktion außerhalb eines `<form>` (z. B. "Plan
+   übernehmen" in App.tsx, `onClick` statt Submit) — optisch identisch zu
+   `button[type='submit']`, ohne ein `<form>` drumherum vorzutäuschen. Nur
+   für die jeweils EINE Hauptaktion einer Ansicht, nie für mehrere Buttons
+   gleichzeitig (DESIGN.md „One Accent Rule"). */
+.button-primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-ink);
+}
+
+.button-primary:hover {
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
 }
@@ -720,6 +954,36 @@ button:disabled {
   font-size: 12px;
   font-weight: 550;
   color: var(--color-muted);
+}
+
+/* Schritt-Punkte oberhalb des Textlabels — wie macOS-Assistenten
+   (Migrationsassistent, Einrichtungsassistent) ihren Fortschritt zeigen,
+   statt nur "Schritt 1 von 5" als reinen Text stehen zu lassen. Der aktive
+   Punkt wird zur Pille (dieselbe Erweiterungs-Geste wie iOS-Seitenpunkte),
+   erledigte Schritte bleiben gefüllt, kommende bleiben Hairline-grau. */
+.quiz-wizard-steps {
+  display: flex;
+  gap: 6px;
+  margin-bottom: var(--space-2xs);
+}
+
+.quiz-wizard-step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+  transition:
+    background var(--duration-fast) var(--ease-out-quart),
+    width var(--duration-fast) var(--ease-out-quart);
+}
+
+.quiz-wizard-step-dot--done {
+  background: var(--color-primary);
+}
+
+.quiz-wizard-step-dot--active {
+  width: 18px;
+  background: var(--color-primary);
 }
 
 .quiz-wizard-nav {

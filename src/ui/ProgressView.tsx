@@ -26,7 +26,7 @@ export function ProgressView({ assessments, topics, studyBlocks, from }: Progres
       <h2>Fortschritt</h2>
 
       {upcoming.length === 0 ? (
-        <p>Keine bevorstehende Prüfung.</p>
+        <p className="empty-state">Keine bevorstehende Prüfung — sobald eine angelegt ist, erscheint der Fortschritt hier.</p>
       ) : (
         <ul>
           {upcoming.map((assessment) => {

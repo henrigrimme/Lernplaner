@@ -106,26 +106,28 @@ export function Timer({ onElapsedWorkMinutesChange }: TimerProps) {
 
   return (
     <div aria-label="Timer">
-      <fieldset disabled={controlsDisabled}>
+      <fieldset className="segmented-fieldset" disabled={controlsDisabled}>
         <legend>Dauer</legend>
-        {TIMER_PRESETS.map((preset, i) => (
-          <label key={preset.label}>
-            <input
-              type="radio"
-              name="timer-preset"
-              checked={!useCustom && presetIndex === i}
-              onChange={() => {
-                setUseCustom(false)
-                setPresetIndex(i)
-              }}
-            />
-            {preset.label}
+        <div className="segmented-options">
+          {TIMER_PRESETS.map((preset, i) => (
+            <label key={preset.label}>
+              <input
+                type="radio"
+                name="timer-preset"
+                checked={!useCustom && presetIndex === i}
+                onChange={() => {
+                  setUseCustom(false)
+                  setPresetIndex(i)
+                }}
+              />
+              {preset.label}
+            </label>
+          ))}
+          <label>
+            <input type="radio" name="timer-preset" checked={useCustom} onChange={() => setUseCustom(true)} />
+            Eigene Werte
           </label>
-        ))}
-        <label>
-          <input type="radio" name="timer-preset" checked={useCustom} onChange={() => setUseCustom(true)} />
-          Eigene Werte
-        </label>
+        </div>
         {useCustom && (
           <span>
             <label>

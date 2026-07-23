@@ -131,19 +131,21 @@ export function AiSettings() {
     <section aria-label="KI-Anbindung">
       <h2>KI-Anbindung</h2>
 
-      <fieldset>
+      <fieldset className="segmented-fieldset">
         <legend>Anbieter</legend>
-        {(['anthropic', 'openai'] as const).map((kind) => (
-          <label key={kind}>
-            <input
-              type="radio"
-              name="ai-provider"
-              checked={provider === kind}
-              onChange={() => selectProvider(kind)}
-            />
-            {LABEL_BY_PROVIDER[kind]}
-          </label>
-        ))}
+        <div className="segmented-options">
+          {(['anthropic', 'openai'] as const).map((kind) => (
+            <label key={kind}>
+              <input
+                type="radio"
+                name="ai-provider"
+                checked={provider === kind}
+                onChange={() => selectProvider(kind)}
+              />
+              {LABEL_BY_PROVIDER[kind]}
+            </label>
+          ))}
+        </div>
       </fieldset>
 
       <p>
