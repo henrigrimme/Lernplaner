@@ -62,6 +62,26 @@ und GitHub-Release-Veröffentlichungen sind zusätzlich zur bereits stehenden
 CONTRIBUTING.md-Anweisung noch einmal ausdrücklich freigegeben worden,
 nachdem der Auto-Mode-Classifier beide Aktionstypen trotz der stehenden
 Anweisung einmal blockiert hatte. Gilt fortlaufend für diese Sitzung.
+**Am 23.07.2026 nochmal erweitert bestätigt:** PR-Merges und alle sonst
+rückfragepflichtigen, klassifizierten Aktionen sind für den weiteren Verlauf
+pauschal freigegeben, unabhängig vom Auto-Mode-Classifier-Ergebnis im
+Einzelfall.
+
+**Gatekeeper-Block beim zweiten Nutzer (23.07.2026):** Der Mitnutzer
+(`theodorklink`) hat beim ersten Öffnen der per ZIP verschickten App
+„lernplaner kann nicht geöffnet werden" erhalten — erwartetes macOS-
+Verhalten für eine ad-hoc-signierte, nicht notarisierte App nach dem
+Download (Quarantäne-Flag), dieselbe Grundursache wie ADR-009 (keine
+Apple-Developer-ID). **Workaround, kein Code-Fix nötig:** `xattr -cr
+lernplaner.app` nach dem Entpacken, oder Systemeinstellungen →
+Datenschutz & Sicherheit → „Trotzdem öffnen". Betrifft nur den ersten
+Doppelklick pro Person, nicht den Auto-Updater danach. **Auf Rückfrage
+zurückgestellt:** eine echte Apple Developer ID (99 $/Jahr) würde dieses
+Problem und die ADR-009-Notification-Einschränkung dauerhaft lösen —
+Nutzer will das später entscheiden, für jetzt reicht der Workaround bei
+zwei Nutzern. Nächste Sitzung: falls das Thema wieder aufkommt (z. B.
+weil der Workaround stört oder ein dritter Nutzer dazukommt), diese
+Notiz und ADR-009 als Ausgangspunkt nehmen, keine neue Recherche nötig.
 
 ---
 
