@@ -11,14 +11,11 @@ import { TodayView } from './ui/TodayView'
 import { ReplanView } from './ui/ReplanView'
 import { ProgressView } from './ui/ProgressView'
 import { SourceViewer } from './ui/SourceViewer'
-import { CourseExportImport } from './ui/CourseExportImport'
-import { NotificationsPanel } from './ui/NotificationsPanel'
 import { NotificationBanner } from './ui/NotificationBanner'
-import { UpdateChecker, type UpdateInfo } from './ui/UpdateChecker'
+import { type UpdateInfo } from './ui/UpdateChecker'
 import { UpdateBanner } from './ui/UpdateBanner'
-import { CalendarExport } from './ui/CalendarExport'
-import { AiSettings } from './ui/AiSettings'
-import { AppearanceSetting, PALETTE_OPTIONS, type PalettePreference, type ThemePreference } from './ui/AppearanceSetting'
+import { PALETTE_OPTIONS, type PalettePreference, type ThemePreference } from './ui/AppearanceSetting'
+import { SettingsView } from './ui/SettingsView'
 import { QuizSetup, type GenerateQuizInput } from './ui/QuizSetup'
 import { QuizSession } from './ui/QuizSession'
 import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
@@ -1619,27 +1616,21 @@ export function App() {
         )}
 
         {activeSection === 'einstellungen' && (
-          <>
-            <UpdateChecker onCheckNow={checkForUpdate} onInstall={installUpdateAndRestart} />
-
-            <AppearanceSetting theme={theme} onChangeTheme={setTheme} palette={palette} onChangePalette={setPalette} />
-
-            <AiSettings />
-
-            <NotificationsPanel onCheckNow={checkNotifications} />
-
-            <CalendarExport studyBlocks={studyBlocks} topics={topics} now={() => new Date().toISOString()} />
-
-            <CourseExportImport
-              courses={courses}
-              topics={topics}
-              topicSections={topicSections}
-              assessments={assessments}
-              studyBlocks={studyBlocks}
-              onImport={applyCourseImport}
-              now={() => new Date().toISOString()}
-            />
-          </>
+          <SettingsView
+            onCheckForUpdate={checkForUpdate}
+            onInstallUpdate={installUpdateAndRestart}
+            theme={theme}
+            onChangeTheme={setTheme}
+            palette={palette}
+            onChangePalette={setPalette}
+            onCheckNotifications={checkNotifications}
+            studyBlocks={studyBlocks}
+            topics={topics}
+            courses={courses}
+            topicSections={topicSections}
+            assessments={assessments}
+            onImportCourse={applyCourseImport}
+          />
         )}
         </main>
       </div>
