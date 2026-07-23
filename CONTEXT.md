@@ -3234,6 +3234,12 @@ vollen Bundle-Build.
 **Nächste Sitzung: nachfragen, ob das Passwort-Fenster nach diesem einen
 Übergangs-Update tatsächlich verschwunden ist.**
 
+**Für Claude, künftige Releases:** `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+(Passphrase für `~/.tauri/lernplaner-updater.key`) ist **leer** — bewusst
+so vom Nutzer eingerichtet (2026-07-23, auf Nachfrage bestätigt). Env-Var
+beim Release-Build entweder auf `""` setzen oder ganz weglassen, nicht
+danach fragen oder im Schlüsselbund danach suchen.
+
 ---
 
 ## 9. Bekannte Einschränkungen
