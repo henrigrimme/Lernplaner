@@ -80,6 +80,3 @@ Nach Dringlichkeit aus echter Nutzung, grobe Reihenfolge:
 - Tieferer Quiz-Konfigurationsdialog mit echten Rückfragen (Konversation
   statt Formular) — Schwierigkeit/Anzahl/Sprache sind seit v0.19.0 schon
   vorab wählbar, das ist der nächste, größere Schritt
-- Größere Neugestaltung der „Fächer & Themen"-Seite (fokussierte
-  Detailansicht pro Fach statt einer langen Ein-Seiten-Liste) — eigener
-  Design-Durchgang mit dem `impeccable`-Skill, siehe CONTEXT.md
