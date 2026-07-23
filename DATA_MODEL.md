@@ -38,9 +38,15 @@ documents
                                -- musterloesung | zusammenfassung | sonstiges
   doc_type_label,              -- nur bei doc_type='sonstiges': freie eigene Bezeichnung
                                -- (Migration 0003, additiv, siehe ADR-013)
-  pdf_pages,                   -- rohe Seitenzahl
+  pdf_pages,                   -- rohe Seitenzahl bei PDF; bei Word/Markdown die Zahl
+                               -- erkannter Abschnitte, bei PowerPoint die Folienzahl,
+                               -- bei Excel die Blattzahl (ADR-018) — grobes Größenmaß,
+                               -- Name aus der PDF-Frühzeit beibehalten, keine Migration
+                               -- nur für eine Umbenennung
   slide_count,                 -- echte Folien nach Animationsbereinigung (0 bei KI-erkannten
-                               -- Zusammenfassungs-Themen, siehe ADR-015)
+                               -- Zusammenfassungs-Themen, siehe ADR-015); bei Word/PowerPoint/
+                               -- Excel/Markdown identisch mit pdf_pages (keine Animationsschritte,
+                               -- siehe ADR-018)
   unique_chars,                -- eindeutiger Textumfang → Basis der Schätzung
   imported_at
 

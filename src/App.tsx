@@ -24,10 +24,11 @@ import { QuizSession } from './ui/QuizSession'
 import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
 import { DocumentList } from './ui/DocumentList'
 import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
-import { extractDocument, extractPageRangeText, readPages } from './ingest/pdf'
+import { extractPageRangeText, readPages } from './ingest/pdf'
+import { extractAnyDocument, isSupportedDocument, SUPPORTED_EXTENSIONS } from './ingest/documentImport'
 import { DOCUMENT_TYPE_OPTIONS, inferDocType } from './ingest/docType'
 import { loadDocumentFile, saveDocumentFile } from './platform/documentStorage'
-import { pickFolder, readPdfFilesRecursively, type PickedPdfFile } from './platform/folderImport'
+import { pickFolder, readDocumentFilesRecursively, type PickedDocumentFile } from './platform/folderImport'
 import { computeSha256, ensureFolderTopicPath, persistAiDetectedDocument, persistExtractedDocument } from './data/importTopics'
 import { materializeStudyBlocks } from './data/studyBlocks'
 import type { ImportedCourseResult } from './data/courseExport'
@@ -1051,7 +1052,10 @@ export function App() {
   // „Analyse: Beispiel-PDFs") — die folienbasierte Kapitelerkennung
   // (`extractDocument`) passt hier nicht. Stattdessen liest die KI den
   // kompletten Seitentext inhaltlich und gruppiert ihn selbst nach Themen
-  // (ADR-015 `detectTopicsFromText`).
+  // (ADR-015 `detectTopicsFromText`). **Bleibt PDF-exklusiv:** `readPages`
+  // ist pdf.js-spezifisch — bei Word/Markdown übernimmt deren eigene
+  // Überschriftenerkennung (`importRegularDocument`) dieselbe Aufgabe
+  // bereits deterministisch, siehe `importDocuments` unten.
   const importSummaryPdf = async (fileName: string, data: Uint8Array, parentTopicId: number | null) => {
     const provider = await getConfiguredAIProvider(logAiUsage)
     if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
@@ -1083,9 +1087,17 @@ export function App() {
     )
   }
 
-  const importRegularPdf = async (fileName: string, data: Uint8Array, docType: DocumentType, parentTopicId: number | null) => {
+  /**
+   * Wählt automatisch die passende Extraktionspipeline nach Dateiendung
+   * (`ingest/documentImport.ts` `extractAnyDocument`) — der einzige
+   * PDF-spezifische Sonderfall bleibt „Zusammenfassung" (siehe
+   * `importSummaryPdf` oben), für alle anderen Formate/Doktypen greift die
+   * jeweils eigene, deterministische Kapitelerkennung
+   * (`ingest/docx.ts`/`pptx.ts`/`xlsx.ts`/`markdown.ts`).
+   */
+  const importRegularDocument = async (fileName: string, data: Uint8Array, docType: DocumentType, parentTopicId: number | null) => {
     const db = await getDb()
-    const extracted = await extractDocument(data, fileName)
+    const extracted = await extractAnyDocument(data, fileName)
     const sha256 = await computeSha256(data)
     const storedPath = await saveDocumentFile(sha256, data)
     return persistExtractedDocument(
@@ -1098,7 +1110,7 @@ export function App() {
     )
   }
 
-  const importPdfs = async (files: FileList, docType: DocumentType) => {
+  const importDocuments = async (files: FileList, docType: DocumentType) => {
     if (selectedCourseId === null) return
     setImportError(null)
     setImportInfo(null)
@@ -1106,47 +1118,52 @@ export function App() {
     for (const file of Array.from(files)) {
       const data = new Uint8Array(await file.arrayBuffer())
       try {
+        // Der KI-gestützte Volltext-Weg (`importSummaryPdf`) ist
+        // PDF-exklusiv (siehe Kommentar dort) — eine als „Zusammenfassung"
+        // markierte Word-/Markdown-Datei nutzt stattdessen deren eigene
+        // Überschriftenerkennung, die für unstrukturierte Notizen ohnehin
+        // schon auf den Dateinamen zurückfällt statt abzustürzen.
         const result =
-          docType === 'zusammenfassung'
+          docType === 'zusammenfassung' && file.name.toLowerCase().endsWith('.pdf')
             ? await importSummaryPdf(file.name, data, null)
-            : await importRegularPdf(file.name, data, docType, null)
+            : await importRegularDocument(file.name, data, docType, null)
         setTopics((prev) => [...prev, ...result.topics])
         setTopicSections((prev) => [...prev, ...result.topicSections])
         setDocuments((prev) => [...prev, result.document])
         setDocumentBytes((prev) => ({ ...prev, [result.document.id]: data }))
       } catch (error) {
-        console.error('PDF-Import konnte nicht gespeichert werden', error)
+        console.error('Dokument-Import konnte nicht gespeichert werden', error)
         const message = error instanceof Error ? error.message : String(error)
         setImportError(`„${file.name}" konnte nicht importiert werden: ${message}`)
       }
     }
   }
 
-  // Ordner-Import: der Nutzer wählt statt einzelner PDFs einen ganzen
+  // Ordner-Import: der Nutzer wählt statt einzelner Dateien einen ganzen
   // Ordner (z. B. schon nach Unterthemen sortiert). Läuft über den
   // nativen Systemdialog + echtes Dateisystem-Lesen
   // (`platform/folderImport.ts`), nicht über
   // `<input type="file" webkitdirectory>` — dieses Attribut ist in
   // WKWebView (Tauris Webview unter macOS) bekannt unzuverlässig, siehe
-  // Kommentar dort. `relativePath` (aus `readPdfFilesRecursively`) enthält
-  // den gewählten Wurzelordner selbst nicht — Zwischenordner werden 1:1 zu
-  // verschachtelten Themen (`ensureFolderTopicPath`), PDFs direkt im
-  // gewählten Ordner (kein Zwischenordner) verhalten sich wie beim
-  // normalen Mehrfach-Import (`importPdfs`): ihre Kapitel-Themen bekommen
-  // `parent_id = null`.
+  // Kommentar dort. `relativePath` (aus `readDocumentFilesRecursively`)
+  // enthält den gewählten Wurzelordner selbst nicht — Zwischenordner
+  // werden 1:1 zu verschachtelten Themen (`ensureFolderTopicPath`),
+  // Dateien direkt im gewählten Ordner (kein Zwischenordner) verhalten
+  // sich wie beim normalen Mehrfach-Import (`importDocuments`): ihre
+  // Kapitel-Themen bekommen `parent_id = null`.
   const importFolder = async () => {
     if (selectedCourseId === null) return
     setImportError(null)
     setImportInfo(null)
 
     let db: Awaited<ReturnType<typeof getDb>>
-    let pickedFiles: PickedPdfFile[]
+    let pickedFiles: PickedDocumentFile[]
     let skipped: string[]
     try {
       const folder = await pickFolder()
       if (folder === null) return // Nutzer hat abgebrochen
       db = await getDb()
-      const result = await readPdfFilesRecursively(folder)
+      const result = await readDocumentFilesRecursively(folder)
       pickedFiles = result.files
       skipped = result.skipped
     } catch (error) {
@@ -1158,15 +1175,15 @@ export function App() {
     if (pickedFiles.length === 0) {
       setImportError(
         skipped.length > 0
-          ? `Der gewählte Ordner enthält keine PDF-Dateien — nur andere Formate (${skipped.length}), die der Import (noch) nicht liest: ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ', …' : ''}.`
-          : 'Der gewählte Ordner enthält keine PDF-Dateien.',
+          ? `Der gewählte Ordner enthält keine unterstützten Dokumente — nur andere Formate (${skipped.length}), die der Import (noch) nicht liest: ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ', …' : ''}.`
+          : 'Der gewählte Ordner enthält keine unterstützten Dokumente.',
       )
       return
     }
 
     if (skipped.length > 0) {
       setImportInfo(
-        `${skipped.length} Datei(en) übersprungen (kein PDF, wird derzeit nicht unterstützt): ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ', …' : ''}.`,
+        `${skipped.length} Datei(en) übersprungen (Format wird derzeit nicht unterstützt): ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ', …' : ''}.`,
       )
     }
 
@@ -1194,16 +1211,16 @@ export function App() {
         }
 
         const result =
-          docType === 'zusammenfassung'
+          docType === 'zusammenfassung' && file.name.toLowerCase().endsWith('.pdf')
             ? await importSummaryPdf(file.name, file.data, parentTopicId)
-            : await importRegularPdf(file.name, file.data, docType, parentTopicId)
+            : await importRegularDocument(file.name, file.data, docType, parentTopicId)
         knownTopics = [...knownTopics, ...result.topics]
         setTopics((prev) => [...prev, ...result.topics])
         setTopicSections((prev) => [...prev, ...result.topicSections])
         setDocuments((prev) => [...prev, result.document])
         setDocumentBytes((prev) => ({ ...prev, [result.document.id]: file.data }))
       } catch (error) {
-        console.error(`PDF-Import konnte nicht gespeichert werden (${file.relativePath})`, error)
+        console.error(`Dokument-Import konnte nicht gespeichert werden (${file.relativePath})`, error)
         const message = error instanceof Error ? error.message : String(error)
         setImportError(`„${file.relativePath}" konnte nicht importiert werden: ${message}`)
       }
@@ -1356,21 +1373,34 @@ export function App() {
                   </label>
                 )}
                 <label>
-                  PDFs für {selectedCourse.name} importieren
+                  Dokumente für {selectedCourse.name} importieren (PDF, Word, PowerPoint, Excel, Markdown)
                   <input
                     type="file"
-                    accept="application/pdf"
+                    accept={SUPPORTED_EXTENSIONS.join(',')}
                     multiple
                     onChange={(e) => {
                       const files = e.target.files
                       if (!files || files.length === 0) return
+                      const rejected = Array.from(files).filter((f) => !isSupportedDocument(f.name))
+                      const accepted = Array.from(files).filter((f) => isSupportedDocument(f.name))
+                      if (rejected.length > 0) {
+                        setImportInfo(
+                          `${rejected.length} Datei(en) übersprungen (Format wird derzeit nicht unterstützt): ${rejected.map((f) => f.name).slice(0, 5).join(', ')}${rejected.length > 5 ? ', …' : ''}.`,
+                        )
+                      }
+                      if (accepted.length === 0) {
+                        e.target.value = ''
+                        return
+                      }
                       // "folien" gilt als noch nicht bewusst gewählt (Default) — nur dann
                       // übernimmt die Erkennung aus dem Dateinamen die Auswahl automatisch,
                       // eine bewusst getroffene Wahl wird nie überschrieben (siehe
                       // ingest/docType.ts-Kommentar).
-                      const resolvedType = importDocType === 'folien' ? inferDocType(files[0]!.name) : importDocType
+                      const resolvedType = importDocType === 'folien' ? inferDocType(accepted[0]!.name) : importDocType
                       if (resolvedType !== importDocType) setImportDocType(resolvedType)
-                      importPdfs(files, resolvedType)
+                      const dataTransfer = new DataTransfer()
+                      accepted.forEach((f) => dataTransfer.items.add(f))
+                      importDocuments(dataTransfer.files, resolvedType)
                       e.target.value = ''
                     }}
                   />
@@ -1380,8 +1410,9 @@ export function App() {
                 </button>
                 <p>
                   Unterordner des gewählten Ordners werden 1:1 als verschachtelte Themen übernommen — praktisch, wenn
-                  Material schon nach Unterthemen sortiert in Ordnern liegt. PDFs direkt im gewählten Ordner (ohne
-                  Unterordner) verhalten sich wie beim normalen Import oben.
+                  Material schon nach Unterthemen sortiert in Ordnern liegt. Dokumente direkt im gewählten Ordner
+                  (ohne Unterordner) verhalten sich wie beim normalen Import oben. Unterstützte Formate: PDF, Word
+                  (.docx), PowerPoint (.pptx), Excel (.xlsx), Markdown (.md).
                 </p>
                 {importError && <p role="alert">{importError}</p>}
                 {importInfo && <p role="status">{importInfo}</p>}
@@ -1408,6 +1439,7 @@ export function App() {
             <SourceViewer
               topics={topics}
               topicSections={topicSections}
+              documents={documents}
               documentBytes={documentBytes}
               cards={cards}
               onCreateCard={handleCreateCard}

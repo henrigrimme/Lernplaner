@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { PdfViewer } from './PdfViewer'
 import { CardCreator } from './CardCreator'
-import type { Card, Topic, TopicSection } from '../data/schema'
+import type { Card, Document, Topic, TopicSection } from '../data/schema'
 import type { NewCardInput } from '../data/cardsRepo'
 
 /**
@@ -19,11 +19,20 @@ import type { NewCardInput } from '../data/cardsRepo'
  * betrachteten Abschnitts als Vorschlag (überschreibbar). `cards` wird nur
  * nach Thema gefiltert angezeigt, nicht nach Dokument/Seite — eine Karte
  * gehört fachlich zum Thema, nicht zur zufälligen Fundstelle.
+ *
+ * **Nur PDF hat einen Viewer:** Seit dem breiteren Dateiformat-Import
+ * (Word/PowerPoint/Excel/Markdown, `ingest/documentImport.ts`) ist
+ * `documentBytes[id]` nicht mehr automatisch ein PDF — `PdfViewer` (pdf.js)
+ * auf z. B. eine `.docx`-Datei loszulassen würde nur einen kryptischen
+ * Fehler werfen. `documents` wird deshalb nur gebraucht, um den
+ * Dateinamen/die Endung des gerade gewählten Abschnitts nachzuschlagen.
  */
 
 export interface SourceViewerProps {
   topics: Topic[]
   topicSections: TopicSection[]
+  /** Für die Dateiendung — entscheidet, ob `PdfViewer` überhaupt infrage kommt (siehe oben). */
+  documents: Document[]
   /** PDF-Bytes je `document_id` — fehlt nur für vor ADR-013 importierte Dokumente (alter `in-memory://`-Platzhalter). */
   documentBytes: Record<number, Uint8Array>
   cards: Card[]
@@ -31,11 +40,17 @@ export interface SourceViewerProps {
   onDeleteCard: (id: number) => void
 }
 
-export function SourceViewer({ topics, topicSections, documentBytes, cards, onCreateCard, onDeleteCard }: SourceViewerProps) {
+export function SourceViewer({ topics, topicSections, documents, documentBytes, cards, onCreateCard, onDeleteCard }: SourceViewerProps) {
   const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null)
   const [selection, setSelection] = useState<{ text: string; page: number } | null>(null)
   const topicById = new Map(topics.map((t) => [t.id, t]))
+  const documentById = new Map(documents.map((d) => [d.id, d]))
   const selectedSection = topicSections.find((s) => s.id === selectedSectionId) ?? null
+  const selectedDocument = selectedSection ? documentById.get(selectedSection.document_id) : undefined
+  // Unbekanntes Dokument (sollte praktisch nie vorkommen): sicherheitshalber
+  // `false` statt `true` — lieber der Hinweistext unten als ein Absturz in
+  // `PdfViewer`, falls die Bytes doch keine PDF-Daten sind.
+  const selectedIsPdf = selectedDocument?.filename.toLowerCase().endsWith('.pdf') ?? false
 
   const selectSection = (id: number) => {
     setSelectedSectionId(id)
@@ -56,19 +71,29 @@ export function SourceViewer({ topics, topicSections, documentBytes, cards, onCr
         <p>Noch keine Materialien importiert.</p>
       ) : (
         <ul>
-          {topicSections.map((section) => (
-            <li key={section.id}>
-              {topicById.get(section.topic_id)?.name ?? `Thema ${section.topic_id}`} — Seite {section.page_start}
-              {section.page_end !== section.page_start && `–${section.page_end}`}
-              <button type="button" onClick={() => selectSection(section.id)}>
-                Im PDF ansehen
-              </button>
-            </li>
-          ))}
+          {topicSections.map((section) => {
+            const isPdf = documentById.get(section.document_id)?.filename.toLowerCase().endsWith('.pdf') ?? false
+            return (
+              <li key={section.id}>
+                {topicById.get(section.topic_id)?.name ?? `Thema ${section.topic_id}`} — Seite {section.page_start}
+                {section.page_end !== section.page_start && `–${section.page_end}`}
+                <button type="button" onClick={() => selectSection(section.id)}>
+                  {isPdf ? 'Im PDF ansehen' : 'Quelle anzeigen'}
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
 
-      {selectedSection &&
+      {selectedSection && !selectedIsPdf && (
+        <p>
+          Vorschau nur für PDF verfügbar — {selectedDocument?.filename ?? 'dieses Dokument'} wurde erfolgreich
+          importiert, kann hier aber (noch) nicht angezeigt werden.
+        </p>
+      )}
+
+      {selectedSection && selectedIsPdf &&
         (documentBytes[selectedSection.document_id] ? (
           <PdfViewer
             data={documentBytes[selectedSection.document_id]!}

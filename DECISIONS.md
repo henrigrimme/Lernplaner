@@ -711,3 +711,116 @@ Palettenwerte für Hell/Dunkel (anders als `data-theme`) — der
 Pflegeaufwand einer zweiten Wertetabelle pro Palette stand in keinem
 Verhältnis zum Nutzen; im Test (Dunkel + NATO Olive) blieb die Lesbarkeit
 gut.
+
+---
+
+## ADR-018 — Word/PowerPoint/Excel/Markdown-Import: deterministische Struktur statt KI, `mammoth`/`jszip`/`fast-xml-parser`
+**2026-07-23 · angenommen**
+
+**Kontext:** Nutzerwunsch, mehr Dateiformate als PDF importieren zu
+können — löst die bisher bestätigte Einschränkung „nur PDF" (Abschnitt 3).
+In der Nachtsitzung 22.→23.07. war das bewusst zurückgestellt worden, mit
+zwei offenen Fragen: reicht „Text lesbar machen" oder wird eine echte
+Themenerkennung wie bei PDF erwartet, und zählen CSV/HTML als
+Lernmaterial? Auf Rückfrage: **echte, aber deterministische
+Themenerkennung** (keine KI) — jedes Format hat tatsächlich ein eigenes,
+zuverlässiges Struktursignal, das keinen KI-Aufruf braucht.
+
+**Entscheidung, je Format:**
+- **Word (.docx):** `mammoth` wandelt die docx-Struktur in HTML, echte
+  Word-„Überschrift"-Formatvorlagen werden zu `<h1>`–`<h6>` — dieselbe
+  Erkennung, die Word selbst fürs Inhaltsverzeichnis nutzt
+  (`ingest/docx.ts`). Überschriften ohne echte Formatvorlage (nur fett/
+  groß) werden nicht erkannt — bekannte, dokumentierte Grenze, kein
+  Absturz (Rückfall auf Dateiname wie bei PDF ohne Struktursignal).
+- **PowerPoint (.pptx):** eine echte Folie markiert ihren Titel-
+  Platzhalter explizit (`<p:ph type="title"/>`) — zuverlässiger als PDFs
+  Schriftgrößen-/Positionsvergleich, das Format sagt es direkt
+  (`ingest/pptx.ts`). Trennfolien-Erkennung wiederverwendet
+  `ingest/chapters.ts`s bereits validierte Logik (`detectChaptersFromSlides`,
+  neu exportiert) — dieselbe Money-&-Banking-Konvention, nur ohne den
+  PDF-exklusiven Untertitel-Weg (braucht Positionsdaten, die es bei
+  PowerPoint-Text-Extraktion so nicht gibt). **Keine
+  Animationsschritt-Aufblähung** (ADR-004) — eine `.pptx`-Datei speichert
+  Animationen als Metadaten, nicht als wiederholte Folienkopien, jede
+  `<p:sld>` ist bereits eine vollständige Folie.
+- **Excel (.xlsx):** jedes Tabellenblatt wird zu einem eigenen Kapitel,
+  benannt nach dem Blattnamen (`ingest/xlsx.ts`) — die deutlichste
+  denkbare Struktur, keine eigene Heuristik nötig.
+- **Markdown (.md/.markdown):** `#`/`##`/… sind ein ebenso explizites
+  Signal wie Word-Überschriften, nur ohne den Umweg über HTML
+  (`ingest/markdown.ts`).
+- **Word und Markdown teilen sich eine Kapitel-Konstruktion**
+  (`ingest/headingStructure.ts` `chaptersFromHeadingSections`): die
+  flachste im Dokument vorkommende Überschriftsebene markiert eine
+  Kapitelgrenze, tiefere Ebenen werden zu Folien innerhalb des Kapitels —
+  Text vor der ersten Kapitel-Ebene-Überschrift fällt auf den Dateinamen
+  zurück, dieselbe Konvention wie bei PDF ohne erkennbares Signal.
+- **Bewusst NICHT dabei: CSV/HTML.** Reine Datendateien im gesichteten
+  Material (z. B. eine SQL-Workshop-CSV, siehe CONTEXT.md
+  „Nachtsitzung"), kein Lernmaterial im bisher beobachteten Sinn.
+
+**Warum keine KI (Alternative, verworfen):** Der ADR-015-Weg
+(„Zusammenfassungen": KI liest Volltext, gruppiert inhaltlich) hätte für
+jedes importierte Word-/PowerPoint-/Excel-/Markdown-Dokument einen
+KI-Aufruf gebraucht (Kosten, Sprachwahl, ADR-007) und einen konfigurierten
+Anbieter vorausgesetzt — der PDF-Import ist dagegen komplett kostenlos
+und funktioniert ohne API-Schlüssel. Da jedes der vier Formate ein
+mindestens so explizites Struktursignal trägt wie eine PDF-Folie (echte
+Formatvorlagen, echte Titel-Platzhalter, echte Tabellenblätter, echte
+Überschriften), bringt eine KI-Klassifikation hier keinen Mehrwert, der
+den Aufwand/die Kosten rechtfertigen würde — dieselbe Abwägung wie bei
+ADR-014 (Dokumenttyp-Erkennung ohne KI).
+
+**Neue Abhängigkeiten** (nach der am 23.07.2026 pauschal erweiterten
+Freigabe, siehe CONTEXT.md „Freigaben"): `mammoth` (keine eigenen
+Laufzeit-Abhängigkeiten, wie schon `ts-fsrs`), `jszip` + `fast-xml-parser`
+für `.pptx`/`.xlsx` (beide ZIP-Archive aus XML-Teilen, OOXML). **Bewusst
+NICHT** das npm-Paket `xlsx` (SheetJS) — die auf npm veröffentlichte
+Version (0.18.5) trägt zwei unbehobene, hoch eingestufte CVEs
+(Prototype Pollution, ReDoS); SheetJS pflegt seit Version 0.20 nur noch
+über die eigene CDN weiter, nicht mehr über npm. Auch `exceljs` (Alternative,
+kurz geprüft) verworfen — 69 transitive Pakete für eine reine
+Text-Extraktionsaufgabe, plus eine moderate CVE über eine veraltete
+`uuid`-Abhängigkeit. Stattdessen `.xlsx` wie `.pptx` selbst über
+`jszip`/`fast-xml-parser` gelesen — dieselbe Technik, ein Format weniger
+zu pflegen als eine dritte, dedizierte Bibliothek. `npm audit` bestätigt:
+keine neue Schwachstelle durch `mammoth`/`jszip`/`fast-xml-parser`, nur
+die bereits vorbestehenden (vite/vitest-Toolchain, siehe CONTEXT.md
+Abschnitt 8).
+
+**Browser- vs. Node-Eingang bei `mammoth` — Bugfix während der
+Entwicklung:** `mammoth`s Node-Paket (was `import mammoth from
+'mammoth'` unter Vitest/`tsx`-Skripten auflöst) akzeptiert nur `{path}`/
+`{buffer}` als Eingang, wirft mit `{arrayBuffer}` „Could not find file in
+options" — `{arrayBuffer}` ist ausschließlich der Browser-Eingang, auf den
+Vite über `mammoth`s `package.json`-„browser"-Feld automatisch umschaltet
+(bestätigt: `npm run build` bündelt keine `fs`/`Buffer`-Referenzen aus
+`mammoth` ins Browser-Bundle). `ingest/docx.ts` `convertDocxToHtml`
+verzweigt deshalb über denselben `typeof window`-Guard wie der
+pdf.js-Worker in `ingest/pdf.ts`, nur umgekehrt (dort ist `arrayBuffer`
+der browserfreie Node-Fallback, hier der Browser-Weg).
+
+**Wiederverwendung statt Neuerfindung:** `ingest/chapters.ts`s
+„Trennfolie → Dateiname → kein Signal"-Fallback wurde als
+`detectChaptersFromSlides` exportiert (vorher nur intern in
+`detectChapters` verkettet) — `ingest/pptx.ts` nutzt exakt dieselbe,
+bereits an echtem PDF-Material validierte Logik, statt sie für
+PowerPoint-Trennfolien zu duplizieren. `chapterNameFromFilename`s
+Endungsliste wurde um `.docx`/`.pptx`/`.md`/`.markdown` erweitert
+(vorher nur `.pdf`).
+
+**Nicht Teil dieser Entscheidung:** ein PDF-Viewer-Äquivalent für die
+neuen Formate (`ui/SourceViewer.tsx` zeigt für Nicht-PDF-Dokumente einen
+Hinweis statt eines Absturzversuchs in `ui/PdfViewer.tsx`, das weiterhin
+nur echte PDF-Bytes versteht) — „Markieren im Dokument → Karteikarte"
+(ROADMAP.md Phase 4) bleibt für diese vier Formate vorerst nicht
+verfügbar, kein Rückschritt, nur (noch) nicht gebaut.
+
+**Bekannte Lücke:** kein Plausibilitätscheck an echtem, in Word/
+PowerPoint/Excel erzeugtem Material (anders als bei PDF, `Beispiel
+pdfs/`) — die Tests bauen minimale, gültige OOXML-Dateien selbst
+(`tests/ingest/docx.test.ts`/`pptx.test.ts`/`xlsx.test.ts`, `jszip`
+direkt im Test). Sollte der Nutzer echtes Material dieser Formate
+importieren, ist eine erste echte Rückmeldung besonders wertvoll —
+nächste Sitzung danach fragen.

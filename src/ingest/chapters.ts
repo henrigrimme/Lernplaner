@@ -187,10 +187,16 @@ function detectDividerChapters(slides: Slide[]): Map<number, string> | null {
   return bySlideIndex
 }
 
-/** Nummerierungspräfix und Dateiendung entfernen: "02 Consumer Theory 01.pdf" -> "Consumer Theory 01". */
-function chapterNameFromFilename(filename: string): string {
+/**
+ * Nummerierungspräfix und Dateiendung entfernen: "02 Consumer Theory 01.pdf"
+ * -> "Consumer Theory 01". Die Endungsliste deckt inzwischen auch die
+ * anderen unterstützten Import-Formate ab (ingest/docx.ts, pptx.ts,
+ * markdown.ts) — dieselbe Fallback-Logik "kein Struktursignal gefunden,
+ * Dateiname wird zum Kapitelnamen" gilt dort genauso wie bei PDF.
+ */
+export function chapterNameFromFilename(filename: string): string {
   return filename
-    .replace(/\.pdf$/i, '')
+    .replace(/\.(pdf|docx|pptx|md|markdown)$/i, '')
     .replace(/^\d+[\s._-]+/, '')
     .trim()
 }
@@ -266,8 +272,14 @@ function fuzzyGroupNames(rawNames: string[]): Map<string, string> {
   return rawKeyToCanonical
 }
 
-/** Baut die endgültigen Kapitel aus einer rohen Zuordnung Folie -> Name. */
-function buildChapters(
+/**
+ * Baut die endgültigen Kapitel aus einer rohen Zuordnung Folie -> Name.
+ * Exportiert, weil `ingest/pptx.ts` dieselbe Zusammenführungslogik (inkl.
+ * Fuzzy-Namensgruppierung) für PowerPoint-Trennfolien wiederverwendet
+ * (siehe `detectChaptersFromSlides` unten) — dort gibt es dieselbe
+ * Trennfolien-Konvention wie bei PDF-Foliensätzen (Money & Banking).
+ */
+export function buildChapters(
   slides: Slide[],
   rawNameByIndex: Map<number, string>,
   source: ChapterSource,
@@ -309,7 +321,38 @@ function buildChapters(
   }))
 }
 
-/** Vollständige Kapitelerkennung für ein Dokument. */
+/**
+ * Kapitelerkennung ohne Untertitelzeile: Trennfolie → Dateiname → gar
+ * kein Signal. Der Untertitel-Weg (`detectSubtitleChapters`) bleibt
+ * PDF-exklusiv, weil er Schriftgröße/Position aus `pdf.js` braucht — die
+ * beiden anderen Signale (Trennfolie, Dateiname) kennen dagegen nur
+ * `Slide[]` (Titel, `isDivider`) und funktionieren identisch für jedes
+ * Format, das sich als Folienfolge modellieren lässt. Exportiert für
+ * `ingest/pptx.ts` (echte PowerPoint-Folien haben von Natur aus keine
+ * Animationsschritte, siehe dort — aber dieselben Trennfolien-Muster wie
+ * PDF-Foliensätze kommen an echtem PowerPoint-Material genauso vor).
+ */
+export function detectChaptersFromSlides(slides: Slide[], filename: string): Chapter[] {
+  const dividerMap = detectDividerChapters(slides)
+  if (dividerMap) return buildChapters(slides, dividerMap, 'divider')
+
+  const filenameChapter = chapterNameFromFilename(filename)
+  if (normalizeForCompare(filenameChapter).length >= MIN_NAME_LENGTH) {
+    const rawNameByIndex = new Map<number, string>()
+    slides.forEach((slide, index) => {
+      if (!slide.isDivider) rawNameByIndex.set(index, filenameChapter)
+    })
+    return buildChapters(slides, rawNameByIndex, 'filename')
+  }
+
+  const rawNameByIndex = new Map<number, string>()
+  slides.forEach((slide, index) => {
+    if (!slide.isDivider) rawNameByIndex.set(index, NO_CHAPTER)
+  })
+  return buildChapters(slides, rawNameByIndex, 'fallback')
+}
+
+/** Vollständige Kapitelerkennung für ein PDF-Dokument. */
 export function detectChapters(
   pages: Page[],
   bodyLinesByPage: Map<number, BodyLine[]>,
@@ -328,21 +371,5 @@ export function detectChapters(
     return buildChapters(slides, rawNameByIndex, 'subtitle')
   }
 
-  const dividerMap = detectDividerChapters(slides)
-  if (dividerMap) return buildChapters(slides, dividerMap, 'divider')
-
-  const filenameChapter = chapterNameFromFilename(filename)
-  if (normalizeForCompare(filenameChapter).length >= MIN_NAME_LENGTH) {
-    const rawNameByIndex = new Map<number, string>()
-    slides.forEach((slide, index) => {
-      if (!slide.isDivider) rawNameByIndex.set(index, filenameChapter)
-    })
-    return buildChapters(slides, rawNameByIndex, 'filename')
-  }
-
-  const rawNameByIndex = new Map<number, string>()
-  slides.forEach((slide, index) => {
-    if (!slide.isDivider) rawNameByIndex.set(index, NO_CHAPTER)
-  })
-  return buildChapters(slides, rawNameByIndex, 'fallback')
+  return detectChaptersFromSlides(slides, filename)
 }

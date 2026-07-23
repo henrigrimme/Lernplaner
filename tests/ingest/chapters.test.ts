@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectChapters } from '../../src/ingest/chapters'
+import { chapterNameFromFilename, detectChapters, detectChaptersFromSlides } from '../../src/ingest/chapters'
 import type { BodyLine, Page, Slide } from '../../src/ingest/types'
 
 function page(number: number, title: string): Page {
@@ -149,6 +149,48 @@ describe('detectChapters — Dateiname-Rückfall', () => {
 
     expect(chapters).toHaveLength(1)
     expect(chapters[0]!.title).toBe('Consumer Theory 01')
+    expect(chapters[0]!.source).toBe('filename')
+  })
+})
+
+describe('chapterNameFromFilename', () => {
+  it('entfernt Nummerierungspräfix und Dateiendung für jedes unterstützte Format', () => {
+    expect(chapterNameFromFilename('02 Consumer Theory 01.pdf')).toBe('Consumer Theory 01')
+    expect(chapterNameFromFilename('02 Consumer Theory 01.docx')).toBe('Consumer Theory 01')
+    expect(chapterNameFromFilename('02 Consumer Theory 01.pptx')).toBe('Consumer Theory 01')
+    expect(chapterNameFromFilename('02 Consumer Theory 01.md')).toBe('Consumer Theory 01')
+    expect(chapterNameFromFilename('02 Consumer Theory 01.markdown')).toBe('Consumer Theory 01')
+  })
+})
+
+/**
+ * `detectChaptersFromSlides` ist der PDF-unabhängige Rest von
+ * `detectChapters` (Trennfolie → Dateiname → kein Signal), den
+ * `ingest/pptx.ts` für echte PowerPoint-Trennfolien wiederverwendet — der
+ * Untertitel-Weg (`detectSubtitleChapters`) fehlt hier bewusst, weil er
+ * PDF-Positionsdaten braucht, die es bei PowerPoint-Folien in dieser Form
+ * nicht gibt.
+ */
+describe('detectChaptersFromSlides', () => {
+  it('erkennt Trennfolien identisch zu detectChapters, ohne Page[]/Positionsdaten zu brauchen', () => {
+    const slides = [
+      slide([1], 'Chapter One', true),
+      slide([2], 'Inhalt A'),
+      slide([3], 'Chapter Two', true),
+      slide([4], 'Inhalt B'),
+    ]
+
+    const chapters = detectChaptersFromSlides(slides, 'irrelevant.pptx')
+
+    expect(chapters.map((c) => c.title)).toEqual(['Chapter One', 'Chapter Two'])
+    expect(chapters.every((c) => c.source === 'divider')).toBe(true)
+  })
+
+  it('fällt ohne Trennfolie auf den Dateinamen zurück', () => {
+    const slides = [slide([1], 'Folie 1'), slide([2], 'Folie 2')]
+    const chapters = detectChaptersFromSlides(slides, 'Session 3.pptx')
+    expect(chapters).toHaveLength(1)
+    expect(chapters[0]!.title).toBe('Session 3')
     expect(chapters[0]!.source).toBe('filename')
   })
 })

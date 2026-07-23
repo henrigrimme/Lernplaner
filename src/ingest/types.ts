@@ -82,14 +82,18 @@ export interface Chapter {
 }
 
 export type ChapterSource =
-  /** Kapitelzeile unter dem Folientitel (z. B. Microeconomics). */
+  /** Kapitelzeile unter dem Folientitel (nur PDF, z. B. Microeconomics). */
   | 'subtitle'
-  /** Nummerierte Trennfolie (z. B. Money & Banking). */
+  /** Nummerierte Trennfolie (PDF und PowerPoint, z. B. Money & Banking). */
   | 'divider'
   /** Aus dem Dateinamen abgeleitet (z. B. "Session 3"). */
   | 'filename'
   /** Kein Signal gefunden — alles in einem Kapitel. */
   | 'fallback'
+  /** Überschrift (Word/Markdown) — siehe `ingest/headingStructure.ts`. */
+  | 'heading'
+  /** Tabellenblatt (Excel) — siehe `ingest/xlsx.ts`. */
+  | 'sheet'
 
 /** Ergebnis des Imports eines einzelnen Dokuments. */
 export interface ExtractedDocument {
