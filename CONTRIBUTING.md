@@ -109,6 +109,35 @@ Art (`fix`, `docs`, `test`, `chore`).
 > 4. Kurze Release-Notes: was hat sich geändert, in einfachen Worten (nicht
 >    Commit-Message-Jargon) — die Nutzer sind keine Entwickler.
 
+### CI-Release-Workflow (`.github/workflows/release.yml`)
+
+Zusätzlicher, unabhängiger Weg zur .dmg — eingeführt in PR #62, für den
+Fall, dass später jemand außerhalb der beiden Hauptnutzer die App
+herunterladen will, ohne selbst einen Mac zum Kompilieren zu brauchen.
+**Ersetzt nicht** den obigen manuellen, signierten Release-Weg — der bleibt
+der einzige, den der Auto-Updater der laufenden App tatsächlich prüft.
+
+- **Auslöser:** ein Versions-Tag (`v*`) pushen, oder manuell über den
+  GitHub-Actions-Reiter → "Release macOS" → "Run workflow".
+- **Baut universal** (Apple Silicon + Intel in einer `.dmg`) auf einem
+  GitHub-eigenen macOS-Runner, über `tauri-apps/tauri-action`.
+- **Signiert ad-hoc, nicht mit dem lokalen Zertifikat:** `tauri.conf.json`
+  verweist fest auf `"Lernplaner Local Code Signing"` (ADR-021) — das
+  Zertifikat existiert nur auf dem Rechner, der die signierten
+  Auto-Updater-Releases baut, nicht auf GitHubs Runnern. Ein erster
+  Testlauf schlug deshalb mit `no identity found` fehl (23.07.2026). Der
+  Workflow überschreibt die Identität deshalb gezielt für diesen einen Job
+  per `--config '{"bundle": {"macOS": {"signingIdentity": "-"}}}'`
+  (`-` = ad-hoc) — `tauri.conf.json` selbst bleibt unverändert, weil sie
+  für den echten signierten Weg die lokale Identität braucht.
+- **Wichtig bei künftigen Anpassungen:** `tauri-action`s `args`-Eingabe
+  zerlegt Argumente ohne echte Shell-Auswertung — escapte `\"` für JSON
+  scheitert dort mit "Couldn't parse --config flag as inline JSON"
+  (gesehen im Testlauf 30042376558). Einfache Anführungszeichen um das
+  JSON verwenden, wie oben.
+- Läuft nur bei Tag-Push oder manuellem Dispatch, nicht bei jedem Commit —
+  macOS-Runner-Minuten zählen bei privaten Repos mit erhöhtem Faktor.
+
 ---
 
 ## Vor jedem Push
