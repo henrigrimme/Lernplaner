@@ -72,4 +72,4 @@ jobs:
           # der Release-Beschreibung dokumentierten "nicht signiert"-Hinweis.
           args: >-
             --target universal-apple-darwin --bundles dmg
-            --config "{\"bundle\":{\"macOS\":{\"signingIdentity\":\"-\"}}}"
+            --config '{"bundle": {"macOS": {"signingIdentity": "-"}}}'
