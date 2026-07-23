@@ -102,15 +102,29 @@ describe('PaperSteps', () => {
     expect(onUpdate).toHaveBeenCalledWith(10, { status: 'erledigt' })
   })
 
-  it('löscht einen Teilschritt', async () => {
+  it('löscht einen Teilschritt nach Bestätigung', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn()
     const assessments = [assessment({ id: 1, title: 'Mein Paper' })]
     const steps = [step({ id: 10, assessment_id: 1, title: 'Literaturrecherche' })]
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<PaperSteps course={COURSE} assessments={assessments} steps={steps} {...noop()} onRemove={onRemove} />)
 
     const item = screen.getByText('Literaturrecherche').closest('li')!
-    await user.click(within(item).getByRole('button', { name: 'Löschen' }))
+    await user.click(within(item).getByRole('button', { name: 'Schritt "Literaturrecherche" löschen' }))
     expect(onRemove).toHaveBeenCalledWith(10)
+  })
+
+  it('löscht einen Teilschritt nicht, wenn die Bestätigung abgebrochen wird', async () => {
+    const user = userEvent.setup()
+    const onRemove = vi.fn()
+    const assessments = [assessment({ id: 1, title: 'Mein Paper' })]
+    const steps = [step({ id: 10, assessment_id: 1, title: 'Literaturrecherche' })]
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    render(<PaperSteps course={COURSE} assessments={assessments} steps={steps} {...noop()} onRemove={onRemove} />)
+
+    const item = screen.getByText('Literaturrecherche').closest('li')!
+    await user.click(within(item).getByRole('button', { name: 'Schritt "Literaturrecherche" löschen' }))
+    expect(onRemove).not.toHaveBeenCalled()
   })
 })

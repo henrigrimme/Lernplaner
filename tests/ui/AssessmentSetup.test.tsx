@@ -108,14 +108,27 @@ describe('AssessmentSetup', () => {
     expect(onUpdate).toHaveBeenCalledWith(1, expect.objectContaining({ weight: 5, title: 'Endklausur' }))
   })
 
-  it('löscht eine Prüfung', async () => {
+  it('löscht eine Prüfung nach Bestätigung', async () => {
     const user = userEvent.setup()
     const assessments = [assessment({ id: 1, title: 'Endklausur' })]
     const onRemove = vi.fn()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<AssessmentSetup course={COURSE} assessments={assessments} {...noop()} onRemove={onRemove} />)
 
     const item = screen.getByText('Endklausur').closest('li')!
-    await user.click(within(item).getByRole('button', { name: 'Löschen' }))
+    await user.click(within(item).getByRole('button', { name: 'Prüfung "Endklausur" löschen' }))
     expect(onRemove).toHaveBeenCalledWith(1)
+  })
+
+  it('löscht eine Prüfung nicht, wenn die Bestätigung abgebrochen wird', async () => {
+    const user = userEvent.setup()
+    const assessments = [assessment({ id: 1, title: 'Endklausur' })]
+    const onRemove = vi.fn()
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    render(<AssessmentSetup course={COURSE} assessments={assessments} {...noop()} onRemove={onRemove} />)
+
+    const item = screen.getByText('Endklausur').closest('li')!
+    await user.click(within(item).getByRole('button', { name: 'Prüfung "Endklausur" löschen' }))
+    expect(onRemove).not.toHaveBeenCalled()
   })
 })

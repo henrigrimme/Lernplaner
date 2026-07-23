@@ -109,7 +109,19 @@ export function CourseGroups({ courseGroups, courses, onAdd, onRename, onMove, o
                   <button type="button" onClick={() => startRename(group)}>
                     Umbenennen
                   </button>
-                  <button type="button" onClick={() => onRemove(group.id)}>
+                  <button
+                    type="button"
+                    aria-label={`Ordner "${group.name}" löschen`}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Ordner "${group.name}" wirklich löschen? Enthaltene Fächer werden nicht gelöscht, landen aber wieder in der obersten Ebene.`,
+                        )
+                      ) {
+                        onRemove(group.id)
+                      }
+                    }}
+                  >
                     Löschen
                   </button>
                   {group.courses.length > 0 && (
