@@ -1,0 +1,66 @@
+name: Release macOS
+
+# Baut die fertige macOS-App (universal: Apple Silicon + Intel) und hängt eine
+# installierbare .dmg an ein GitHub-Release.
+#
+# Auslösen auf zwei Wegen:
+#   1. Einen Versions-Tag pushen, z. B.  git tag v0.25.0 && git push origin v0.25.0
+#   2. Manuell über den Reiter "Actions" -> "Release macOS" -> "Run workflow"
+#      (funktioniert, sobald dieser Workflow in main liegt).
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versions-Tag für das Release (z. B. v0.25.0)'
+        required: true
+        default: 'v0.25.0'
+
+jobs:
+  build-macos:
+    name: Build & Release (macOS universal)
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: macOS-App bauen und Release erstellen
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event.inputs.version || github.ref_name }}
+          releaseName: 'Lernplaner ${{ github.event.inputs.version || github.ref_name }}'
+          releaseBody: |
+            Automatisch gebaute macOS-App (universal — läuft auf Apple Silicon und Intel).
+
+            **Installation:** Die `.dmg` unten herunterladen, öffnen und `lernplaner` in den
+            Programme-Ordner ziehen.
+
+            Die App ist **nicht signiert** (es liegt kein Apple-Developer-Zertifikat im Repo).
+            Beim ersten Start meldet macOS deshalb „nicht verifizierter Entwickler". So geht es
+            trotzdem: Rechtsklick auf die App → „Öffnen" → im Dialog nochmals „Öffnen". Ab dann
+            startet sie normal. Falls das nicht reicht, im Terminal einmalig:
+            `xattr -cr "/Applications/lernplaner.app"`.
+          releaseDraft: false
+          prerelease: false
+          args: --target universal-apple-darwin --bundles dmg
