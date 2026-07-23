@@ -78,7 +78,14 @@ export function CourseGroups({ courseGroups, courses, onAdd, onRename, onMove, o
                 <>
                   <label>
                     Neuer Name
-                    <input value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} />
+                    <input
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setRenamingId(null)
+                      }}
+                      autoFocus
+                    />
                   </label>
                   <button type="button" onClick={() => submitRename(group.id)}>
                     Speichern

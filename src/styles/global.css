@@ -289,6 +289,16 @@ p {
   text-overflow: ellipsis;
 }
 
+/* Kurzer Übergangszustand zwischen App-Start und dem ersten `loadCourses`-
+   Ergebnis (`getDb()` braucht in der echten Tauri-App spürbar länger als im
+   Dev-Server) — verhindert, dass die Seitenleiste in diesem Moment wie ein
+   Fach-loses Erststart-Konto aussieht, obwohl nur noch geladen wird. */
+.app-nav-loading {
+  padding: 0 var(--space-sm);
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
 .app-nav-item {
   display: flex;
   align-items: center;
@@ -850,6 +860,18 @@ section[aria-label] ul.document-list > li.document-list-item {
   text-align: center;
   max-width: 44ch;
   margin: 0 auto;
+}
+
+/* Leichte Variante ohne `min-height` — für Seiten mit mehreren
+   gleichrangigen Abschnitten (z. B. "Wiederholen": Wiederholung +
+   Fehlerhistorie), auf denen zwei volle `.empty-state`-Blöcke
+   übereinander zu viel Leerraum erzeugen würden. Bleibt trotzdem
+   zentriert und zurückhaltend statt linksbündigem Fließtext. */
+.empty-state-inline {
+  color: var(--color-muted);
+  font-size: 14px;
+  text-align: center;
+  padding: var(--space-lg) 0;
 }
 
 /* ---------- Buttons ---------- */

@@ -34,7 +34,7 @@ export function ErrorHistory({ cards, reviews, topics, onReview }: ErrorHistoryP
       <h2>Fehlerhistorie — gezielte Wiederholung</h2>
 
       {troubled.length === 0 ? (
-        <p>Keine Karte mit wiederholten Schwierigkeiten.</p>
+        <p className="empty-state-inline">Keine Karte mit wiederholten Schwierigkeiten.</p>
       ) : (
         <ul>
           {troubled.map(({ card, totalReviews, troubleReviews }) => (
