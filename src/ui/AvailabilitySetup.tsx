@@ -131,7 +131,7 @@ export function AvailabilitySetup({
           <li key={exception.date}>
             {exception.date}: {exception.minutes} Min.
             {exception.note && ` (${exception.note})`}
-            <button type="button" onClick={() => onRemoveException(exception.date)}>
+            <button type="button" aria-label={`Ausnahme am ${exception.date} entfernen`} onClick={() => onRemoveException(exception.date)}>
               Entfernen
             </button>
           </li>
@@ -179,7 +179,7 @@ export function AvailabilitySetup({
         {recurringBlockers.map((blocker) => (
           <li key={blocker.id}>
             {WEEKDAY_LABELS[blocker.weekday]}, {blocker.starts_at}–{blocker.ends_at}: {blocker.label}
-            <button type="button" onClick={() => onRemoveRecurringBlocker(blocker.id)}>
+            <button type="button" aria-label={`Blocker "${blocker.label}" entfernen`} onClick={() => onRemoveRecurringBlocker(blocker.id)}>
               Entfernen
             </button>
           </li>

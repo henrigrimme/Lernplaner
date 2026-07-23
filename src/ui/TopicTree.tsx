@@ -220,15 +220,15 @@ function TopicNode({
             {pendingDeleteId === node.id ? (
               <span>
                 Wirklich löschen?
-                <button type="button" onClick={() => onConfirmDelete(node.id)}>
+                <button type="button" aria-label={`"${node.name}" wirklich löschen — bestätigen`} onClick={() => onConfirmDelete(node.id)}>
                   Ja
                 </button>
-                <button type="button" onClick={onCancelDelete}>
+                <button type="button" aria-label={`"${node.name}" löschen abbrechen`} onClick={onCancelDelete}>
                   Nein
                 </button>
               </span>
             ) : (
-              <button type="button" onClick={() => onRequestDelete(node.id)}>
+              <button type="button" aria-label={`Thema "${node.name}" löschen`} onClick={() => onRequestDelete(node.id)}>
                 Löschen
               </button>
             )}
