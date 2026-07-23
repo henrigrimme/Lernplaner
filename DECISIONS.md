@@ -891,3 +891,59 @@ tatsächliche Planung (`scheduleStudyBlocks`) und die Neuberechnung
 (Vereinigungsmenge, neue Parameter), `domain/scheduling.ts`/
 `replanning.ts`/`planBuilder.ts` (Parameter durchgereicht),
 `ui/AvailabilitySetup.tsx`/`PlanView.tsx`/`ReplanView.tsx`.
+
+---
+
+## ADR-020 — Quiz-Konfiguration als Schritt-für-Schritt-Assistent, neuer Fragenschwerpunkt-Parameter
+**2026-07-23 · angenommen**
+
+**Kontext:** Nutzerwunsch aus der Nachtsitzung (ROADMAP.md „Später/offen"):
+„tieferer Quiz-Konfigurationsdialog mit echten Rückfragen, wie bei
+Claude" — statt eines einzigen Formulars mit allen Feldern gleichzeitig
+sollte die App gezielt nacheinander nachfragen. Zwei konkrete Beispiele
+waren schon genannt: „nur Rechenfragen?", „ungefähre Zieldauer?".
+
+**Entscheidung:**
+1. **`ui/QuizSetup.tsx` als Fünf-Schritt-Assistent** (Material → Fragen-
+   Fokus → Umfang → Art/Schwierigkeit → Zusammenfassung), reiner
+   `step`-Zustand in der Komponente — keine neue Geschäftslogik,
+   `onGenerate` wird unverändert erst im letzten Schritt aufgerufen.
+   „Weiter" bleibt gesperrt, bis ein Schritt sinnvoll abgeschlossen ist
+   (Material: mindestens ein Abschnitt gewählt; Art: bei Probeklausur
+   eine Prüfung gewählt) — dieselbe „nichts Unfertiges weiterreichen"-
+   Haltung wie andere Formulare in der App.
+2. **Neuer Parameter `QuestionFocus`** (`gemischt`/`rechnen`/`konzept`,
+   `ai/types.ts`) beantwortet die erste im Nachtsitzungs-Wunsch genannte
+   Rückfrage direkt — an beide `AIProvider`-Implementierungen
+   (`anthropicProvider.ts`/`openaiProvider.ts`) durchgereicht, verändert
+   dort die Prompt-Anweisung (`FOCUS_INSTRUCTION`, analog zu bereits
+   bestehendem `DIFFICULTY_INSTRUCTION`/`LANGUAGE_INSTRUCTION`). Ans Ende
+   der Parameterliste gestellt (nicht dazwischen), der einzige bestehende
+   Aufrufer (`App.tsx` `handleGenerateQuiz`) musste dadurch keine anderen
+   Argumente umsortieren.
+3. **Umfang als Zeit-Voreinstellungen statt einer rohen „Fragen je
+   Abschnitt"-Zahl** — beantwortet die zweite genannte Rückfrage
+   („ungefähre Zieldauer?"). Drei Presets (Kurz/Mittel/Lang, je mit einer
+   Gesamtfragenzahl über alle gewählten Abschnitte) plus „Eigene Anzahl"
+   für den bisherigen direkten Zahleneingabe-Fall. Die grobe Umrechnung
+   Minuten→Fragen (bewusst grob, erfunden wie andere Konstanten in diesem
+   Projekt: `EXAM_FORMAT_MULTIPLIER`, `FEEDBACK_MASTERY_WEIGHT`) steht
+   benannt und auffindbar in `SCOPE_PRESETS`, nicht versteckt.
+
+**Begründung:** Löst genau die im Nachtsitzungs-Wunsch benannte Lücke
+(„eine echte mehrstufige Rückfrage-Erfahrung … statt eines einzigen
+Formulars"), ohne ein neues, KI-getriebenes Konversationsmuster
+einzuführen — die eigentliche Frage-Antwort-Sammlung bleibt eine
+gewöhnliche React-Zustandsmaschine, kein zusätzlicher KI-Aufruf nur für
+die Konfiguration selbst (hätte Kosten/Latenz ohne echten Mehrwert
+gebracht, ADR-007).
+
+**Nicht Teil dieser Entscheidung:** die Reihenfolge/Anzahl der Schritte
+ist eine erste, plausible Aufteilung, keine an Nutzerverhalten validierte
+UX — bei Bedarf in einer künftigen Sitzung nachjustierbar, ohne dass die
+zugrundeliegenden Daten (`GenerateQuizInput`) sich ändern müssten.
+
+**Neue/geänderte Dateien:** `ai/types.ts` (`QuestionFocus`),
+`ai/anthropicProvider.ts`/`openaiProvider.ts` (`FOCUS_INSTRUCTION`,
+Parameter), `ui/QuizSetup.tsx` (vollständig zum Assistenten umgebaut),
+`App.tsx` (`handleGenerateQuiz` reicht `input.focus` durch).

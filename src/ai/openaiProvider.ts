@@ -6,6 +6,7 @@ import type {
   AIUsage,
   AIUsageListener,
   ExamTopicMatch,
+  QuestionFocus,
   QuestionSuggestion,
   QuizDifficulty,
   TextTopicSuggestion,
@@ -21,6 +22,12 @@ const DIFFICULTY_INSTRUCTION: Record<QuizDifficulty, string> = {
   einfach: 'Einfaches Niveau: direkte Verständnisfragen, wenig Transfer nötig.',
   mittel: 'Mittleres Niveau: normaler Klausur-Anspruch, etwas Transferleistung.',
   schwer: 'Hohes Niveau: anspruchsvolle Transfer-/Anwendungsfragen, keine reinen Faktenfragen.',
+}
+
+const FOCUS_INSTRUCTION: Record<QuestionFocus, string> = {
+  gemischt: 'Mische Multiple-Choice- und Freitext-Fragen zu Konzeptverständnis und, falls das Material Formeln/Berechnungen enthält, auch Rechenaufgaben.',
+  rechnen: 'Nur Rechenaufgaben — jede Frage verlangt eine tatsächliche Berechnung anhand von Werten/Formeln aus dem Material, keine reinen Wissens-/Definitionsfragen.',
+  konzept: 'Nur Konzeptverständnis — Definitionen, Zusammenhänge, Abgrenzungen; keine Rechenaufgaben, auch wenn das Material Formeln enthält.',
 }
 
 /**
@@ -150,6 +157,7 @@ export class OpenAIProvider implements AIProvider {
     count: number,
     difficulty: QuizDifficulty,
     language: CourseLanguage,
+    focus: QuestionFocus,
   ): Promise<QuestionSuggestion[]> {
     const prompt = [
       `Erzeuge ${count} Quizfragen zum Thema "${topicName}" ausschließlich auf Basis des folgenden`,
@@ -159,8 +167,9 @@ export class OpenAIProvider implements AIProvider {
       '',
       DIFFICULTY_INSTRUCTION[difficulty],
       LANGUAGE_INSTRUCTION[language],
+      FOCUS_INSTRUCTION[focus],
       '',
-      'Mische Multiple-Choice- und Freitext-Fragen. Antworte ausschließlich mit einem JSON-Array von',
+      'Antworte ausschließlich mit einem JSON-Array von',
       'Objekten der Form {"type": "mc"|"freitext", "prompt": string, "options": string[] (nur bei "mc",',
       'genau die Antwortoptionen ohne Buchstaben-Präfix, z. B. ["12", "14", "16", "18"]), "answer": string,',
       '"explanation": string, "difficulty": 1|2|3|4|5} — kein weiterer Text. Bei "mc" ist "answer" der',

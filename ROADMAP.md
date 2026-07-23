@@ -77,6 +77,3 @@ Nach Dringlichkeit aus echter Nutzung, grobe Reihenfolge:
 - Übungsblatt-Zerlegung in Einzelaufgaben
 - OCR, Handschrift
 - iOS-Version zum Wiederholen unterwegs
-- Tieferer Quiz-Konfigurationsdialog mit echten Rückfragen (Konversation
-  statt Formular) — Schwierigkeit/Anzahl/Sprache sind seit v0.19.0 schon
-  vorab wählbar, das ist der nächste, größere Schritt

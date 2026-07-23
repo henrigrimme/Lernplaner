@@ -724,3 +724,16 @@ button:disabled {
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
 }
+
+/* ---------- Quiz-Assistent (ui/QuizSetup.tsx) ---------- */
+
+.quiz-wizard-progress {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--color-muted);
+}
+
+.quiz-wizard-nav {
+  display: flex;
+  gap: var(--space-xs);
+}
