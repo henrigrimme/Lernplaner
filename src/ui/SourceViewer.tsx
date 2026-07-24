@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { PdfViewer } from './PdfViewer'
+import { lazy, Suspense, useState } from 'react'
 import { CardCreator } from './CardCreator'
 import type { Card, Document, Topic, TopicSection } from '../data/schema'
 import type { NewCardInput } from '../data/cardsRepo'
@@ -27,6 +26,16 @@ import type { NewCardInput } from '../data/cardsRepo'
  * Fehler werfen. `documents` wird deshalb nur gebraucht, um den
  * Dateinamen/die Endung des gerade gewählten Abschnitts nachzuschlagen.
  */
+
+/**
+ * `React.lazy` statt Top-Level-Import (Performance-Verbesserung
+ * 2026-07-24): `PdfViewer` importiert `pdfjs-dist` (ein erheblicher Teil
+ * des Haupt-Bundles), wird aber erst gerendert, wenn der Nutzer
+ * tatsächlich "Im PDF ansehen" klickt — vorher lud pdf.js trotzdem schon
+ * beim Öffnen eines Fachs mit, weil `SourceViewer` (Teil von
+ * `CourseWorkspace`, dauerhaft im DOM) es statisch importierte.
+ */
+const PdfViewer = lazy(() => import('./PdfViewer').then((m) => ({ default: m.PdfViewer })))
 
 export interface SourceViewerProps {
   topics: Topic[]
@@ -95,11 +104,13 @@ export function SourceViewer({ topics, topicSections, documents, documentBytes, 
 
       {selectedSection && selectedIsPdf &&
         (documentBytes[selectedSection.document_id] ? (
-          <PdfViewer
-            data={documentBytes[selectedSection.document_id]!}
-            initialPage={selectedSection.page_start}
-            onSelectionChange={handleSelectionChange}
-          />
+          <Suspense fallback={<p>PDF wird geladen …</p>}>
+            <PdfViewer
+              data={documentBytes[selectedSection.document_id]!}
+              initialPage={selectedSection.page_start}
+              onSelectionChange={handleSelectionChange}
+            />
+          </Suspense>
         ) : (
           <p>PDF nicht verfügbar — vor der Persistenz-Umstellung importiert, einmal neu importieren, danach bleibt es erhalten.</p>
         ))}

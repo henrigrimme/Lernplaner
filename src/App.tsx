@@ -21,7 +21,6 @@ import { QuizSession } from './ui/QuizSession'
 import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
 import { DocumentList } from './ui/DocumentList'
 import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
-import { extractPageRangeText, readPages } from './ingest/pdf'
 import { extractAnyDocument, isSupportedDocument, SUPPORTED_EXTENSIONS } from './ingest/documentImport'
 import { DOCUMENT_TYPE_OPTIONS, inferDocType } from './ingest/docType'
 import { loadDocumentFile, saveDocumentFile } from './platform/documentStorage'
@@ -964,6 +963,7 @@ export function App() {
     const courseLanguage = course?.language ?? 'de'
     const courseInstructions = course?.instructions ?? ''
 
+    const { extractPageRangeText } = await import('./ingest/pdf')
     const generated: { sectionId: number; suggestion: Awaited<ReturnType<typeof provider.generateQuestions>>[number] }[] = []
     for (const sectionId of input.sectionIds) {
       const section = topicSections.find((s) => s.id === sectionId)
@@ -1061,6 +1061,7 @@ export function App() {
     const courseTopics = topics.filter((t) => t.course_id === courseId)
     if (courseTopics.length === 0) throw new Error('Keine Themen für dieses Fach vorhanden.')
 
+    const { extractPageRangeText } = await import('./ingest/pdf')
     const textParts: string[] = []
     for (const docId of documentIds) {
       const doc = documents.find((d) => d.id === docId)
@@ -1108,6 +1109,7 @@ export function App() {
     const provider = await getConfiguredAIProvider(logAiUsage)
     if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
 
+    const { readPages } = await import('./ingest/pdf')
     const pages = await readPages(data)
     const pagedText = pages.map((p) => ({ pageNumber: p.number, text: p.lines.map((l) => l.text).join(' ') }))
     const suggestions = await provider.detectTopicsFromText(pagedText)
