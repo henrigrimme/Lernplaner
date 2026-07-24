@@ -3308,6 +3308,56 @@ sie gemerged wurde — alle vier Nacht-PRs grün. Release v0.27.0.
 
 ---
 
+### Fünf weitere Verbesserungen + voller Impeccable-Kritik-Durchgang (v0.28.0, 24.07.2026)
+
+Nutzer kam am nächsten Tag zurück, bat um weitere Verbesserungsvorschläge.
+Gemeinsam abgestimmt: Gamification (Level/Streaks) **bewusst abgelehnt** —
+widerspricht PRODUCT.md "Prüfungsstress nie vergrößern" (Duolingo-Guilt-
+Effekt bei gebrochener Serie), stattdessen fünf sicherere Punkte:
+
+1. **PR #71 — Tastaturkürzel:** Anki-Stil für `FlashcardReview.tsx`
+   (Leertaste/1-4) und `QuizSession.tsx` (1-4 für MC-Optionen, Enter für
+   Weiter, Leertaste/1/2 für Freitext) — die beiden täglich genutzten
+   Kernabläufe waren bisher komplett mausgebunden.
+2. **PR #72 — Bundle-Splitting:** `pdfjs-dist`/`mammoth`/`jszip`/
+   `fast-xml-parser` liefen bisher bei *jedem* App-Start mit (statischer
+   Import in `ingest/documentImport.ts`/`App.tsx`/`ui/SourceViewer.tsx`),
+   obwohl keiner der täglichen Kernabläufe sie braucht. Auf dynamischen
+   `import()` bzw. `React.lazy` umgestellt — Haupt-Bundle 1303 KB → 318 KB
+   (gzip 99 KB), die vier Bibliotheken laden jetzt nur bei echtem Bedarf.
+3. **PR #73 — Fach-Anweisungen erweitert:** fließen jetzt auch in
+   `classifyExamContent` (Altklausur-Analyse) und `detectTopicsFromText`
+   (Zusammenfassungs-Erkennung) ein, nicht mehr nur in die Quiz-
+   Generierung (war gestern Nachmittag bewusst ausgelassen worden).
+4. **PR #74 — Schnellsuche (⌘K):** neue `domain/search.ts` (reine
+   Substring-Suche über bereits geladene Fächer/Themen/Karteikarten/
+   Dokument-Dateinamen, keine echte Volltextsuche über PDF-Inhalt — der
+   wird nirgends dauerhaft gespeichert) + `ui/QuickSearch.tsx`-Overlay.
+   Ergebnis wählt aktuell nur das Fach aus, kein tieferer Sprung zu
+   Reiter/Karte (CourseWorkspace/TabbedPanel-Reiterzustand ist intern,
+   von außen nicht steuerbar ohne größeren Umbau).
+5. **PR #75 — Voller `/impeccable critique`-Durchgang:** zwei unabhängige
+   Sub-Agents (Design-Review + Detector/Browser-Evidenz), Snapshot unter
+   `.impeccable/critique/`. Ergebnis: **27/36 (9 bewertbare Heuristiken,
+   Heuristik 10 n/a)** — solide, kein poliertes Niveau. Größter Fund,
+   **noch offen**: ~25 `handle*`-Funktionen in `App.tsx` fangen DB-Fehler
+   nur mit `console.error` ab, die UI zeigt dem Nutzer nie, ob eine
+   Änderung wirklich gespeichert wurde (P0 — stille Datenverlust-Gefahr,
+   relevant vor der Prüfungsphase Oktober 2026). Zwei kleinere Funde
+   direkt mit erledigt: `TodayView.tsx`-Leerzustand hat jetzt einen
+   klickbaren "Zur Planung"-Button, `QuizSession.tsx`-Abschluss zeigt
+   sofort den Score statt nur "Quiz abgeschlossen.".
+   **Offen für eine künftige Sitzung:** P0 (zentrales Fehler-Banner),
+   `AvailabilitySetup.tsx` in Reiter aufteilen (P1, Arbeitsgedächtnis-
+   Überlastung), Fach-Farbwahl auf Pillen-Optik wie die Paletten-Auswahl
+   umstellen (P2, Konsistenz), Font-Size-Ramp-Drift beheben (21 Fund-
+   stellen 11px/13px/15px statt der dokumentierten 4 Stufen).
+
+521/521 Tests, tsc, vite build, cargo check grün bei jedem PR. Release
+v0.28.0.
+
+---
+
 ## 9. Bekannte Einschränkungen
 
 - **Kein Backup** — Gerätedefekt bedeutet Totalverlust (bewusst)
