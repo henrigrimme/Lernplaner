@@ -199,6 +199,12 @@ p {
   gap: var(--space-xs);
 }
 
+.app-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .app-sidebar-toggle {
   display: flex;
   align-items: center;
@@ -963,6 +969,119 @@ button:disabled {
   opacity: 0.45;
   cursor: default;
   transform: none;
+}
+
+/* ---------- Schnellsuche (ui/QuickSearch.tsx) ---------- */
+/* z-index 50 — bewusst über der Sidebar (40, höchster bisheriger Wert im
+   Projekt), weil ein Overlay per Definition über allem anderen liegen
+   muss. Glas ist hier zulässig (DESIGN.md „Glass-Not-Shadow Rule" nennt
+   Modals/Popover ausdrücklich), anders als auf Karten/Formularen. */
+.quick-search-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding-top: 12vh;
+  background: oklch(0.1 0.01 50 / 0.35);
+}
+
+.quick-search-panel {
+  width: min(560px, calc(100vw - var(--space-2xl)));
+  max-height: 60vh;
+  height: fit-content;
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.quick-search-panel input {
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: none;
+  font-size: 15px;
+  padding: var(--space-md);
+}
+
+.quick-search-panel input:focus-visible {
+  box-shadow: none;
+}
+
+.quick-search-results {
+  overflow-y: auto;
+  padding: var(--space-2xs);
+}
+
+.quick-search-empty {
+  padding: var(--space-md);
+  color: var(--color-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.quick-search-result {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-search-result--active {
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+}
+
+.quick-search-result-kind {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-muted);
+  width: 80px;
+}
+
+.quick-search-result--active .quick-search-result-kind {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.quick-search-result-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 550;
+}
+
+.quick-search-result-subtitle {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: var(--space-sm);
+  color: var(--color-muted);
+  font-size: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.quick-search-result--active .quick-search-result-subtitle {
+  color: inherit;
+  opacity: 0.75;
 }
 
 /* ---------- Update-Banner ---------- */

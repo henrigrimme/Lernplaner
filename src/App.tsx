@@ -50,6 +50,8 @@ import {
 import { CourseGroups } from './ui/CourseGroups'
 import { CourseWorkspace } from './ui/CourseWorkspace'
 import { CourseInstructions } from './ui/CourseInstructions'
+import { QuickSearch } from './ui/QuickSearch'
+import type { SearchResult } from './domain/search'
 import { deleteAssessmentRow, insertAssessment, loadAssessments, updateAssessmentRow } from './data/assessmentsRepo'
 import { removeAssessment, updateAssessment, type NewAssessmentInput } from './data/assessments'
 import { deletePaperStepRow, insertPaperStep, loadPaperSteps, updatePaperStepRow } from './data/paperStepsRepo'
@@ -267,6 +269,30 @@ export function App() {
   const selectCourse = (id: number) => {
     setSelectedCourseId(id)
     setActiveSection('faecher')
+  }
+
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  // ⌘K/Strg+K öffnet die Schnellsuche von überall in der App (Nutzerwunsch
+  // "Volltextsuche über Themen") — dieselbe Tastenkombination wie in
+  // Notizen/Spotlight/den meisten macOS-Apps, greift bewusst auch, während
+  // ein Textfeld fokussiert ist (kein isTypingTarget-Guard nötig: die
+  // Modifikatortaste macht die Kombination eindeutig, normales Tippen löst
+  // sie nie versehentlich aus).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  const handleSearchSelect = (result: SearchResult) => {
+    selectCourse(result.courseId)
+    setSearchOpen(false)
   }
 
   // Automatischer Update-Check: beim Start, ein Retry nach 5s bei
@@ -1351,8 +1377,24 @@ export function App() {
             </button>
             <h1>{NAV_ITEMS.find((i) => i.key === activeSection)?.label}</h1>
           </div>
-          {selectedCourse && <span>{selectedCourse.name}</span>}
+          <div className="app-toolbar-right">
+            <button type="button" onClick={() => setSearchOpen(true)} title="Schnellsuche (⌘K)">
+              Suchen
+            </button>
+            {selectedCourse && <span>{selectedCourse.name}</span>}
+          </div>
         </header>
+
+        {searchOpen && (
+          <QuickSearch
+            courses={courses}
+            topics={topics}
+            cards={cards}
+            documents={documents}
+            onSelect={handleSearchSelect}
+            onClose={() => setSearchOpen(false)}
+          />
+        )}
 
         <main className="app-content">
           <UpdateBanner update={updateInfo} onInstall={installUpdateAndRestart} />
