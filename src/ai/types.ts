@@ -49,17 +49,23 @@ export interface AIProvider {
     focus: QuestionFocus,
     instructions: string,
   ): Promise<QuestionSuggestion[]>
-  /** Ordnet Altklausur-Text den übergebenen Themen zu — Grundlage für `domain/examWeighting.ts`. */
-  classifyExamContent(topics: { id: number; name: string }[], examText: string): Promise<ExamTopicMatch[]>
+  /**
+   * Ordnet Altklausur-Text den übergebenen Themen zu — Grundlage für
+   * `domain/examWeighting.ts`. `instructions` (Migration 0007, siehe
+   * `generateQuestions` oben) fließt hier genauso ein — z. B. "Rechenteil
+   * und Theorieteil getrennt gewichten" beeinflusst sinnvoll auch die
+   * Zuordnung, nicht nur die Quiz-Generierung.
+   */
+  classifyExamContent(topics: { id: number; name: string }[], examText: string, instructions: string): Promise<ExamTopicMatch[]>
   /**
    * Erkennt Themen samt Seitenbereich direkt aus dem Volltext (ADR-015)
    * — für Dokumente ohne einheitliche Struktur (Zusammenfassungen von
    * Studierenden, jede anders aufgebaut), bei denen die folienbasierte
    * Kapitelerkennung (`ingest/chapters.ts`) nicht greift. `pages` trägt
    * echten Seitentext (`ingest/pdf.ts` `readPages`), keine erfundenen
-   * Inhalte.
+   * Inhalte. `instructions` wie oben.
    */
-  detectTopicsFromText(pages: { pageNumber: number; text: string }[]): Promise<TextTopicSuggestion[]>
+  detectTopicsFromText(pages: { pageNumber: number; text: string }[], instructions: string): Promise<TextTopicSuggestion[]>
 }
 
 /** Welche `AIProvider`-Implementierung gerade aktiv ist (siehe `ai/index.ts`). */
