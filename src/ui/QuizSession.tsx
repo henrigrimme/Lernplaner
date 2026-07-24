@@ -41,8 +41,22 @@ export function QuizSession({ questions, topics, durationMinutes, onAnswer, onFi
   const [revealed, setRevealed] = useState(false)
   const [mcResult, setMcResult] = useState<0 | 1 | null>(null)
   const [remainingSeconds, setRemainingSeconds] = useState(durationMinutes !== null ? durationMinutes * 60 : null)
+  // Score-Anzeige direkt im Abschluss-Screen (Impeccable-Kritik 2026-07-24,
+  // P2: "Quiz-Abschluss ohne sofortiges Ergebnis-Feedback" — Peak-End-Regel,
+  // der eigentliche Score wird sonst erst nachgelagert in App.tsx
+  // `handleFinishQuiz` berechnet und nie an den Abschluss-Screen
+  // zurückgespiegelt). Lokal statt über `answers`-Prop, weil `QuizSession`
+  // die eigenen Antworten ohnehin schon bei jedem `onAnswer`-Aufruf kennt.
+  const [correctCount, setCorrectCount] = useState(0)
+  const [answeredCount, setAnsweredCount] = useState(0)
   const startedAt = useRef(Date.now())
   const topicById = new Map(topics.map((t) => [t.id, t]))
+
+  const recordAnswer = (questionId: number, given: string, correct: 0 | 1, seconds: number) => {
+    setAnsweredCount((n) => n + 1)
+    if (correct === 1) setCorrectCount((n) => n + 1)
+    onAnswer(questionId, given, correct, seconds)
+  }
 
   useEffect(() => {
     if (remainingSeconds === null) return
@@ -67,7 +81,7 @@ export function QuizSession({ questions, topics, durationMinutes, onAnswer, onFi
     if (!question) return
     const correct = isMcAnswerCorrect(given, question.answer) ? 1 : 0
     setMcResult(correct)
-    onAnswer(question.id, given, correct, secondsSpent())
+    recordAnswer(question.id, given, correct, secondsSpent())
   }
 
   // Anklickbare Optionen (Migration 0004 `questions.options`, Nutzerwunsch
@@ -80,14 +94,14 @@ export function QuizSession({ questions, topics, durationMinutes, onAnswer, onFi
     setGiven(letter)
     const correct = isMcAnswerCorrect(letter, question.answer) ? 1 : 0
     setMcResult(correct)
-    onAnswer(question.id, letter, correct, secondsSpent())
+    recordAnswer(question.id, letter, correct, secondsSpent())
   }
 
   const reveal = () => setRevealed(true)
 
   const rateFreitext = (correct: 0 | 1) => {
     if (!question) return
-    onAnswer(question.id, given, correct, secondsSpent())
+    recordAnswer(question.id, given, correct, secondsSpent())
     nextQuestion()
   }
 
@@ -147,7 +161,10 @@ export function QuizSession({ questions, topics, durationMinutes, onAnswer, onFi
   if (done) {
     return (
       <section aria-label="Quiz">
-        <p>Quiz abgeschlossen.</p>
+        <p>
+          Quiz abgeschlossen — {correctCount} von {answeredCount} richtig
+          {answeredCount > 0 && ` (${Math.round((correctCount / answeredCount) * 100)} %)`}.
+        </p>
         <button type="button" onClick={onFinish}>
           Auswerten und speichern
         </button>

@@ -24,6 +24,8 @@ export interface TodayViewProps {
   /** "Heute", ISO-Datum — vom Aufrufer übergeben, keine Systemuhr in der Komponente. */
   today: string
   now: () => string
+  /** Springt zum "Planung"-Bereich (App.tsx `setActiveSection`) — für den klickbaren Verweis im leeren Zustand. */
+  onNavigateToPlanning: () => void
 }
 
 const FEEDBACK_OPTIONS: { value: -1 | 0 | 1; label: string }[] = [
@@ -37,7 +39,7 @@ function blockLabel(block: StudyBlock, topicById: Map<number, Topic>): string {
   return `${name ?? `Thema ${block.topic_id}`} — ${KIND_LABELS[block.kind] ?? block.kind}`
 }
 
-export function TodayView({ studyBlocks, topics, onChange, today, now }: TodayViewProps) {
+export function TodayView({ studyBlocks, topics, onChange, today, now, onNavigateToPlanning }: TodayViewProps) {
   const topicById = new Map(topics.map((t) => [t.id, t]))
   const todaysBlocks = studyBlocks
     .filter((b) => b.planned_date === today)
@@ -72,10 +74,12 @@ export function TodayView({ studyBlocks, topics, onChange, today, now }: TodayVi
       <h2>Heute — {today}</h2>
 
       {todaysBlocks.length === 0 && (
-        <p className="empty-state">
-          Für heute ist nichts geplant. Sobald ein Plan übernommen wurde (siehe „Planung"), erscheinen die
-          heutigen Lernblöcke hier.
-        </p>
+        <div className="empty-state">
+          <p>Für heute ist nichts geplant.</p>
+          <button type="button" onClick={onNavigateToPlanning}>
+            Zur Planung
+          </button>
+        </div>
       )}
 
       {current && (

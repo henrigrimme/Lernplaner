@@ -891,8 +891,10 @@ section[aria-label] ul.document-list > li.document-list-item {
    stehen. */
 .empty-state {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-sm);
   min-height: 220px;
   color: var(--color-muted);
   font-size: 14px;

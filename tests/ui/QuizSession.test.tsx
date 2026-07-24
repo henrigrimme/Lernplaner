@@ -85,4 +85,24 @@ describe('QuizSession — anklickbare Multiple-Choice-Antworten', () => {
     await user.keyboard('{Enter}')
     expect(screen.getByText('Zweite Frage')).toBeInTheDocument()
   })
+
+  it('zeigt den Score direkt im Abschluss-Screen', async () => {
+    const user = userEvent.setup()
+    render(
+      <QuizSession
+        questions={[mcQuestion({ id: 1 }), mcQuestion({ id: 2, prompt: 'Zweite Frage' })]}
+        topics={[]}
+        durationMinutes={null}
+        onAnswer={vi.fn()}
+        onFinish={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /B\) 4/ })) // richtig
+    await user.click(screen.getByRole('button', { name: 'Weiter' }))
+    await user.click(screen.getByRole('button', { name: /A\) 3/ })) // falsch
+    await user.click(screen.getByRole('button', { name: 'Weiter' }))
+
+    expect(screen.getByText('Quiz abgeschlossen — 1 von 2 richtig (50 %).')).toBeInTheDocument()
+  })
 })
