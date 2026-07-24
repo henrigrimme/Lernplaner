@@ -37,14 +37,31 @@ function block(overrides: Partial<StudyBlock> & { id: number }): StudyBlock {
 
 describe('TodayView', () => {
   it('zeigt einen Hinweis, wenn für heute nichts geplant ist', () => {
-    render(<TodayView studyBlocks={[]} topics={[]} onChange={vi.fn()} today="2026-08-10" now={() => 'x'} />)
+    render(<TodayView studyBlocks={[]} topics={[]} onChange={vi.fn()} today="2026-08-10" now={() => 'x'} onNavigateToPlanning={vi.fn()} />)
     expect(screen.getByText(/nichts geplant/i)).toBeInTheDocument()
+  })
+
+  it('springt bei leerem Tag per Klick zur Planung', async () => {
+    const user = userEvent.setup()
+    const onNavigateToPlanning = vi.fn()
+    render(
+      <TodayView
+        studyBlocks={[]}
+        topics={[]}
+        onChange={vi.fn()}
+        today="2026-08-10"
+        now={() => 'x'}
+        onNavigateToPlanning={onNavigateToPlanning}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Zur Planung' }))
+    expect(onNavigateToPlanning).toHaveBeenCalled()
   })
 
   it('zeigt den ersten offenen Block des Tages mit Themenname und Timer', () => {
     const topics = [topic({ id: 1, name: 'Consumer Theory' })]
     const blocks = [block({ id: 1, topic_id: 1, planned_minutes: 45 })]
-    render(<TodayView studyBlocks={blocks} topics={topics} onChange={vi.fn()} today="2026-08-10" now={() => 'x'} />)
+    render(<TodayView studyBlocks={blocks} topics={topics} onChange={vi.fn()} today="2026-08-10" now={() => 'x'} onNavigateToPlanning={vi.fn()} />)
 
     expect(screen.getByText(/Consumer Theory/)).toBeInTheDocument()
     expect(screen.getByText(/Erstdurchgang/)).toBeInTheDocument()
@@ -57,7 +74,7 @@ describe('TodayView', () => {
       block({ id: 1, topic_id: 1, planned_date: '2026-08-11' }), // anderer Tag
       block({ id: 2, topic_id: 2, status: 'erledigt', actual_minutes: 40 }),
     ]
-    render(<TodayView studyBlocks={blocks} topics={topics} onChange={vi.fn()} today="2026-08-10" now={() => 'x'} />)
+    render(<TodayView studyBlocks={blocks} topics={topics} onChange={vi.fn()} today="2026-08-10" now={() => 'x'} onNavigateToPlanning={vi.fn()} />)
     expect(screen.queryByText(/Consumer Theory/)).not.toBeInTheDocument()
     // Der erledigte Block von heute erscheint in der "Heute erledigt"-Liste, nicht als aktueller Block.
     expect(screen.getByText(/Heute erledigt/)).toBeInTheDocument()
@@ -68,7 +85,7 @@ describe('TodayView', () => {
     const user = userEvent.setup()
     const topics = [topic({ id: 1, name: 'Consumer Theory' })]
     const blocks = [block({ id: 1, topic_id: 1 })]
-    render(<TodayView studyBlocks={blocks} topics={topics} onChange={vi.fn()} today="2026-08-10" now={() => 'x'} />)
+    render(<TodayView studyBlocks={blocks} topics={topics} onChange={vi.fn()} today="2026-08-10" now={() => 'x'} onNavigateToPlanning={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: 'Fertig' })).toBeDisabled()
     await user.click(screen.getByLabelText('Passend'))
@@ -80,7 +97,7 @@ describe('TodayView', () => {
     const onChange = vi.fn()
     const topics = [topic({ id: 1, name: 'Consumer Theory' })]
     const blocks = [block({ id: 1, topic_id: 1, planned_minutes: 45 })]
-    render(<TodayView studyBlocks={blocks} topics={topics} onChange={onChange} today="2026-08-10" now={() => '2026-08-10T12:00:00Z'} />)
+    render(<TodayView studyBlocks={blocks} topics={topics} onChange={onChange} today="2026-08-10" now={() => '2026-08-10T12:00:00Z'} onNavigateToPlanning={vi.fn()} />)
 
     await user.click(screen.getByLabelText('Zu schwer'))
     await user.click(screen.getByRole('button', { name: 'Fertig' }))
@@ -101,7 +118,7 @@ describe('TodayView', () => {
       block({ id: 1, topic_id: 1, planned_order: 0 }),
       block({ id: 2, topic_id: 2, planned_order: 1 }),
     ]
-    render(<TodayView studyBlocks={blocks} topics={topics} onChange={vi.fn()} today="2026-08-10" now={() => 'x'} />)
+    render(<TodayView studyBlocks={blocks} topics={topics} onChange={vi.fn()} today="2026-08-10" now={() => 'x'} onNavigateToPlanning={vi.fn()} />)
     expect(screen.getByText(/Noch heute/)).toBeInTheDocument()
     expect(screen.getByText(/Zweites/)).toBeInTheDocument()
   })

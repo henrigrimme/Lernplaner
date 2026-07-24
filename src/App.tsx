@@ -1653,6 +1653,7 @@ export function App() {
             onChange={handleChangeStudyBlocks}
             today={today}
             now={() => new Date().toISOString()}
+            onNavigateToPlanning={() => setActiveSection('plan')}
           />
         )}
 
