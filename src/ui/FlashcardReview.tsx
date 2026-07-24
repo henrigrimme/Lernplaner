@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Rating, type Grade } from '../domain/spacedRepetition'
 import type { Card, Topic } from '../data/schema'
 
@@ -12,6 +12,13 @@ import type { Card, Topic } from '../data/schema'
  * schreiben. Reine Präsentation (ARCHITECTURE.md „ui/"), setzt sich
  * selbst nach jeder Bewertung zurück (`revealed`), damit der Aufrufer
  * beim Kartenwechsel nichts extra tun muss.
+ *
+ * Tastaturkürzel wie Anki (Nutzerwunsch: schnellere Bedienung für die
+ * Karteikarten-Wiederholung, die laut PRODUCT.md täglich in kurzen
+ * Sessions läuft) — Leertaste deckt auf, 1–4 bewerten in derselben
+ * Reihenfolge wie `RATING_OPTIONS`. Kein Shortcut greift, während irgendwo
+ * auf der Seite ein Textfeld fokussiert ist (z. B. eine offene
+ * Anweisungen-Eingabe im selben Fenster).
  */
 
 export interface FlashcardReviewProps {
@@ -36,6 +43,30 @@ export function FlashcardReview({ card, topics, onRate }: FlashcardReviewProps) 
     setRevealed(false)
   }
 
+  useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) =>
+      target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return
+      if (!revealed) {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault()
+          setRevealed(true)
+        }
+        return
+      }
+      const index = ['1', '2', '3', '4'].indexOf(e.key)
+      if (index !== -1) {
+        e.preventDefault()
+        rate(RATING_OPTIONS[index]!.value)
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  })
+
   return (
     <div>
       <p>{topicById.get(card.topic_id)?.name ?? `Thema ${card.topic_id}`}</p>
@@ -44,15 +75,15 @@ export function FlashcardReview({ card, topics, onRate }: FlashcardReviewProps) 
         <>
           <p>{card.back}</p>
           <div>
-            {RATING_OPTIONS.map((opt) => (
-              <button key={opt.value} type="button" onClick={() => rate(opt.value)}>
+            {RATING_OPTIONS.map((opt, i) => (
+              <button key={opt.value} type="button" onClick={() => rate(opt.value)} title={`Kürzel: ${i + 1}`}>
                 {opt.label}
               </button>
             ))}
           </div>
         </>
       ) : (
-        <button type="button" onClick={() => setRevealed(true)}>
+        <button type="button" onClick={() => setRevealed(true)} title="Kürzel: Leertaste">
           Antwort zeigen
         </button>
       )}

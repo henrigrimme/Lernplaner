@@ -59,4 +59,16 @@ describe('FlashcardReview', () => {
     expect(screen.queryByText('Antwort')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Antwort zeigen' })).toBeInTheDocument()
   })
+
+  it('deckt mit der Leertaste auf und bewertet mit Zifferntasten (Anki-Kürzel)', async () => {
+    const user = userEvent.setup()
+    const onRate = vi.fn()
+    render(<FlashcardReview card={card({ id: 1, back: 'Antwort' })} topics={[]} onRate={onRate} />)
+
+    await user.keyboard(' ')
+    expect(screen.getByText('Antwort')).toBeInTheDocument()
+
+    await user.keyboard('3')
+    expect(onRate).toHaveBeenCalledWith(Rating.Good)
+  })
 })

@@ -65,4 +65,24 @@ describe('QuizSession — anklickbare Multiple-Choice-Antworten', () => {
 
     expect(screen.getByLabelText('Antwort (Buchstabe)')).toBeInTheDocument()
   })
+
+  it('wählt eine Option per Zifferntaste und geht mit Enter zur nächsten Frage', async () => {
+    const user = userEvent.setup()
+    const onAnswer = vi.fn()
+    render(
+      <QuizSession
+        questions={[mcQuestion({ id: 1 }), mcQuestion({ id: 2, prompt: 'Zweite Frage' })]}
+        topics={[]}
+        durationMinutes={null}
+        onAnswer={onAnswer}
+        onFinish={vi.fn()}
+      />,
+    )
+
+    await user.keyboard('2')
+    expect(onAnswer).toHaveBeenCalledWith(1, 'B', 1, expect.any(Number))
+
+    await user.keyboard('{Enter}')
+    expect(screen.getByText('Zweite Frage')).toBeInTheDocument()
+  })
 })
