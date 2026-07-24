@@ -91,6 +91,51 @@ export function QuizSession({ questions, topics, durationMinutes, onAnswer, onFi
     nextQuestion()
   }
 
+  // Tastaturkürzel (Nutzerwunsch: schnellere Bedienung, analog zu Anki-
+  // artigen Kürzeln in `FlashcardReview.tsx`) — je nach Fragetyp/Zustand
+  // greift nur eine der drei Gruppen. `isTypingTarget` verhindert, dass
+  // Leertaste/Zahlen beim Tippen im optionalen Freitext-Notizfeld etwas
+  // auslösen, statt einfach nur Text einzugeben.
+  useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) =>
+      target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!question) return
+      if (question.type === 'mc' && question.options !== null) {
+        if (mcResult === null) {
+          const i = Number(e.key) - 1
+          if (i >= 0 && i < question.options.length) {
+            e.preventDefault()
+            selectMcOption(String.fromCharCode(65 + i))
+          }
+        } else if (e.key === 'Enter') {
+          e.preventDefault()
+          nextQuestion()
+        }
+        return
+      }
+      if (question.type === 'freitext') {
+        if (isTypingTarget(e.target)) return
+        if (!revealed) {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault()
+            reveal()
+          }
+        } else if (e.key === '1') {
+          e.preventDefault()
+          rateFreitext(1)
+        } else if (e.key === '2') {
+          e.preventDefault()
+          rateFreitext(0)
+        }
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  })
+
   if (questions.length === 0) {
     return (
       <section aria-label="Quiz">
@@ -140,6 +185,7 @@ export function QuizSession({ questions, topics, durationMinutes, onAnswer, onFi
                     onClick={() => selectMcOption(letter)}
                     disabled={mcResult !== null}
                     aria-pressed={isGiven}
+                    title={`Kürzel: ${i + 1}`}
                   >
                     {letter}) {option}
                     {mcResult !== null && letter === question!.answer && ' ✓'}
@@ -177,7 +223,7 @@ export function QuizSession({ questions, topics, durationMinutes, onAnswer, onFi
             <textarea value={given} onChange={(e) => setGiven(e.target.value)} disabled={revealed} />
           </label>
           {!revealed ? (
-            <button type="button" onClick={reveal}>
+            <button type="button" onClick={reveal} title="Kürzel: Leertaste">
               Antwort zeigen
             </button>
           ) : (
@@ -185,10 +231,10 @@ export function QuizSession({ questions, topics, durationMinutes, onAnswer, onFi
               <p>{question!.answer}</p>
               {question!.explanation && <p>{question!.explanation}</p>}
               <div>
-                <button type="button" onClick={() => rateFreitext(1)}>
+                <button type="button" onClick={() => rateFreitext(1)} title="Kürzel: 1">
                   Richtig
                 </button>
-                <button type="button" onClick={() => rateFreitext(0)}>
+                <button type="button" onClick={() => rateFreitext(0)} title="Kürzel: 2">
                   Falsch
                 </button>
               </div>
