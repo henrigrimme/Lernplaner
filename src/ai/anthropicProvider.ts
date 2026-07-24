@@ -186,7 +186,7 @@ export class AnthropicProvider implements AIProvider {
     return parsed as QuestionSuggestion[]
   }
 
-  async classifyExamContent(topics: { id: number; name: string }[], examText: string): Promise<ExamTopicMatch[]> {
+  async classifyExamContent(topics: { id: number; name: string }[], examText: string, instructions: string): Promise<ExamTopicMatch[]> {
     const topicList = topics.map((t) => `${t.id}: ${t.name}`).join('\n')
     const prompt = [
       'Hier ist der Text einer Altklausur. Ordne jede darin gestellte Frage/Aufgabe einem der folgenden',
@@ -198,6 +198,7 @@ export class AnthropicProvider implements AIProvider {
       '',
       'Altklausur-Text:',
       examText,
+      ...(instructions.trim() ? ['', `Zusätzliche Anweisung für dieses Fach: ${instructions.trim()}`] : []),
       '',
       'Antworte ausschließlich mit einem JSON-Array von Objekten der Form',
       '{"topicId": number, "occurrences": number} — ein Eintrag pro Thema mit mindestens einer Frage,',
@@ -211,7 +212,7 @@ export class AnthropicProvider implements AIProvider {
     return parsed as ExamTopicMatch[]
   }
 
-  async detectTopicsFromText(pages: { pageNumber: number; text: string }[]): Promise<TextTopicSuggestion[]> {
+  async detectTopicsFromText(pages: { pageNumber: number; text: string }[], instructions: string): Promise<TextTopicSuggestion[]> {
     const pagedText = pages.map((p) => `[Seite ${p.pageNumber}]\n${p.text}`).join('\n\n')
     const prompt = [
       'Das ist eine von einem Studierenden selbst geschriebene Zusammenfassung — jede Person baut ihre',
@@ -222,6 +223,7 @@ export class AnthropicProvider implements AIProvider {
       '',
       'Text (mit Seitenzahlen):',
       pagedText,
+      ...(instructions.trim() ? ['', `Zusätzliche Anweisung für dieses Fach: ${instructions.trim()}`] : []),
       '',
       'Antworte ausschließlich mit einem JSON-Array von Objekten der Form',
       '{"name": string, "pageStart": number, "pageEnd": number, "weight": 1|2|3|4|5} — "weight" ist der',

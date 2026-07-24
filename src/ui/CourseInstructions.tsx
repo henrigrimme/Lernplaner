@@ -4,11 +4,11 @@ import type { Course } from '../data/schema'
 /**
  * Eigener Reiter in `CourseWorkspace` für frei formulierte Fach-Anweisungen
  * (`Course.instructions`, Migration 0007) — Nutzerwunsch: "wie die Custom
- * Instructions eines Claude-Projects". Fließen bisher in die
- * Quiz-Generierung ein (`ai/*Provider.ts` `generateQuestions`), nicht in
- * jeden KI-Aufruf — Altklausur-Analyse/Zusammenfassungs-Erkennung kennen
- * das Fach an ihrer Aufrufstelle in `App.tsx` nur indirekt über bereits
- * importierte Dokumente, eine Anbindung dort wäre ein größerer Umbau.
+ * Instructions eines Claude-Projects". Fließen in alle drei KI-Aufrufe
+ * ein, die bereits einem Fach zugeordnet sind (`ai/*Provider.ts`
+ * `generateQuestions`/`classifyExamContent`/`detectTopicsFromText`,
+ * Nachtrag 2026-07-24 — anfangs nur die Quiz-Generierung, siehe
+ * Kommentar-Historie).
  *
  * Lokaler Entwurfs-Zustand statt direktem Schreiben bei jedem Tastendruck
  * (kein `onChange`-Autosave): ein Absenden mitten im Formulieren würde bei
@@ -37,8 +37,9 @@ export function CourseInstructions({ course, onSave }: CourseInstructionsProps) 
     <section aria-label="Anweisungen">
       <h2>Anweisungen für {course.name}</h2>
       <p>
-        Wird bei der KI-Fragen-Generierung für dieses Fach berücksichtigt — z. B. „Fokus auf Rechenaufgaben,
-        weniger Theorie" oder „Erklärungen immer mit einem konkreten Beispiel".
+        Wird bei der KI-Fragen-Generierung, der Altklausur-Analyse und der Zusammenfassungs-Erkennung für dieses
+        Fach berücksichtigt — z. B. „Fokus auf Rechenaufgaben, weniger Theorie" oder „Erklärungen immer mit einem
+        konkreten Beispiel".
       </p>
       <form
         onSubmit={(e) => {

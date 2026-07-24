@@ -1060,6 +1060,7 @@ export function App() {
     const courseId = documents.find((d) => d.id === documentIds[0])?.course_id
     const courseTopics = topics.filter((t) => t.course_id === courseId)
     if (courseTopics.length === 0) throw new Error('Keine Themen für dieses Fach vorhanden.')
+    const courseInstructions = courses.find((c) => c.id === courseId)?.instructions ?? ''
 
     const { extractPageRangeText } = await import('./ingest/pdf')
     const textParts: string[] = []
@@ -1074,6 +1075,7 @@ export function App() {
     const matches = await provider.classifyExamContent(
       courseTopics.map((t) => ({ id: t.id, name: t.name })),
       textParts.join('\n\n'),
+      courseInstructions,
     )
     return suggestWeightAdjustments(courseTopics, matches)
   }
@@ -1112,7 +1114,8 @@ export function App() {
     const { readPages } = await import('./ingest/pdf')
     const pages = await readPages(data)
     const pagedText = pages.map((p) => ({ pageNumber: p.number, text: p.lines.map((l) => l.text).join(' ') }))
-    const suggestions = await provider.detectTopicsFromText(pagedText)
+    const courseInstructions = courses.find((c) => c.id === selectedCourseId)?.instructions ?? ''
+    const suggestions = await provider.detectTopicsFromText(pagedText, courseInstructions)
     if (suggestions.length === 0) throw new Error('Es konnten keine Themen erkannt werden.')
 
     const db = await getDb()
