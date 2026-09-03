@@ -1086,6 +1086,61 @@ button:disabled {
   opacity: 0.75;
 }
 
+/* ---------- Bestätigungs-Dialog (ui/ConfirmDialog.tsx) ---------- */
+/* Ersetzt `window.confirm` für destruktive Aktionen (Design-Review
+   2026-09-03, `apple-design`-Skill) — natives Browser-Dialog bricht aus
+   dem Glas-/Warm-Designsystem aus. Gleiches Backdrop-/Glas-Panel-Muster
+   wie Schnellsuche, gleicher z-index-Layer (kein gleichzeitiges Overlay
+   vorgesehen). */
+
+.confirm-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: oklch(0.1 0.01 50 / 0.35);
+}
+
+.confirm-dialog {
+  width: min(420px, calc(100vw - var(--space-2xl)));
+  padding: var(--space-lg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.confirm-dialog h2 {
+  margin: 0 0 var(--space-xs);
+}
+
+.confirm-dialog p {
+  margin: 0 0 var(--space-lg);
+  color: var(--color-muted);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.confirm-dialog-danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-danger-ink);
+}
+
+.confirm-dialog-danger:hover {
+  background: oklch(from var(--color-danger) calc(l - 0.06) c h);
+  border-color: oklch(from var(--color-danger) calc(l - 0.06) c h);
+}
+
 /* ---------- Update-Banner ---------- */
 
 .update-banner {

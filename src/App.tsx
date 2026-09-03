@@ -75,6 +75,7 @@ import { insertReview, loadReviews } from './data/reviewsRepo'
 import { scheduleReview, type Grade } from './domain/spacedRepetition'
 import { ReviewSession } from './ui/ReviewSession'
 import { ErrorHistory } from './ui/ErrorHistory'
+import { ConfirmDialog } from './ui/ConfirmDialog'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationContent, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
@@ -272,6 +273,7 @@ export function App() {
   }
 
   const [searchOpen, setSearchOpen] = useState(false)
+  const [confirmReplan, setConfirmReplan] = useState(false)
 
   // ⌘K/Strg+K öffnet die Schnellsuche von überall in der App (Nutzerwunsch
   // "Volltextsuche über Themen") — dieselbe Tastenkombination wie in
@@ -1619,16 +1621,28 @@ export function App() {
                 type="button"
                 className="button-primary"
                 onClick={() => {
-                  if (
-                    studyBlocks.length === 0 ||
-                    window.confirm('Plan wirklich neu übernehmen? Der bisherige Fortschritt für heute geht dabei verloren.')
-                  ) {
+                  if (studyBlocks.length === 0) {
                     generateStudyBlocks()
+                  } else {
+                    setConfirmReplan(true)
                   }
                 }}
               >
                 {studyBlocks.length === 0 ? 'Plan übernehmen' : 'Plan neu übernehmen (überschreibt heutigen Fortschritt)'}
               </button>
+
+              {confirmReplan && (
+                <ConfirmDialog
+                  title="Plan neu übernehmen"
+                  message="Plan wirklich neu übernehmen? Der bisherige Fortschritt für heute geht dabei verloren."
+                  confirmLabel="Neu übernehmen"
+                  onConfirm={() => {
+                    generateStudyBlocks()
+                    setConfirmReplan(false)
+                  }}
+                  onCancel={() => setConfirmReplan(false)}
+                />
+              )}
             </div>
 
             <ReplanView

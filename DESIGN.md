@@ -129,7 +129,12 @@ Navigation und Badges einnehmen.
   System-Rotton liegt bewusst näher am reinen Rot (Hue 20°) als das
   Terrakotta-Primär (Hue 45°), damit eine Fehlermeldung nie wie ein
   Primär-Button aussieht. Noch nicht breit im Code verwendet — für künftige
-  Status-Badges reserviert (z. B. Kapazitäts-Defizitwarnung).
+  Status-Badges reserviert (z. B. Kapazitäts-Defizitwarnung). **Wenn diese
+  Farben eingeführt werden:** nie als einziges Unterscheidungsmerkmal
+  verwenden (Design Guideline — Accessibility: „Convey information with
+  more than color alone" — Rot-Grün-Blindheit betrifft genau Grün/Amber/Rot
+  hier). Ein Status-Badge braucht zusätzlich Form, Icon oder Text, nicht nur
+  die Farbfläche.
 
 ### Neutral
 - **Warm Paper** (`oklch(0.97 0.014 75)`): Haupt-Inhaltsfläche. Trägt
@@ -150,6 +155,40 @@ Bg auf ein warmes Dunkelbraun (`oklch(0.19 0.012 50)`, nicht neutrales
 Schwarz), Primary/Accent leicht aufgehellt für Lesbarkeit auf dunklem
 Grund — keine separate Umschaltung, die App folgt der macOS-Systemeinstellung
 wie jede native App.
+
+### Wählbare Akzent-Paletten (Kontrast-Verifikation)
+Fünf wählbare `--color-primary`-Paletten (`ui/AppearanceSetting.tsx`,
+`tokens.css` `[data-palette]`): Terrakotta (Standard), British Racing
+Green, NATO Olive, Petrol, Bordeaux. Jede Palette hält `--color-primary-ink`
+bewusst fest auf dem hellen Wert (`oklch(0.99 0.006 75)`), unabhängig vom
+Hell-/Dunkel-Modus — die vier Alternativpaletten sind selbst dunkel genug,
+dass helle Schrift darauf in beiden Theme-Modi funktioniert (Kontrast
+zwischen Text und Button-Fläche ist unabhängig vom Seitenhintergrund).
+
+Gegen WCAG 4.5:1 (Fließtext-Minimum, Design Guideline — Accessibility)
+geprüft, Button-/Nav-Text gegen `--color-primary`-Fläche (2026-09-03,
+Design-Review mit dem `apple-design`-Skill, per OKLCH→linear-sRGB-Konvertierung
+nach Ottosson und WCAG-Relativluminanz nachgerechnet):
+
+| Palette | Kontrast (Text auf Fläche) |
+|---|---|
+| British Racing Green | 10.19:1 |
+| Bordeaux | 8.80:1 |
+| NATO Olive | 6.56:1 |
+| Petrol | 5.63:1 |
+| **Terrakotta (Standard, Hell-Modus)** | **3.43:1 — unter dem 4.5:1-Minimum** |
+| Terrakotta (Standard, Dunkel-Modus) | 5.34:1 |
+
+Die vier Alternativpaletten bestehen den Test komfortabel. Die
+Standard-Akzentfarbe selbst (`oklch(0.64 0.13 45)`) unterschreitet im
+Hell-Modus das 4.5:1-Minimum für Text unter 18pt — betrifft jeden
+`type="submit"`-Button und den aktiven Sidebar-Eintrag im Standardzustand
+der App. Der Hover-Zustand (`oklch(0.58 0.14 45)`) liegt mit 4.40:1 knapp
+darunter. Da dies die dokumentierte Markenfarbe der App ist (an das
+Claude-Markenorange angelehnt, expliziter Nutzerwunsch), wurde der Wert
+hier bewusst nicht automatisch geändert — eine Anpassung auf etwa
+`oklch(0.57 0.13 45)` (≈ 4.57:1) ist möglich, verändert aber sichtbar den
+Terrakotta-Ton und sollte vor der Umsetzung bestätigt werden.
 
 ### Named Rules
 **The One Accent Rule.** Kraft Terracotta erscheint nur auf
@@ -244,6 +283,17 @@ Farboption ist deutlich von Kraft Terracotta (dem App-Akzent selbst)
 unterscheidbar, damit eine Fach-Farbe nie mit der App-Akzentfarbe
 verwechselt wird.
 
+### Bestätigungs-Dialog
+`ui/ConfirmDialog.tsx` — ersetzt seit dem Design-Review 2026-09-03
+(`apple-design`-Skill) `window.confirm` für destruktive Aktionen (Fach/
+Ordner/Prüfung/Teilschritt/Plan-Neuübernahme löschen bzw. überschreiben).
+Gleiches Backdrop-/Glas-Panel-Muster wie die Schnellsuche (`role="dialog"`
+dort, hier `role="alertdialog"`, weil eine Antwort verlangt wird), 14px
+Radius, `--shadow-lg`. Fokus liegt standardmäßig auf „Abbrechen", nicht der
+destruktiven Aktion. Bestätigen-Button trägt System-Rot
+(`--color-danger`), nicht Kraft Terracotta — eine destruktive Bestätigung
+ist keine Primäraktion im Sinne der „One Accent Rule".
+
 ### Navigation (Sidebar)
 - **Style:** Glas-Fläche über der gesamten Fensterhöhe, 260px breit. Jeder
   Eintrag ein `button.app-nav-item`, 13px Body-Gewicht, 6px Radius.
@@ -297,6 +347,11 @@ Blick bekommt.
   Web-Fonts laden.
 - **Do** Fach-Farben über das kuratierte `COURSE_COLORS`-Dropdown wählen
   lassen, nie über freie Hex-Eingabe.
+- **Do** destruktive Aktionen über `ui/ConfirmDialog.tsx` bestätigen lassen,
+  nie über `window.confirm` (bricht aus dem Glas-/Warm-Designsystem aus).
+- **Do**, sobald System Green/Amber/Rot für Status-Badges verwendet werden,
+  zusätzlich Form/Icon/Text zur Unterscheidung nutzen — nie Farbe allein
+  (Design Guideline — Accessibility).
 
 ### Don't:
 - **Don't** ein generisches SaaS-Dashboard bauen — keine Indigo/Blau-Paletten,

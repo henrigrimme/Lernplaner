@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Assessment, Course, PaperStep } from '../data/schema'
 import type { NewPaperStepInput } from '../data/paperSteps'
+import { ConfirmDialog } from './ConfirmDialog'
 
 /**
  * Paper-Teilschritte je Paper-Abgabe (ROADMAP.md Phase 4 „Paper-Workflow",
@@ -39,6 +40,7 @@ const EMPTY_DRAFT: Draft = { title: '', dueDate: '' }
 
 export function PaperSteps({ course, assessments, steps, onAdd, onUpdate, onRemove }: PaperStepsProps) {
   const [draftByAssessment, setDraftByAssessment] = useState<Record<number, Draft>>({})
+  const [pendingDelete, setPendingDelete] = useState<PaperStep | null>(null)
 
   const paperAssessments = assessments.filter((a) => a.course_id === course.id && a.type === 'paper')
   if (paperAssessments.length === 0) return null
@@ -86,13 +88,7 @@ export function PaperSteps({ course, assessments, steps, onAdd, onUpdate, onRemo
                       </option>
                     ))}
                   </select>
-                  <button
-                    type="button"
-                    aria-label={`Schritt "${step.title}" löschen`}
-                    onClick={() => {
-                      if (window.confirm(`Schritt "${step.title}" wirklich löschen?`)) onRemove(step.id)
-                    }}
-                  >
+                  <button type="button" aria-label={`Schritt "${step.title}" löschen`} onClick={() => setPendingDelete(step)}>
                     Löschen
                   </button>
                 </li>
@@ -120,6 +116,18 @@ export function PaperSteps({ course, assessments, steps, onAdd, onUpdate, onRemo
           </div>
         )
       })}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Teilschritt löschen"
+          message={`Schritt "${pendingDelete.title}" wirklich löschen?`}
+          onConfirm={() => {
+            onRemove(pendingDelete.id)
+            setPendingDelete(null)
+          }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </section>
   )
 }

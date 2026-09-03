@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { NewCourseInput } from '../data/courses'
 import type { Course, CourseLanguage } from '../data/schema'
+import { ConfirmDialog } from './ConfirmDialog'
 
 /**
  * Fach-Setup: Fächer anlegen, bearbeiten, archivieren, löschen. Voraus-
@@ -54,6 +55,7 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
   const [editingId, setEditingId] = useState<number | null>(null)
   const [draft, setDraft] = useState<DraftCourse>(EMPTY_DRAFT)
   const [showArchived, setShowArchived] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<Course | null>(null)
 
   const visible = courses.filter((c) => showArchived || c.archived === 0)
 
@@ -106,15 +108,7 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
               <button type="button" onClick={() => onArchive(course.id, course.archived === 0)}>
                 {course.archived === 0 ? 'Archivieren' : 'Wiederherstellen'}
               </button>
-              <button
-                type="button"
-                aria-label={`${course.name} löschen`}
-                onClick={() => {
-                  if (window.confirm(`"${course.name}" wirklich löschen? Alle Themen, Prüfungen, Dokumente und Quizze dieses Fachs werden dabei ebenfalls gelöscht.`)) {
-                    onRemove(course.id)
-                  }
-                }}
-              >
+              <button type="button" aria-label={`${course.name} löschen`} onClick={() => setPendingDelete(course)}>
                 Löschen
               </button>
             </li>
@@ -193,6 +187,18 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
             Abbrechen
           </button>
         </form>
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Fach löschen"
+          message={`"${pendingDelete.name}" wirklich löschen? Alle Themen, Prüfungen, Dokumente und Quizze dieses Fachs werden dabei ebenfalls gelöscht.`}
+          onConfirm={() => {
+            onRemove(pendingDelete.id)
+            setPendingDelete(null)
+          }}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
     </section>
   )

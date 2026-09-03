@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { CourseGroups } from '../../src/ui/CourseGroups'
@@ -29,25 +29,29 @@ function noop() {
 }
 
 describe('CourseGroups', () => {
-  it('löscht einen Ordner nach Bestätigung', async () => {
+  it('löscht einen Ordner nach Bestätigung im eigenen Dialog', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<CourseGroups courseGroups={[group({ id: 1, name: '3. Semester' })]} courses={[]} {...noop()} onRemove={onRemove} />)
 
     await user.click(screen.getByRole('button', { name: 'Ordner "3. Semester" löschen' }))
-    expect(window.confirm).toHaveBeenCalled()
+
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Löschen' }))
     expect(onRemove).toHaveBeenCalledWith(1)
   })
 
-  it('löscht einen Ordner nicht, wenn die Bestätigung abgebrochen wird', async () => {
+  it('löscht einen Ordner nicht, wenn der Dialog abgebrochen wird', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn()
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<CourseGroups courseGroups={[group({ id: 1, name: '3. Semester' })]} courses={[]} {...noop()} onRemove={onRemove} />)
 
     await user.click(screen.getByRole('button', { name: 'Ordner "3. Semester" löschen' }))
+
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
     expect(onRemove).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
   it('benennt einen Ordner um, mit Esc zum Abbrechen', async () => {
