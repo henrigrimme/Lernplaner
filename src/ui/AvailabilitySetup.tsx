@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import type { AvailabilityException, AvailabilityPattern, RecurringBlocker } from '../data/schema'
 import type { NewRecurringBlockerInput } from '../data/recurringBlockers'
+import { TabbedPanel } from './TabbedPanel'
 
 /**
  * Verfügbarkeits-Setup: Wochenmuster (Minuten je Wochentag) plus einzelne
- * abweichende Tage. Liefert die Eingaben für `capacity.ts`
- * (`availableMinutesForDay`/`-InRange`).
+ * abweichende Tage plus wiederkehrende Blocker. Liefert die Eingaben für
+ * `capacity.ts` (`availableMinutesForDay`/`-InRange`).
  *
  * **Wochentag-Konvention:** 0 = Sonntag (JS `Date#getUTCDay()`), siehe
  * Kommentar in `capacity.ts` — hier übernommen, nirgends in DATA_MODEL.md
@@ -18,6 +19,16 @@ import type { NewRecurringBlockerInput } from '../data/recurringBlockers'
  * siehe dortiger Kommentar zur Begründung. Anders als bei
  * `CourseSetup`/`AssessmentSetup` bräuchte `weekday`/`date` als
  * Primärschlüssel keine neue `id` — "Anlegen" ist immer ein Upsert.
+ *
+ * **Drei Reiter statt einer langen Seite** (Impeccable-Kritik v0.28.0,
+ * Befund P1): Wochenmuster, abweichende Tage und wiederkehrende Blocker
+ * sind konzeptionell verschiedene Aufgaben — auf einer einzigen sehr
+ * langen Seite überlasteten sie in der für den App-Erfolg entscheidenden
+ * Setup-Phase das Arbeitsgedächtnis. Wiederverwendung von `TabbedPanel`
+ * (wie `CourseWorkspace`/`SettingsView`), kein viertes
+ * Organisationsprinzip. Alle Panels bleiben über `hidden` im DOM — ein
+ * Reiterwechsel verwirft keinen halb ausgefüllten Ausnahme-/Blocker-
+ * Entwurf.
  *
  * **Mehrfachauswahl bei Ausnahme-Tagen:** `onAddException` erwartet weiterhin
  * genau ein Datum (Primärschlüssel `date`, siehe oben) — statt das
@@ -100,38 +111,40 @@ export function AvailabilitySetup({
     setBlockerLabel('')
   }
 
-  return (
-    <section aria-label="Verfügbarkeit">
-      <h2>Verfügbarkeit</h2>
+  const wochenmusterTab = (
+    <ul>
+      {WEEKDAY_LABELS.map((label, weekday) => (
+        <li key={weekday} className="field-row">
+          <span>{label}</span>
+          <span className="field-row-input">
+            <input
+              type="number"
+              min={0}
+              aria-label={label}
+              value={minutesFor(weekday)}
+              onChange={(e) =>
+                onSetPatternMinutes(weekday as AvailabilityPattern['weekday'], Math.max(0, Number(e.target.value) || 0))
+              }
+            />
+            Minuten
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 
-      <h3>Wochenmuster</h3>
-      <ul>
-        {WEEKDAY_LABELS.map((label, weekday) => (
-          <li key={weekday} className="field-row">
-            <span>{label}</span>
-            <span className="field-row-input">
-              <input
-                type="number"
-                min={0}
-                aria-label={label}
-                value={minutesFor(weekday)}
-                onChange={(e) =>
-                  onSetPatternMinutes(weekday as AvailabilityPattern['weekday'], Math.max(0, Number(e.target.value) || 0))
-                }
-              />
-              Minuten
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      <h3>Abweichende Tage</h3>
+  const ausnahmenTab = (
+    <>
       <ul>
         {exceptions.map((exception) => (
           <li key={exception.date}>
             {exception.date}: {exception.minutes} Min.
             {exception.note && ` (${exception.note})`}
-            <button type="button" aria-label={`Ausnahme am ${exception.date} entfernen`} onClick={() => onRemoveException(exception.date)}>
+            <button
+              type="button"
+              aria-label={`Ausnahme am ${exception.date} entfernen`}
+              onClick={() => onRemoveException(exception.date)}
+            >
               Entfernen
             </button>
           </li>
@@ -169,8 +182,11 @@ export function AvailabilitySetup({
         </label>
         <button type="submit">Ausnahme hinzufügen</button>
       </form>
+    </>
+  )
 
-      <h3>Wiederkehrende Blocker</h3>
+  const blockerTab = (
+    <>
       <p>
         Feste Zeitfenster an einem Wochentag, die automatisch von der verfügbaren Lernzeit abgezogen werden — z. B.
         eine tägliche Mittagspause oder ein wöchentlicher Gym-Termin.
@@ -179,7 +195,11 @@ export function AvailabilitySetup({
         {recurringBlockers.map((blocker) => (
           <li key={blocker.id}>
             {WEEKDAY_LABELS[blocker.weekday]}, {blocker.starts_at}–{blocker.ends_at}: {blocker.label}
-            <button type="button" aria-label={`Blocker "${blocker.label}" entfernen`} onClick={() => onRemoveRecurringBlocker(blocker.id)}>
+            <button
+              type="button"
+              aria-label={`Blocker "${blocker.label}" entfernen`}
+              onClick={() => onRemoveRecurringBlocker(blocker.id)}
+            >
               Entfernen
             </button>
           </li>
@@ -209,17 +229,27 @@ export function AvailabilitySetup({
         </label>
         <label>
           Bezeichnung
-          <input
-            value={blockerLabel}
-            onChange={(e) => setBlockerLabel(e.target.value)}
-            placeholder="z. B. Mittagspause"
-          />
+          <input value={blockerLabel} onChange={(e) => setBlockerLabel(e.target.value)} placeholder="z. B. Mittagspause" />
         </label>
         <button type="submit" disabled={blockerEnd <= blockerStart}>
           Blocker hinzufügen
         </button>
         {blockerEnd <= blockerStart && <p role="alert">„Bis" muss nach „Von" liegen.</p>}
       </form>
+    </>
+  )
+
+  return (
+    <section aria-label="Verfügbarkeit">
+      <h2>Verfügbarkeit</h2>
+      <TabbedPanel
+        tablistLabel="Verfügbarkeitsbereiche"
+        tabs={[
+          { key: 'wochenmuster', label: 'Wochenmuster', content: wochenmusterTab },
+          { key: 'ausnahmen', label: 'Abweichende Tage', content: ausnahmenTab },
+          { key: 'blocker', label: 'Wiederkehrende Blocker', content: blockerTab },
+        ]}
+      />
     </section>
   )
 }
