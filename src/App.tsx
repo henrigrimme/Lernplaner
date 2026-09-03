@@ -12,6 +12,7 @@ import { ReplanView } from './ui/ReplanView'
 import { ProgressView } from './ui/ProgressView'
 import { SourceViewer } from './ui/SourceViewer'
 import { NotificationBanner } from './ui/NotificationBanner'
+import { ErrorBanner } from './ui/ErrorBanner'
 import { type UpdateInfo } from './ui/UpdateChecker'
 import { UpdateBanner } from './ui/UpdateBanner'
 import { PALETTE_OPTIONS, type PalettePreference, type ThemePreference } from './ui/AppearanceSetting'
@@ -257,8 +258,23 @@ export function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1')
   const [theme, setTheme] = useState<ThemePreference>(readStoredTheme)
   const [palette, setPalette] = useState<PalettePreference>(readStoredPalette)
+  const [dbError, setDbError] = useState<string | null>(null)
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
+
+  // Zentrale Fehlerbehandlung für fehlgeschlagene Schreibvorgänge (P0 aus
+  // der Impeccable-Kritik v0.28.0): weiterhin `console.error` fürs
+  // Debugging, zusätzlich sichtbar als `ErrorBanner`, damit ein
+  // fehlgeschlagenes Speichern nicht unbemerkt bleibt. Die Lade-Effekte
+  // weiter unten nutzen das bewusst NICHT — dort ist ein Fehlschlag im
+  // Vite-Dev-Server/Browser der Normalfall (keine IPC-Bridge) und kein
+  // echter Datenverlust. Ebenso ausgenommen: `logAiUsage` (Best-Effort,
+  // ADR-007) und der Dokument-Import (hat mit `importError` bereits ein
+  // eigenes, feldnahes Fehler-Feedback).
+  const reportDbError = (message: string, error: unknown) => {
+    reportDbError(message, error)
+    setDbError(message)
+  }
 
   // Klick auf ein Fach in der Seitenleiste muss zusätzlich zur Auswahl
   // selbst auch den sichtbaren Bereich auf "Fächer & Themen" umschalten —
@@ -611,7 +627,7 @@ export function App() {
       const review = await insertReview(db, { card_id: cardId, reviewed_at: reviewedAt, ...scheduled })
       setReviews((prev) => [...prev, review])
     } catch (error) {
-      console.error('Wiederholung konnte nicht gespeichert werden', error)
+      reportDbError('Wiederholung konnte nicht gespeichert werden', error)
     }
   }
 
@@ -621,7 +637,7 @@ export function App() {
       const card = await insertCard(db, input, new Date().toISOString())
       setCards((prev) => [...prev, card])
     } catch (error) {
-      console.error('Karteikarte konnte nicht gespeichert werden', error)
+      reportDbError('Karteikarte konnte nicht gespeichert werden', error)
     }
   }
 
@@ -633,7 +649,7 @@ export function App() {
       // Kaskadiert in der DB auf reviews (ON DELETE CASCADE) — lokal nachziehen.
       setReviews((prev) => prev.filter((r) => r.card_id !== id))
     } catch (error) {
-      console.error('Karteikarte konnte nicht gelöscht werden', error)
+      reportDbError('Karteikarte konnte nicht gelöscht werden', error)
     }
   }
 
@@ -643,7 +659,7 @@ export function App() {
       const course = await insertCourse(db, input, new Date().toISOString())
       setCourses((prev) => [...prev, course])
     } catch (error) {
-      console.error('Fach konnte nicht gespeichert werden', error)
+      reportDbError('Fach konnte nicht gespeichert werden', error)
     }
   }
 
@@ -653,7 +669,7 @@ export function App() {
       await updateCourseRow(db, id, changes)
       setCourses((prev) => updateCourse(prev, id, changes))
     } catch (error) {
-      console.error('Fach konnte nicht aktualisiert werden', error)
+      reportDbError('Fach konnte nicht aktualisiert werden', error)
     }
   }
 
@@ -663,7 +679,7 @@ export function App() {
       await setCourseArchivedRow(db, id, archived)
       setCourses((prev) => setCourseArchived(prev, id, archived))
     } catch (error) {
-      console.error('Fach konnte nicht archiviert werden', error)
+      reportDbError('Fach konnte nicht archiviert werden', error)
     }
   }
 
@@ -673,7 +689,7 @@ export function App() {
       await deleteCourseRow(db, id)
       setCourses((prev) => removeCourse(prev, id))
     } catch (error) {
-      console.error('Fach konnte nicht gelöscht werden', error)
+      reportDbError('Fach konnte nicht gelöscht werden', error)
     }
   }
 
@@ -683,7 +699,7 @@ export function App() {
       const group = await insertCourseGroup(db, input)
       setCourseGroups((prev) => [...prev, group])
     } catch (error) {
-      console.error('Ordner konnte nicht gespeichert werden', error)
+      reportDbError('Ordner konnte nicht gespeichert werden', error)
     }
   }
 
@@ -694,7 +710,7 @@ export function App() {
       await updateCourseGroupRow(db, id, { name: next.find((g) => g.id === id)!.name })
       setCourseGroups(next)
     } catch (error) {
-      console.error('Ordner konnte nicht umbenannt werden', error)
+      reportDbError('Ordner konnte nicht umbenannt werden', error)
     }
   }
 
@@ -706,7 +722,7 @@ export function App() {
       await updateCourseGroupRow(db, id, { parent_id: updated.parent_id, sort_order: updated.sort_order })
       setCourseGroups(next)
     } catch (error) {
-      console.error('Ordner konnte nicht verschoben werden', error)
+      reportDbError('Ordner konnte nicht verschoben werden', error)
     }
   }
 
@@ -718,7 +734,7 @@ export function App() {
       setCourseGroups(result.groups)
       setCourses(result.courses)
     } catch (error) {
-      console.error('Ordner konnte nicht gelöscht werden', error)
+      reportDbError('Ordner konnte nicht gelöscht werden', error)
     }
   }
 
@@ -728,7 +744,7 @@ export function App() {
       await setCourseGroupRow(db, courseId, groupId)
       setCourses((prev) => setCourseGroup(prev, courseId, groupId))
     } catch (error) {
-      console.error('Fach konnte keinem Ordner zugewiesen werden', error)
+      reportDbError('Fach konnte keinem Ordner zugewiesen werden', error)
     }
   }
 
@@ -738,7 +754,7 @@ export function App() {
       const assessment = await insertAssessment(db, input)
       setAssessments((prev) => [...prev, assessment])
     } catch (error) {
-      console.error('Prüfung konnte nicht gespeichert werden', error)
+      reportDbError('Prüfung konnte nicht gespeichert werden', error)
     }
   }
 
@@ -748,7 +764,7 @@ export function App() {
       await updateAssessmentRow(db, id, changes)
       setAssessments((prev) => updateAssessment(prev, id, changes))
     } catch (error) {
-      console.error('Prüfung konnte nicht aktualisiert werden', error)
+      reportDbError('Prüfung konnte nicht aktualisiert werden', error)
     }
   }
 
@@ -760,7 +776,7 @@ export function App() {
       // Kaskadiert in der DB auf paper_steps (ON DELETE CASCADE) — lokal nachziehen.
       setPaperSteps((prev) => prev.filter((s) => s.assessment_id !== id))
     } catch (error) {
-      console.error('Prüfung konnte nicht gelöscht werden', error)
+      reportDbError('Prüfung konnte nicht gelöscht werden', error)
     }
   }
 
@@ -770,7 +786,7 @@ export function App() {
       const step = await insertPaperStep(db, input)
       setPaperSteps((prev) => [...prev, step])
     } catch (error) {
-      console.error('Teilschritt konnte nicht gespeichert werden', error)
+      reportDbError('Teilschritt konnte nicht gespeichert werden', error)
     }
   }
 
@@ -780,7 +796,7 @@ export function App() {
       await updatePaperStepRow(db, id, changes)
       setPaperSteps((prev) => updatePaperStep(prev, id, changes))
     } catch (error) {
-      console.error('Teilschritt konnte nicht aktualisiert werden', error)
+      reportDbError('Teilschritt konnte nicht aktualisiert werden', error)
     }
   }
 
@@ -790,7 +806,7 @@ export function App() {
       await deletePaperStepRow(db, id)
       setPaperSteps((prev) => removePaperStep(prev, id))
     } catch (error) {
-      console.error('Teilschritt konnte nicht gelöscht werden', error)
+      reportDbError('Teilschritt konnte nicht gelöscht werden', error)
     }
   }
 
@@ -800,7 +816,7 @@ export function App() {
       await upsertAvailabilityPatternRow(db, weekday, minutes)
       setPattern((prev) => setAvailabilityPattern(prev, weekday, minutes))
     } catch (error) {
-      console.error('Wochenmuster konnte nicht gespeichert werden', error)
+      reportDbError('Wochenmuster konnte nicht gespeichert werden', error)
     }
   }
 
@@ -810,7 +826,7 @@ export function App() {
       await upsertAvailabilityExceptionRow(db, date, minutes, note)
       setExceptions((prev) => setAvailabilityException(prev, date, minutes, note))
     } catch (error) {
-      console.error('Ausnahme konnte nicht gespeichert werden', error)
+      reportDbError('Ausnahme konnte nicht gespeichert werden', error)
     }
   }
 
@@ -820,7 +836,7 @@ export function App() {
       await deleteAvailabilityExceptionRow(db, date)
       setExceptions((prev) => removeAvailabilityException(prev, date))
     } catch (error) {
-      console.error('Ausnahme konnte nicht gelöscht werden', error)
+      reportDbError('Ausnahme konnte nicht gelöscht werden', error)
     }
   }
 
@@ -830,7 +846,7 @@ export function App() {
       const inserted = await insertRecurringBlocker(db, input)
       setRecurringBlockers((prev) => [...prev, inserted])
     } catch (error) {
-      console.error('Wiederkehrender Blocker konnte nicht gespeichert werden', error)
+      reportDbError('Wiederkehrender Blocker konnte nicht gespeichert werden', error)
     }
   }
 
@@ -840,7 +856,7 @@ export function App() {
       await deleteRecurringBlockerRow(db, id)
       setRecurringBlockers((prev) => removeRecurringBlocker(prev, id))
     } catch (error) {
-      console.error('Wiederkehrender Blocker konnte nicht gelöscht werden', error)
+      reportDbError('Wiederkehrender Blocker konnte nicht gelöscht werden', error)
     }
   }
 
@@ -860,7 +876,7 @@ export function App() {
       setCards(remainingCards)
       setReviews((prev) => prev.filter((r) => remainingCardIds.has(r.card_id)))
     } catch (error) {
-      console.error('Themenbaum konnte nicht gespeichert werden', error)
+      reportDbError('Themenbaum konnte nicht gespeichert werden', error)
     }
   }
 
@@ -870,7 +886,7 @@ export function App() {
       const persisted = await syncStudyBlocks(db, studyBlocks, nextBlocks)
       setStudyBlocks(persisted)
     } catch (error) {
-      console.error('Lernblöcke konnten nicht gespeichert werden', error)
+      reportDbError('Lernblöcke konnten nicht gespeichert werden', error)
     }
   }
 
@@ -889,7 +905,7 @@ export function App() {
       )
       setPlanVersions((prev) => [...prev, version])
     } catch (error) {
-      console.error('Planversion konnte nicht gespeichert werden', error)
+      reportDbError('Planversion konnte nicht gespeichert werden', error)
     }
     await handleChangeStudyBlocks(blocks)
   }
@@ -1053,7 +1069,7 @@ export function App() {
       })
       setAnswers((prev) => [...prev, answer])
     } catch (error) {
-      console.error('Antwort konnte nicht gespeichert werden', error)
+      reportDbError('Antwort konnte nicht gespeichert werden', error)
     }
   }
 
@@ -1068,7 +1084,7 @@ export function App() {
       await completeQuiz(db, activeQuiz.quiz.id, score, completedAt)
       setQuizzes((prev) => prev.map((q) => (q.id === activeQuiz.quiz.id ? { ...q, completed_at: completedAt, score } : q)))
     } catch (error) {
-      console.error('Quiz konnte nicht abgeschlossen werden', error)
+      reportDbError('Quiz konnte nicht abgeschlossen werden', error)
     }
     setActiveQuiz(null)
   }
@@ -1120,7 +1136,7 @@ export function App() {
       await updateDocumentType(db, id, docType, docTypeLabel)
       setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, doc_type: docType, doc_type_label: docTypeLabel } : d)))
     } catch (error) {
-      console.error('Dokumenttyp konnte nicht geändert werden', error)
+      reportDbError('Dokumenttyp konnte nicht geändert werden', error)
     }
   }
 
@@ -1399,6 +1415,7 @@ export function App() {
         <main className="app-content">
           <UpdateBanner update={updateInfo} onInstall={installUpdateAndRestart} />
           <NotificationBanner notifications={dueNotifications} onDismiss={dismissNotification} />
+          <ErrorBanner message={dbError} onDismiss={() => setDbError(null)} />
 
         {activeSection === 'faecher' && (
           <>
