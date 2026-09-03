@@ -234,7 +234,17 @@ zusätzlichen Schatten) und punktuellem Zustands-Feedback (Button-Press via
   Sidebar, sehr dezent.
 - **md** (`0 4px 16px oklch(0.26 0.02 50 / 0.1)`): reserviert für
   zukünftige Overlays/Popover.
-- **lg** (`0 12px 32px oklch(0.26 0.02 50 / 0.16)`): reserviert für Modals.
+- **lg** (`0 12px 32px oklch(0.26 0.02 50 / 0.16)`): `ui/ConfirmDialog.tsx`,
+  `QuickSearch.tsx` (Glas-Overlays).
+- **Innen-Vertiefung** (`inset 0 1px 2px oklch(0.26 0.02 50 / 0.08)`),
+  seit Design-Review 2026-09-03 (`apple-design`-Skill): `.tab-strip`,
+  `.segmented-options` — kein Widerspruch zur „kein Schatten-Vokabular
+  für Tiefe"-Regel oben, die gilt für gruppierte Listen/Karten
+  (Content-Ebene). Segmentierte Steuerelemente sind funktionale
+  Auswahl-Widgets, keine Karten, und tragen als einzige zusätzlich einen
+  1px-Glanz-Highlight (`inset 0 1px 0 oklch(1 0 0 / 0.25)`) auf der
+  jeweils aktiven Pille — dieselbe Idee wie `--glass-highlight`, hier
+  als eigener, nicht-transparenter Wert.
 
 ### Named Rules
 **The Glass-Not-Shadow Rule.** Sidebar und Toolbar erzeugen ihre Trennung
@@ -266,6 +276,11 @@ vom Inhalt über `backdrop-filter: blur(20px) saturate(1.8)` plus einen
   (siehe Elevation).
 - **Border:** 1px Hairline.
 - **Internal Padding:** 16px (`--space-md`).
+- **Row Hover** (gruppierte Listen, seit Design-Review 2026-09-03): jede
+  Zeile hellt sich beim Überfahren leicht ab
+  (`oklch(from var(--color-ink) l c h / 0.06)`, dieselbe Tönung wie
+  Sidebar-/Reiter-Hover) — die meisten Zeilen tragen Bearbeiten-/
+  Löschen-Buttons, waren aber bisher komplett statisch.
 
 ### Inputs / Fields
 - **Style:** Warm-Paper-Fläche (Kontrast zur Warm-Sand-Formularfläche
@@ -323,6 +338,13 @@ Bedeutung (DESIGN.md „One Accent Rule" bleibt gewahrt: nur eine von
 mehreren „aktueller Zustand"-Stellen, nicht eine zweite Akzentfarbe).
 Alle drei Panels bleiben über `hidden` im DOM (kein bedingtes Unmounten),
 damit ein Reiterwechsel keinen offenen Formularzustand verwirft.
+
+Der Behälter trägt seit dem Design-Review 2026-09-03 zusätzlich eine
+dezente Innen-Vertiefung (siehe Elevation, „Innen-Vertiefung"), die
+aktive Pille einen 1px-Glanz-Highlight, und jede Pille dasselbe
+Druck-Feedback wie ein Button (`transform: scale(0.97)` bei `:active`) —
+näher am nativen macOS-Segmented-Control (System Settings, Safari-Tab-
+Gruppen), das nie ganz flach ist.
 
 Darüber, in einem eigenen `<details>`-Element (`.course-management`,
 natives Aufklappen statt selbstgebautem Akkordeon), bleibt die

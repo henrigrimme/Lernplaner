@@ -184,7 +184,7 @@ function readStoredPalette(): PalettePreference {
  */
 function renderSidebarCourseTree(
   nodes: CourseGroupTreeNode[],
-  selectedCourseId: number | null,
+  activeCourseId: number | null,
   onSelectCourse: (id: number) => void,
   depth = 0,
 ): ReactNode[] {
@@ -198,14 +198,14 @@ function renderSidebarCourseTree(
         type="button"
         className="app-nav-item"
         style={{ paddingLeft: 12 + (depth + 1) * 12 }}
-        aria-current={selectedCourseId === c.id ? 'page' : undefined}
+        aria-current={activeCourseId === c.id ? 'page' : undefined}
         onClick={() => onSelectCourse(c.id)}
         title={c.name}
       >
         <span className="app-nav-item-label">{c.name}</span>
       </button>
     )),
-    ...renderSidebarCourseTree(node.children, selectedCourseId, onSelectCourse, depth + 1),
+    ...renderSidebarCourseTree(node.children, activeCourseId, onSelectCourse, depth + 1),
   ])
 }
 
@@ -1345,7 +1345,14 @@ export function App() {
             <div className="app-nav">
               {renderSidebarCourseTree(
                 buildCourseGroupTree(courseGroups, courses.filter((c) => c.archived === 0)),
-                selectedCourseId,
+                // Nur hervorheben, solange auch "Fächer & Themen" der sichtbare
+                // Bereich ist — sonst blieb das zuletzt gewählte Fach orange
+                // markiert, auch nachdem man z. B. zu "Verfügbarkeit" gewechselt
+                // hatte (`selectedCourseId` selbst bleibt bewusst über
+                // Bereichswechsel hinweg gesetzt, siehe `selectCourse`-Kommentar
+                // — nur die Sidebar-Hervorhebung muss den sichtbaren Bereich
+                // widerspiegeln, nicht nur die Auswahl).
+                activeSection === 'faecher' ? selectedCourseId : null,
                 selectCourse,
               )}
               {ungroupedCourses(courses.filter((c) => c.archived === 0)).map((c) => (
@@ -1353,7 +1360,7 @@ export function App() {
                   key={c.id}
                   type="button"
                   className="app-nav-item"
-                  aria-current={selectedCourseId === c.id ? 'page' : undefined}
+                  aria-current={activeSection === 'faecher' && selectedCourseId === c.id ? 'page' : undefined}
                   onClick={() => selectCourse(c.id)}
                   title={c.name}
                 >
