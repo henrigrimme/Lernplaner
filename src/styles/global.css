@@ -1124,6 +1124,19 @@ button:disabled {
   border-color: var(--color-primary-hover);
 }
 
+/* Globales Speicher-Fehler-Banner (ui/ErrorBanner.tsx) — dieselbe
+   schwebende Optik wie das Update-Banner, aber in der Warnfarbe, damit
+   ein fehlgeschlagenes Speichern nicht mit einem neutralen Hinweis
+   verwechselt wird (Impeccable-Kritik v0.28.0, P0). */
+.error-banner {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.error-banner strong {
+  color: var(--color-danger);
+}
+
 /* ---------- Quiz-Assistent (ui/QuizSetup.tsx) ---------- */
 
 .quiz-wizard-progress {
