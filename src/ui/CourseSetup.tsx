@@ -142,19 +142,29 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
             Semester
             <input value={draft.semester} onChange={(e) => setDraft({ ...draft, semester: e.target.value })} required />
           </label>
-          <label>
-            Farbe
-            <span className="color-select">
-              <span className="color-swatch" style={{ backgroundColor: draft.color }} aria-hidden="true" />
-              <select value={draft.color} onChange={(e) => setDraft({ ...draft, color: e.target.value })}>
-                {COURSE_COLORS.map((c) => (
-                  <option key={c.hex} value={c.hex}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </span>
-          </label>
+          {/* Swatch-Pillen statt Dropdown — dieselbe Bedienung wie die
+              Paletten-Auswahl unter „Erscheinungsbild" (`.palette-picker`),
+              damit nicht zwei Muster für dieselbe Interaktionsklasse
+              („eine Option aus wenigen visuell unterscheidbaren wählen")
+              nebeneinander stehen (Impeccable-Kritik v0.28.0, Befund P2). */}
+          <fieldset className="segmented-fieldset">
+            <legend>Farbe</legend>
+            <div className="palette-picker">
+              {COURSE_COLORS.map((c) => (
+                <label key={c.hex}>
+                  <input
+                    type="radio"
+                    name="course-color"
+                    value={c.hex}
+                    checked={draft.color === c.hex}
+                    onChange={() => setDraft({ ...draft, color: c.hex })}
+                  />
+                  <span className="palette-swatch" style={{ backgroundColor: c.hex }} aria-hidden="true" />
+                  <span className="palette-picker-label">{c.name}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <label>
             Priorität (1 = niedrig, 5 = hoch)
             <select

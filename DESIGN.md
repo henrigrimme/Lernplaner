@@ -169,12 +169,24 @@ Font-Pairing, weil die native SF-Pro-Rendering-Qualität selbst der Punkt
 ist (kein Web-Font-Ladevorgang, keine Cloud-Abhängigkeit, passt zu ADR-003).
 
 ### Hierarchy
-- **Headline** (650, 22px, 1.2): Toolbar-Titel, App-Name.
-- **Title** (620, 16px, 1.3): Abschnittsüberschriften (`h2`, z. B. „Fächer").
-- **Label** (550, 12px, 1.4, keine Großschreibung): Formular-Labels,
-  Sidebar-Gruppentitel (dort in 11px + `letter-spacing: 0.02em` + Uppercase
-  als einzige Ausnahme — Systemeinstellungen-Konvention für Gruppentitel).
-- **Body** (400, 14px, 1.5): Fließtext, Listeneinträge. Max. 70ch.
+
+Sechs Stufen, als Token in `tokens.css` (`--text-*`). Ehrliche Skala nach
+tatsächlichem Gebrauch — bis v0.28.0 nominell „vier Stufen", real aber
+mit Zwischengrößen 11/13/15px verstreut als rohe px (Impeccable-Kritik
+v0.28.0, Minor-Befund „Font-Size-Ramp-Drift"). Seit v0.29.0 tokenisiert,
+die frühere 15px-Sondergröße auf `--text-title` (16px) zusammengeführt.
+
+- **Headline** (`--text-headline`, 22px, 650, 1.2): globales `h1`.
+- **Title** (`--text-title`, 16px, 620, 1.3): Abschnittsüberschriften
+  (`h2`), außerdem App-Marke, Toolbar-Titel und das Schnellsuche-Feld.
+- **Body** (`--text-body`, 14px, 400, 1.5): Fließtext, `<p>`. Max. 70ch.
+- **UI** (`--text-ui`, 13px, 500–600): dichte Bedienflächen — `h3`,
+  Sidebar-/Reiter-Einträge, Listenzeilen, Buttons, Banner.
+- **Label** (`--text-label`, 12px, 550, keine Großschreibung):
+  Formular-Labels, `<legend>`, Bildunterschriften.
+- **Caption** (`--text-caption`, 11px, 650, `letter-spacing: 0.02em`,
+  Uppercase): Sidebar-Gruppentitel, Swatch-Beschriftungen —
+  Systemeinstellungen-Konvention für Mikro-Labels.
 
 ### Named Rules
 **The No-Web-Font Rule.** Kein `@font-face`, kein Google-Fonts-Import. Die

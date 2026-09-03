@@ -53,6 +53,23 @@ describe('CourseSetup', () => {
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ name: 'Microeconomics', semester: 'WS25' }))
   })
 
+  it('wählt eine Fach-Farbe über die Swatch-Pillen statt über ein Dropdown', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    render(<CourseSetup courses={[]} {...noop()} onAdd={onAdd} />)
+
+    await user.click(screen.getByRole('button', { name: 'Fach hinzufügen' }))
+    await user.type(screen.getByLabelText('Name'), 'Microeconomics')
+    await user.type(screen.getByLabelText('Semester'), 'WS25')
+
+    const olive = screen.getByRole('radio', { name: 'Olivgrün' })
+    await user.click(olive)
+    expect(olive).toBeChecked()
+
+    await user.click(screen.getByRole('button', { name: 'Speichern' }))
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ color: '#7c8b4a' }))
+  })
+
   it('verhindert das Anlegen ohne Namen', async () => {
     const user = userEvent.setup()
     const onAdd = vi.fn()
