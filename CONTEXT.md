@@ -24,9 +24,15 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 23. Juli 2026, **aktuelle Version: v0.24.0.**
-Sieben Punkte in einer sehr langen Sitzung, jeweils eigener Abschnitt am
-Ende von Abschnitt 8 (chronologisch, unten weiter hinten = neuer):
+**Letzte Aktualisierung:** 3. September 2026, **aktuelle Version: v0.29.0.**
+Jüngster Stand ganz am Ende von Abschnitt 8 („Impeccable-Kritik v0.28.0
+abgearbeitet"): P0 (zentrales Fehler-Banner), P1 (Verfügbarkeit in drei
+Reiter), P2 + Font-Ramp (Fach-Farbwahl als Swatch-Pillen, Schriftgrößen
+tokenisiert) — alle vier Befunde der v0.28.0-Kritik erledigt, PRs
+#76/#77/#78.
+
+Der ältere Kontext darunter (v0.24.0-Sitzung, chronologisch, unten weiter
+hinten = neuer):
 
 1. **Word/PowerPoint/Excel/Markdown-Import**, deterministisch ohne KI
    (v0.21.0, ADR-018) — „Word/PowerPoint/Excel/Markdown-Import".
@@ -3355,6 +3361,61 @@ Effekt bei gebrochener Serie), stattdessen fünf sicherere Punkte:
 
 521/521 Tests, tsc, vite build, cargo check grün bei jedem PR. Release
 v0.28.0.
+
+---
+
+### Impeccable-Kritik v0.28.0 abgearbeitet: P0 + P1 + P2 + Font-Ramp (v0.29.0, 03.09.2026)
+
+Nutzer: „am Lernplaner weiterarbeiten", danach „mache alles nacheinander"
+(die vier offenen Befunde aus der v0.28.0-Kritik) und „arbeite mit Loops
+und Plausi-Checks". Drei PRs, jeder mit `tsc` + `npm test` + `vite build`
++ `cargo check` + Browser-Plausi-Check im Dev-Server.
+
+- **PR #76 — P0: zentrales Fehler-Banner.** `ui/ErrorBanner.tsx` (neu,
+  `role="alert"`, Optik wie `UpdateBanner`, Warnfarbe `--color-danger`,
+  kein Auto-Ausblenden). Neuer `reportDbError`-Helfer in `App.tsx`:
+  weiterhin `console.error` fürs Debugging, zusätzlich sichtbar. Alle 29
+  DB-Schreib-Handler (`handle*`, `applyReplan`) umgestellt. **Bewusst
+  ausgenommen:** die Lade-Effekte (Fehlschlag im Dev-Server/Browser ohne
+  Tauri-IPC ist Normalfall, kein Datenverlust), `logAiUsage`
+  (Best-Effort, ADR-007) und der Dokument-Import (hat mit `importError`
+  bereits feldnahes Feedback). 3 neue Tests.
+- **PR #77 — P1: Verfügbarkeit in drei Reiter.** `AvailabilitySetup`
+  nutzt jetzt `TabbedPanel` (wie `CourseWorkspace`/`SettingsView`):
+  Wochenmuster (Standard) / Abweichende Tage / Wiederkehrende Blocker.
+  Keine Logik-/Callback-Änderung. Tests an die Reiter angepasst (Panel
+  vor Interaktion öffnen), +1 Reiter-Umschalt-Test.
+- **PR #78 — P2 + Font-Ramp.** (a) Fach-Farbwahl in `CourseSetup` von
+  `<select>` + Vorschau-Swatch auf die `.palette-picker`-Swatch-Pillen
+  umgestellt (identisch zur Paletten-Auswahl unter „Erscheinungsbild"),
+  toter `.color-select`/`.color-swatch`-CSS entfernt. (b) 21 rohe
+  `font-size`-px in `global.css` durch eine tokenisierte 6-Stufen-Skala
+  ersetzt (`--text-headline/-title/-body/-ui/-label/-caption` in
+  `tokens.css`). Reiner Refactor **außer** der früheren 15px-Sondergröße
+  (App-Marke, Toolbar-Titel, Schnellsuche-Feld) → `--text-title` (16px,
+  1px größer). `DESIGN.md` §3 an den tatsächlichen Gebrauch angeglichen
+  (6 benannte Stufen statt der fiktiven „4"). +1 Test.
+
+526/526 Tests, tsc, vite build, cargo check grün bei jedem PR. Release
+v0.29.0.
+
+**Damit sind alle vier Befunde aus der v0.28.0-Impeccable-Kritik
+erledigt.** Kein offener Implementierungspunkt aus dieser Kritik mehr.
+
+**Offene Fragen für die nächste Sitzung** (unverändert aus der
+Vorsitzung, brauchen echte Nutzung):
+- Schlüsselbund-Passwort-Fenster nach dem v0.24.0-Übergang wirklich weg?
+- Wie fühlen sich die vier Fach-Reiter / jetzt auch die drei
+  Verfügbarkeits-Reiter im „Fach gewählt"-Zustand visuell an? (weiterhin
+  nur per Komponententest + Dev-Server-Leerzustand geprüft, kein Fach
+  ohne echtes Tauri-Fenster anlegbar).
+- Schon echtes Word-/PowerPoint-/Excel-Material importiert?
+
+**Nebenbefund (nicht angefasst):** der ungetrackte Ordner `App/` im
+Repo-Root enthält ein altes App-ZIP (v0.2.0) **und ein Backup des
+Updater-Signing-Keys** (`App/signing-key-backup/lernplaner-updater.key`,
+per `.gitignore` ausgeschlossen, aber lose im Repo-Root). Bei Gelegenheit
+an einen Ort außerhalb des Repos verschieben.
 
 ---
 
