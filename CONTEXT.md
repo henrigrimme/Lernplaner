@@ -24,12 +24,14 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 3. September 2026, **aktuelle Version: v0.29.0.**
-Jüngster Stand ganz am Ende von Abschnitt 8 („Impeccable-Kritik v0.28.0
-abgearbeitet"): P0 (zentrales Fehler-Banner), P1 (Verfügbarkeit in drei
-Reiter), P2 + Font-Ramp (Fach-Farbwahl als Swatch-Pillen, Schriftgrößen
-tokenisiert) — alle vier Befunde der v0.28.0-Kritik erledigt, PRs
-#76/#77/#78.
+**Letzte Aktualisierung:** 3. September 2026, **aktuelle Version: v0.30.0.**
+Jüngster Stand ganz am Ende von Abschnitt 8:
+- „Apple-/HIG-Designdurchgang aus Parallel-Sitzung gemergt" (v0.30.0, PR
+  #79): Sidebar-Highlight-Fix, `ConfirmDialog` statt `window.confirm`,
+  Reiter/Segmented-Controls poliert, `apple-design`-Skill.
+- davor „Impeccable-Kritik v0.28.0 abgearbeitet" (v0.29.0, PRs #76–78):
+  P0 zentrales Fehler-Banner, P1 Verfügbarkeit in drei Reiter, P2 +
+  Font-Ramp (Fach-Farbwahl als Swatch-Pillen, Schriftgrößen tokenisiert).
 
 Der ältere Kontext darunter (v0.24.0-Sitzung, chronologisch, unten weiter
 hinten = neuer):
@@ -3416,6 +3418,46 @@ Repo-Root enthält ein altes App-ZIP (v0.2.0) **und ein Backup des
 Updater-Signing-Keys** (`App/signing-key-backup/lernplaner-updater.key`,
 per `.gitignore` ausgeschlossen, aber lose im Repo-Root). Bei Gelegenheit
 an einen Ort außerhalb des Repos verschieben.
+
+---
+
+### Apple-/HIG-Designdurchgang aus Parallel-Sitzung gemergt (v0.30.0, 03.09.2026)
+
+Direkt danach: Nutzer bat, den Branch
+`claude/lernplaner-apple-design-skill-xli144` (parallel von v0.28.0
+abgezweigt, `apple-design`-Skill) nach main zu mergen. **Kollision:** der
+Branch hatte selbst schon auf 0.29.0 gehoben — v0.29.0 war zu dem
+Zeitpunkt aber bereits aus dieser Session veröffentlicht (PRs #76–78).
+Auf Rückfrage als **v0.30.0** gemergt + released.
+
+- **PR #79 (Squash).** Textuell sauberer Merge gegen den v0.29.0-`main`
+  (kein Konflikt), `tsc` + 526 Tests grün. Inhalt:
+  - **Sidebar-Fix:** ein Fach blieb nach dem Wechsel in einen anderen
+    Bereich (z. B. „Quiz") fälschlich orange markiert — `aria-current`
+    hängt jetzt zusätzlich an `activeSection === 'faecher'`. (Anderer,
+    tieferliegender Fall als der bereits am 23.07. behobene
+    „`activeSection` schaltete nicht mit um".)
+  - **`ui/ConfirmDialog.tsx` (neu):** eigener Glas-Panel-Dialog
+    (`role="alertdialog"`, Fokus auf „Abbrechen", Bestätigen in
+    System-Rot) statt `window.confirm` für alle destruktiven Aktionen
+    (`CourseSetup`/`CourseGroups`/`AssessmentSetup`/`PaperSteps`/`App.tsx`).
+  - **Reiter/Segmented-Controls/gruppierte Listen poliert:** dezente
+    Innen-Vertiefung + 1px-Glanzkante auf der aktiven Pille,
+    `scale(0.97)`-Press, Zeilen-Hover in gruppierten Listen. Baut auf den
+    `.segmented-options`/`.tab-strip`-Klassen aus #77/#78 auf und wertet
+    damit auch die neuen Verfügbarkeits-Reiter mit auf.
+  - **`.claude/skills/apple-design/`:** HIG-Review-Skill + Referenzdocs.
+  - **`DESIGN.md`:** Kontrast-Verifikation der fünf Akzent-Paletten
+    dokumentiert — **Terrakotta-Standard liegt im Hell-Modus bei 3.43:1,
+    unter WCAG 4.5:1** (betrifft jeden `type="submit"`-Button + aktiven
+    Sidebar-Eintrag). Bewusst nicht automatisch geändert (Markenfarbe,
+    Nutzerwunsch); Vorschlag `oklch(0.57 0.13 45)` ≈ 4.57:1 liegt vor,
+    braucht Bestätigung. **Offener Punkt für die nächste Sitzung.**
+- **Nach dem Merge (chore-Commit direkt auf main):** Version 0.29.0 →
+  0.30.0 (4 Dateien), veraltete `DESIGN.md`-Zeilen „Fach-Farben über das
+  `COURSE_COLORS`-Dropdown" auf die Swatch-Pillen aus #78 angeglichen.
+- 526/526 Tests, tsc, vite build, cargo check grün. Signierter Release
+  v0.30.0 (Auto-Updater `darwin-aarch64`), universelle `.dmg` per CI.
 
 ---
 

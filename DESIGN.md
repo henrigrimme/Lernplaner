@@ -302,13 +302,14 @@ vom Inhalt über `backdrop-filter: blur(20px) saturate(1.8)` plus einen
   kein Farbwechsel der Fläche.
 
 ### Fach-Farbwahl (Signature Component)
-Statt einer freien Hex-Eingabe ein `<select>` mit acht kuratierten,
-benannten Farben (Terrakotta, Ocker, Olivgrün, Petrolblau, Taubenblau,
-Pflaume, Bordeaux, Graphit — `ui/CourseSetup.tsx`, `COURSE_COLORS`), mit
-einem runden 20px-Swatch links neben dem Dropdown als Live-Vorschau. Jede
-Farboption ist deutlich von Kraft Terracotta (dem App-Akzent selbst)
-unterscheidbar, damit eine Fach-Farbe nie mit der App-Akzentfarbe
-verwechselt wird.
+Statt einer freien Hex-Eingabe acht kuratierte, benannte Farben
+(Terrakotta, Ocker, Olivgrün, Petrolblau, Taubenblau, Pflaume, Bordeaux,
+Graphit — `ui/CourseSetup.tsx`, `COURSE_COLORS`) als anklickbare
+Swatch-Pillen mit Auswahlring — dieselbe `.palette-picker`-Optik wie die
+App-Farbpalette unter „Erscheinungsbild" (seit v0.29.0/PR #78, vorher ein
+`<select>` mit Vorschau-Swatch). Jede Farboption ist deutlich von Kraft
+Terracotta (dem App-Akzent selbst) unterscheidbar, damit eine Fach-Farbe
+nie mit der App-Akzentfarbe verwechselt wird.
 
 ### Bestätigungs-Dialog
 `ui/ConfirmDialog.tsx` — ersetzt seit dem Design-Review 2026-09-03
@@ -379,8 +380,8 @@ Blick bekommt.
   `global.css`.
 - **Do** native Systemschrift verwenden (`-apple-system`-Stack), keine
   Web-Fonts laden.
-- **Do** Fach-Farben über das kuratierte `COURSE_COLORS`-Dropdown wählen
-  lassen, nie über freie Hex-Eingabe.
+- **Do** Fach-Farben über die kuratierten `COURSE_COLORS`-Swatch-Pillen
+  wählen lassen, nie über freie Hex-Eingabe.
 - **Do** destruktive Aktionen über `ui/ConfirmDialog.tsx` bestätigen lassen,
   nie über `window.confirm` (bricht aus dem Glas-/Warm-Designsystem aus).
 - **Do**, sobald System Green/Amber/Rot für Status-Badges verwendet werden,
