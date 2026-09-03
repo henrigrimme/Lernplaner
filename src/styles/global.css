@@ -19,7 +19,7 @@ body {
   background: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: var(--text-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -92,20 +92,20 @@ a {
 /* ---------- Typografie ---------- */
 
 h1 {
-  font-size: 22px;
+  font-size: var(--text-headline);
   font-weight: 650;
   letter-spacing: -0.01em;
 }
 
 h2 {
-  font-size: 16px;
+  font-size: var(--text-title);
   font-weight: 620;
   letter-spacing: -0.006em;
   color: var(--color-ink);
 }
 
 h3 {
-  font-size: 13px;
+  font-size: var(--text-ui);
   font-weight: 600;
   color: var(--color-muted);
   text-transform: none;
@@ -252,7 +252,7 @@ p {
   gap: var(--space-xs);
   padding: 0 var(--space-sm);
   font-weight: 650;
-  font-size: 15px;
+  font-size: var(--text-title);
   letter-spacing: -0.01em;
   /* Erlaubt dem Flex-Kind `.app-brand-label` unten, unter seine
      Inhaltsbreite zu schrumpfen, statt den Rahmen zu sprengen — nötig,
@@ -285,7 +285,7 @@ p {
 
 .app-nav-label {
   padding: var(--space-sm) var(--space-sm) var(--space-2xs);
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 650;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -301,7 +301,7 @@ p {
    Fach-loses Erststart-Konto aussieht, obwohl nur noch geladen wird. */
 .app-nav-loading {
   padding: 0 var(--space-sm);
-  font-size: 13px;
+  font-size: var(--text-ui);
   color: var(--color-muted);
 }
 
@@ -315,7 +315,7 @@ p {
   border: none;
   background: transparent;
   color: var(--color-ink);
-  font-size: 13px;
+  font-size: var(--text-ui);
   text-align: left;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -370,7 +370,7 @@ p {
 }
 
 .app-toolbar h1 {
-  font-size: 15px;
+  font-size: var(--text-title);
   font-weight: 650;
 }
 
@@ -435,7 +435,7 @@ label {
   display: flex;
   flex-direction: column;
   gap: var(--space-2xs);
-  font-size: 12px;
+  font-size: var(--text-label);
   font-weight: 550;
   color: var(--color-muted);
 }
@@ -443,7 +443,7 @@ label {
 label:has(> input[type='checkbox']) {
   flex-direction: row;
   align-items: center;
-  font-size: 13px;
+  font-size: var(--text-ui);
   color: var(--color-ink);
 }
 
@@ -451,7 +451,7 @@ input,
 select,
 textarea {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--text-ui);
   color: var(--color-ink);
   background: var(--color-bg);
   border: 1px solid var(--color-border);
@@ -473,13 +473,13 @@ input[type='file'] {
   border: none;
   background: none;
   padding: 0;
-  font-size: 13px;
+  font-size: var(--text-ui);
   color: var(--color-muted);
 }
 
 input[type='file']::file-selector-button {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--text-ui);
   font-weight: 550;
   padding: 6px var(--space-md);
   border-radius: var(--radius-sm);
@@ -510,24 +510,6 @@ input[type='radio'] {
   accent-color: var(--color-primary);
 }
 
-.color-select {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
-.color-select select {
-  flex: 1;
-}
-
-.color-swatch {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-pill);
-  border: 1px solid oklch(0 0 0 / 0.1);
-  flex-shrink: 0;
-}
-
 /* ---------- Segmentierte Auswahl (ersetzt rohe fieldset/legend/Radio-Optik) ---------- */
 /* Sechs Stellen im Projekt (Timer-Dauer, Quiz-Assistent ×3, KI-Anbieter,
    Erscheinungsbild-Theme, Schwierigkeits-Feedback, Prüfungsformat) nutzten
@@ -554,7 +536,7 @@ fieldset.segmented-fieldset {
 
 fieldset.segmented-fieldset > legend {
   padding: 0;
-  font-size: 12px;
+  font-size: var(--text-label);
   font-weight: 550;
   color: var(--color-muted);
 }
@@ -578,7 +560,7 @@ fieldset.segmented-fieldset > legend {
   gap: 6px;
   padding: 6px 12px;
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: var(--text-ui);
   font-weight: 500;
   color: var(--color-ink);
   cursor: pointer;
@@ -663,7 +645,7 @@ fieldset.segmented-fieldset > legend {
 }
 
 .palette-picker-label {
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 500;
   color: var(--color-muted);
   text-align: center;
@@ -751,7 +733,7 @@ section[aria-label] ul.document-list > li.document-list-item {
   border: none;
   background: transparent;
   color: var(--color-ink);
-  font-size: 13px;
+  font-size: var(--text-ui);
   font-weight: 550;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -811,7 +793,7 @@ section[aria-label] ul.document-list > li.document-list-item {
    `--color-muted` gebracht (`::marker`, breit unterstützt). */
 .course-management summary {
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-ui);
   font-weight: 600;
   color: var(--color-muted);
   padding: var(--space-2xs) 0;
@@ -863,7 +845,7 @@ section[aria-label] ul.document-list > li.document-list-item {
 }
 
 .field-row > span:first-child {
-  font-size: 13px;
+  font-size: var(--text-ui);
   color: var(--color-ink);
 }
 
@@ -873,7 +855,7 @@ section[aria-label] ul.document-list > li.document-list-item {
   align-items: center;
   gap: var(--space-2xs);
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: var(--text-label);
   flex-shrink: 0;
 }
 
@@ -897,7 +879,7 @@ section[aria-label] ul.document-list > li.document-list-item {
   gap: var(--space-sm);
   min-height: 220px;
   color: var(--color-muted);
-  font-size: 14px;
+  font-size: var(--text-body);
   text-align: center;
   max-width: 44ch;
   margin: 0 auto;
@@ -910,7 +892,7 @@ section[aria-label] ul.document-list > li.document-list-item {
    zentriert und zurückhaltend statt linksbündigem Fließtext. */
 .empty-state-inline {
   color: var(--color-muted);
-  font-size: 14px;
+  font-size: var(--text-body);
   text-align: center;
   padding: var(--space-lg) 0;
 }
@@ -918,7 +900,7 @@ section[aria-label] ul.document-list > li.document-list-item {
 /* ---------- Buttons ---------- */
 
 button {
-  font-size: 13px;
+  font-size: var(--text-ui);
   font-weight: 550;
   padding: 6px var(--space-md);
   border-radius: var(--radius-sm);
@@ -1008,7 +990,7 @@ button:disabled {
   border-bottom: 1px solid var(--color-border);
   border-radius: 0;
   background: none;
-  font-size: 15px;
+  font-size: var(--text-title);
   padding: var(--space-md);
 }
 
@@ -1024,7 +1006,7 @@ button:disabled {
 .quick-search-empty {
   padding: var(--space-md);
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: var(--text-ui);
   text-align: center;
 }
 
@@ -1038,7 +1020,7 @@ button:disabled {
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-ink);
-  font-size: 13px;
+  font-size: var(--text-ui);
   text-align: left;
   cursor: pointer;
 }
@@ -1050,7 +1032,7 @@ button:disabled {
 
 .quick-search-result-kind {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -1075,7 +1057,7 @@ button:disabled {
   margin-left: auto;
   padding-left: var(--space-sm);
   color: var(--color-muted);
-  font-size: 12px;
+  font-size: var(--text-label);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1103,7 +1085,7 @@ button:disabled {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  font-size: 13px;
+  font-size: var(--text-ui);
 }
 
 .update-banner-actions {
@@ -1140,7 +1122,7 @@ button:disabled {
 /* ---------- Quiz-Assistent (ui/QuizSetup.tsx) ---------- */
 
 .quiz-wizard-progress {
-  font-size: 12px;
+  font-size: var(--text-label);
   font-weight: 550;
   color: var(--color-muted);
 }
@@ -1188,7 +1170,7 @@ button:disabled {
    erklärt). Gedämpft statt normaler Fließtext-Farbe — es ist eine
    Erklärung, kein Teil des eigentlichen Planinhalts. */
 .plan-preview-hint {
-  font-size: 12px;
+  font-size: var(--text-label);
   color: var(--color-muted);
   max-width: 60ch;
 }

@@ -61,6 +61,20 @@
   --space-xl: 32px;
   --space-2xl: 48px;
 
+  /* Schriftgrößen-Skala — sechs Stufen, siehe DESIGN.md §3. Vor v0.29.0
+     als rohe px über global.css verstreut (u. a. Zwischengrößen 11/13/
+     15px neben den nominell „vier" Stufen — die Impeccable-Kritik
+     v0.28.0 hat die Drift zwischen DESIGN.md und Code als Minor-Befund
+     markiert). Jetzt als Token, DESIGN.md an den tatsächlichen Gebrauch
+     angeglichen; die frühere 15px-Sondergröße (App-Marke, Toolbar-Titel,
+     Schnellsuche-Feld) ist auf --text-title zusammengeführt. */
+  --text-headline: 22px;
+  --text-title: 16px;
+  --text-body: 14px;
+  --text-ui: 13px;
+  --text-label: 12px;
+  --text-caption: 11px;
+
   --shadow-sm: 0 1px 2px oklch(0.26 0.02 50 / 0.08), 0 1px 1px oklch(0.26 0.02 50 / 0.05);
   --shadow-md: 0 4px 16px oklch(0.26 0.02 50 / 0.1), 0 1px 3px oklch(0.26 0.02 50 / 0.07);
   --shadow-lg: 0 12px 32px oklch(0.26 0.02 50 / 0.16), 0 2px 8px oklch(0.26 0.02 50 / 0.09);
