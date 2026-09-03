@@ -15,6 +15,14 @@ function noop() {
   }
 }
 
+// Seit v0.29.0 sind die drei Bereiche in Reiter aufgeteilt (Impeccable-P1).
+// "Wochenmuster" ist der Standardreiter; für die anderen beiden muss der
+// Test den Reiter erst öffnen, sonst liegt sein Inhalt in einem `hidden`
+// Panel und `getByRole` findet die Bedienelemente nicht.
+async function openTab(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(screen.getByRole('tab', { name }))
+}
+
 describe('AvailabilitySetup', () => {
   it('zeigt 0 Minuten für einen Wochentag ohne Eintrag', () => {
     render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} />)
@@ -34,11 +42,15 @@ describe('AvailabilitySetup', () => {
     expect(onSetPatternMinutes).toHaveBeenCalledWith(1, 120)
   })
 
-  it('listet bestehende Ausnahmen', () => {
+  it('listet bestehende Ausnahmen', async () => {
+    const user = userEvent.setup()
     const exceptions: AvailabilityException[] = [{ date: '2026-08-03', minutes: 30, note: 'Zahnarzt' }]
     render(<AvailabilitySetup pattern={[]} exceptions={exceptions} {...noop()} />)
-    expect(screen.getByText(/2026-08-03/)).toBeInTheDocument()
-    expect(screen.getByText(/Zahnarzt/)).toBeInTheDocument()
+
+    await openTab(user, 'Abweichende Tage')
+
+    expect(screen.getByText(/2026-08-03/)).toBeVisible()
+    expect(screen.getByText(/Zahnarzt/)).toBeVisible()
   })
 
   it('fügt eine neue Ausnahme hinzu', async () => {
@@ -46,6 +58,7 @@ describe('AvailabilitySetup', () => {
     const onAddException = vi.fn()
     render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddException={onAddException} />)
 
+    await openTab(user, 'Abweichende Tage')
     await user.type(screen.getByLabelText('Datum'), '2026-08-03')
     await user.type(screen.getByLabelText('Minuten'), '30')
     await user.type(screen.getByLabelText('Notiz'), 'Zahnarzt')
@@ -59,6 +72,7 @@ describe('AvailabilitySetup', () => {
     const onAddException = vi.fn()
     render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddException={onAddException} />)
 
+    await openTab(user, 'Abweichende Tage')
     await user.type(screen.getByLabelText('Datum'), '2026-08-03')
     await user.click(screen.getByRole('button', { name: 'Tag zur Auswahl hinzufügen' }))
     await user.type(screen.getByLabelText('Datum'), '2026-08-05')
@@ -81,6 +95,7 @@ describe('AvailabilitySetup', () => {
     const onAddException = vi.fn()
     render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddException={onAddException} />)
 
+    await openTab(user, 'Abweichende Tage')
     await user.type(screen.getByLabelText('Datum'), '2026-08-03')
     await user.click(screen.getByRole('button', { name: 'Tag zur Auswahl hinzufügen' }))
     await user.type(screen.getByLabelText('Datum'), '2026-08-05')
@@ -99,26 +114,43 @@ describe('AvailabilitySetup', () => {
     const onRemoveException = vi.fn()
     render(<AvailabilitySetup pattern={[]} exceptions={exceptions} {...noop()} onRemoveException={onRemoveException} />)
 
+    await openTab(user, 'Abweichende Tage')
     await user.click(screen.getByRole('button', { name: 'Ausnahme am 2026-08-03 entfernen' }))
     expect(onRemoveException).toHaveBeenCalledWith('2026-08-03')
   })
 
+  it('teilt die Bereiche in Reiter auf und wechselt beim Klick', async () => {
+    const user = userEvent.setup()
+    render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} />)
+
+    expect(screen.getByRole('tab', { name: 'Wochenmuster' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText(/Montag/)).toBeVisible()
+
+    await openTab(user, 'Wiederkehrende Blocker')
+
+    expect(screen.getByRole('tab', { name: 'Wiederkehrende Blocker' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('Bezeichnung')).toBeVisible()
+    expect(screen.getByLabelText(/Montag/)).not.toBeVisible()
+  })
+
   describe('Wiederkehrende Blocker', () => {
-    it('listet bestehende wiederkehrende Blocker mit Wochentag, Uhrzeit und Bezeichnung', () => {
+    it('listet bestehende wiederkehrende Blocker mit Wochentag, Uhrzeit und Bezeichnung', async () => {
+      const user = userEvent.setup()
       const recurringBlockers: RecurringBlocker[] = [
         { id: 1, weekday: 1, starts_at: '12:00', ends_at: '13:00', label: 'Mittagspause' },
       ]
       render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} recurringBlockers={recurringBlockers} />)
-      expect(screen.getByText(/Montag, 12:00–13:00: Mittagspause/)).toBeInTheDocument()
+
+      await openTab(user, 'Wiederkehrende Blocker')
+      expect(screen.getByText(/Montag, 12:00–13:00: Mittagspause/)).toBeVisible()
     })
 
     it('fügt einen neuen wiederkehrenden Blocker mit den Formularwerten hinzu', async () => {
       const user = userEvent.setup()
       const onAddRecurringBlocker = vi.fn()
-      render(
-        <AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddRecurringBlocker={onAddRecurringBlocker} />,
-      )
+      render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddRecurringBlocker={onAddRecurringBlocker} />)
 
+      await openTab(user, 'Wiederkehrende Blocker')
       await user.selectOptions(screen.getByLabelText('Wochentag'), 'Dienstag')
       fireEvent.change(screen.getByLabelText('Von'), { target: { value: '18:00' } })
       fireEvent.change(screen.getByLabelText('Bis'), { target: { value: '19:30' } })
@@ -131,10 +163,9 @@ describe('AvailabilitySetup', () => {
     it('verweigert das Hinzufügen, wenn "Bis" nicht nach "Von" liegt', async () => {
       const user = userEvent.setup()
       const onAddRecurringBlocker = vi.fn()
-      render(
-        <AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddRecurringBlocker={onAddRecurringBlocker} />,
-      )
+      render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddRecurringBlocker={onAddRecurringBlocker} />)
 
+      await openTab(user, 'Wiederkehrende Blocker')
       fireEvent.change(screen.getByLabelText('Von'), { target: { value: '13:00' } })
       fireEvent.change(screen.getByLabelText('Bis'), { target: { value: '12:00' } })
       await user.type(screen.getByLabelText('Bezeichnung'), 'Ungültig')
@@ -147,10 +178,9 @@ describe('AvailabilitySetup', () => {
     it('verweigert das Hinzufügen ohne Bezeichnung', async () => {
       const user = userEvent.setup()
       const onAddRecurringBlocker = vi.fn()
-      render(
-        <AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddRecurringBlocker={onAddRecurringBlocker} />,
-      )
+      render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddRecurringBlocker={onAddRecurringBlocker} />)
 
+      await openTab(user, 'Wiederkehrende Blocker')
       await user.click(screen.getByRole('button', { name: 'Blocker hinzufügen' }))
       expect(onAddRecurringBlocker).not.toHaveBeenCalled()
     })
@@ -171,6 +201,7 @@ describe('AvailabilitySetup', () => {
         />,
       )
 
+      await openTab(user, 'Wiederkehrende Blocker')
       await user.click(screen.getByRole('button', { name: 'Blocker "Abendessen" entfernen' }))
       expect(onRemoveRecurringBlocker).toHaveBeenCalledWith(5)
     })
