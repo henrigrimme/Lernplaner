@@ -129,7 +129,12 @@ Navigation und Badges einnehmen.
   System-Rotton liegt bewusst näher am reinen Rot (Hue 20°) als das
   Terrakotta-Primär (Hue 45°), damit eine Fehlermeldung nie wie ein
   Primär-Button aussieht. Noch nicht breit im Code verwendet — für künftige
-  Status-Badges reserviert (z. B. Kapazitäts-Defizitwarnung).
+  Status-Badges reserviert (z. B. Kapazitäts-Defizitwarnung). **Wenn diese
+  Farben eingeführt werden:** nie als einziges Unterscheidungsmerkmal
+  verwenden (Design Guideline — Accessibility: „Convey information with
+  more than color alone" — Rot-Grün-Blindheit betrifft genau Grün/Amber/Rot
+  hier). Ein Status-Badge braucht zusätzlich Form, Icon oder Text, nicht nur
+  die Farbfläche.
 
 ### Neutral
 - **Warm Paper** (`oklch(0.97 0.014 75)`): Haupt-Inhaltsfläche. Trägt
@@ -150,6 +155,40 @@ Bg auf ein warmes Dunkelbraun (`oklch(0.19 0.012 50)`, nicht neutrales
 Schwarz), Primary/Accent leicht aufgehellt für Lesbarkeit auf dunklem
 Grund — keine separate Umschaltung, die App folgt der macOS-Systemeinstellung
 wie jede native App.
+
+### Wählbare Akzent-Paletten (Kontrast-Verifikation)
+Fünf wählbare `--color-primary`-Paletten (`ui/AppearanceSetting.tsx`,
+`tokens.css` `[data-palette]`): Terrakotta (Standard), British Racing
+Green, NATO Olive, Petrol, Bordeaux. Jede Palette hält `--color-primary-ink`
+bewusst fest auf dem hellen Wert (`oklch(0.99 0.006 75)`), unabhängig vom
+Hell-/Dunkel-Modus — die vier Alternativpaletten sind selbst dunkel genug,
+dass helle Schrift darauf in beiden Theme-Modi funktioniert (Kontrast
+zwischen Text und Button-Fläche ist unabhängig vom Seitenhintergrund).
+
+Gegen WCAG 4.5:1 (Fließtext-Minimum, Design Guideline — Accessibility)
+geprüft, Button-/Nav-Text gegen `--color-primary`-Fläche (2026-09-03,
+Design-Review mit dem `apple-design`-Skill, per OKLCH→linear-sRGB-Konvertierung
+nach Ottosson und WCAG-Relativluminanz nachgerechnet):
+
+| Palette | Kontrast (Text auf Fläche) |
+|---|---|
+| British Racing Green | 10.19:1 |
+| Bordeaux | 8.80:1 |
+| NATO Olive | 6.56:1 |
+| Petrol | 5.63:1 |
+| **Terrakotta (Standard, Hell-Modus)** | **3.43:1 — unter dem 4.5:1-Minimum** |
+| Terrakotta (Standard, Dunkel-Modus) | 5.34:1 |
+
+Die vier Alternativpaletten bestehen den Test komfortabel. Die
+Standard-Akzentfarbe selbst (`oklch(0.64 0.13 45)`) unterschreitet im
+Hell-Modus das 4.5:1-Minimum für Text unter 18pt — betrifft jeden
+`type="submit"`-Button und den aktiven Sidebar-Eintrag im Standardzustand
+der App. Der Hover-Zustand (`oklch(0.58 0.14 45)`) liegt mit 4.40:1 knapp
+darunter. Da dies die dokumentierte Markenfarbe der App ist (an das
+Claude-Markenorange angelehnt, expliziter Nutzerwunsch), wurde der Wert
+hier bewusst nicht automatisch geändert — eine Anpassung auf etwa
+`oklch(0.57 0.13 45)` (≈ 4.57:1) ist möglich, verändert aber sichtbar den
+Terrakotta-Ton und sollte vor der Umsetzung bestätigt werden.
 
 ### Named Rules
 **The One Accent Rule.** Kraft Terracotta erscheint nur auf
@@ -207,7 +246,17 @@ zusätzlichen Schatten) und punktuellem Zustands-Feedback (Button-Press via
   Sidebar, sehr dezent.
 - **md** (`0 4px 16px oklch(0.26 0.02 50 / 0.1)`): reserviert für
   zukünftige Overlays/Popover.
-- **lg** (`0 12px 32px oklch(0.26 0.02 50 / 0.16)`): reserviert für Modals.
+- **lg** (`0 12px 32px oklch(0.26 0.02 50 / 0.16)`): `ui/ConfirmDialog.tsx`,
+  `QuickSearch.tsx` (Glas-Overlays).
+- **Innen-Vertiefung** (`inset 0 1px 2px oklch(0.26 0.02 50 / 0.08)`),
+  seit Design-Review 2026-09-03 (`apple-design`-Skill): `.tab-strip`,
+  `.segmented-options` — kein Widerspruch zur „kein Schatten-Vokabular
+  für Tiefe"-Regel oben, die gilt für gruppierte Listen/Karten
+  (Content-Ebene). Segmentierte Steuerelemente sind funktionale
+  Auswahl-Widgets, keine Karten, und tragen als einzige zusätzlich einen
+  1px-Glanz-Highlight (`inset 0 1px 0 oklch(1 0 0 / 0.25)`) auf der
+  jeweils aktiven Pille — dieselbe Idee wie `--glass-highlight`, hier
+  als eigener, nicht-transparenter Wert.
 
 ### Named Rules
 **The Glass-Not-Shadow Rule.** Sidebar und Toolbar erzeugen ihre Trennung
@@ -239,6 +288,11 @@ vom Inhalt über `backdrop-filter: blur(20px) saturate(1.8)` plus einen
   (siehe Elevation).
 - **Border:** 1px Hairline.
 - **Internal Padding:** 16px (`--space-md`).
+- **Row Hover** (gruppierte Listen, seit Design-Review 2026-09-03): jede
+  Zeile hellt sich beim Überfahren leicht ab
+  (`oklch(from var(--color-ink) l c h / 0.06)`, dieselbe Tönung wie
+  Sidebar-/Reiter-Hover) — die meisten Zeilen tragen Bearbeiten-/
+  Löschen-Buttons, waren aber bisher komplett statisch.
 
 ### Inputs / Fields
 - **Style:** Warm-Paper-Fläche (Kontrast zur Warm-Sand-Formularfläche
@@ -255,6 +309,17 @@ einem runden 20px-Swatch links neben dem Dropdown als Live-Vorschau. Jede
 Farboption ist deutlich von Kraft Terracotta (dem App-Akzent selbst)
 unterscheidbar, damit eine Fach-Farbe nie mit der App-Akzentfarbe
 verwechselt wird.
+
+### Bestätigungs-Dialog
+`ui/ConfirmDialog.tsx` — ersetzt seit dem Design-Review 2026-09-03
+(`apple-design`-Skill) `window.confirm` für destruktive Aktionen (Fach/
+Ordner/Prüfung/Teilschritt/Plan-Neuübernahme löschen bzw. überschreiben).
+Gleiches Backdrop-/Glas-Panel-Muster wie die Schnellsuche (`role="dialog"`
+dort, hier `role="alertdialog"`, weil eine Antwort verlangt wird), 14px
+Radius, `--shadow-lg`. Fokus liegt standardmäßig auf „Abbrechen", nicht der
+destruktiven Aktion. Bestätigen-Button trägt System-Rot
+(`--color-danger`), nicht Kraft Terracotta — eine destruktive Bestätigung
+ist keine Primäraktion im Sinne der „One Accent Rule".
 
 ### Navigation (Sidebar)
 - **Style:** Glas-Fläche über der gesamten Fensterhöhe, 260px breit. Jeder
@@ -286,6 +351,13 @@ mehreren „aktueller Zustand"-Stellen, nicht eine zweite Akzentfarbe).
 Alle drei Panels bleiben über `hidden` im DOM (kein bedingtes Unmounten),
 damit ein Reiterwechsel keinen offenen Formularzustand verwirft.
 
+Der Behälter trägt seit dem Design-Review 2026-09-03 zusätzlich eine
+dezente Innen-Vertiefung (siehe Elevation, „Innen-Vertiefung"), die
+aktive Pille einen 1px-Glanz-Highlight, und jede Pille dasselbe
+Druck-Feedback wie ein Button (`transform: scale(0.97)` bei `:active`) —
+näher am nativen macOS-Segmented-Control (System Settings, Safari-Tab-
+Gruppen), das nie ganz flach ist.
+
 Darüber, in einem eigenen `<details>`-Element (`.course-management`,
 natives Aufklappen statt selbstgebautem Akkordeon), bleibt die
 Fach-/Ordner-Verwaltung erreichbar — eingeklappt, sobald ein Fach gewählt
@@ -309,6 +381,11 @@ Blick bekommt.
   Web-Fonts laden.
 - **Do** Fach-Farben über das kuratierte `COURSE_COLORS`-Dropdown wählen
   lassen, nie über freie Hex-Eingabe.
+- **Do** destruktive Aktionen über `ui/ConfirmDialog.tsx` bestätigen lassen,
+  nie über `window.confirm` (bricht aus dem Glas-/Warm-Designsystem aus).
+- **Do**, sobald System Green/Amber/Rot für Status-Badges verwendet werden,
+  zusätzlich Form/Icon/Text zur Unterscheidung nutzen — nie Farbe allein
+  (Design Guideline — Accessibility).
 
 ### Don't:
 - **Don't** ein generisches SaaS-Dashboard bauen — keine Indigo/Blau-Paletten,

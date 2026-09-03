@@ -107,28 +107,32 @@ describe('CourseSetup', () => {
     expect(onArchive).toHaveBeenCalledWith(1, true)
   })
 
-  it('löscht ein Fach nach Bestätigung', async () => {
+  it('löscht ein Fach nach Bestätigung im eigenen Dialog', async () => {
     const user = userEvent.setup()
     const courses = [course({ id: 1, name: 'Microeconomics' })]
     const onRemove = vi.fn()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<CourseSetup courses={courses} {...noop()} onRemove={onRemove} />)
 
     const item = screen.getByText('Microeconomics').closest('li')!
     await user.click(within(item).getByRole('button', { name: 'Microeconomics löschen' }))
-    expect(window.confirm).toHaveBeenCalled()
+
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Löschen' }))
     expect(onRemove).toHaveBeenCalledWith(1)
   })
 
-  it('löscht ein Fach nicht, wenn die Bestätigung abgebrochen wird', async () => {
+  it('löscht ein Fach nicht, wenn der Dialog abgebrochen wird', async () => {
     const user = userEvent.setup()
     const courses = [course({ id: 1, name: 'Microeconomics' })]
     const onRemove = vi.fn()
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<CourseSetup courses={courses} {...noop()} onRemove={onRemove} />)
 
     const item = screen.getByText('Microeconomics').closest('li')!
     await user.click(within(item).getByRole('button', { name: 'Microeconomics löschen' }))
+
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
     expect(onRemove).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 })

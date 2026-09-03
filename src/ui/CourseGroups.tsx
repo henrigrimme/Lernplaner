@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { buildCourseGroupTree, ungroupedCourses, type CourseGroupTreeNode } from '../data/courseGroups'
 import type { NewCourseGroupInput } from '../data/courseGroupsRepo'
 import type { Course, CourseGroup } from '../data/schema'
+import { ConfirmDialog } from './ConfirmDialog'
 
 /**
  * Fach-Ordner verwalten (Migration 0005, Nutzerwunsch 2026-07-22: Fächer
@@ -36,6 +37,7 @@ export function CourseGroups({ courseGroups, courses, onAdd, onRename, onMove, o
   const [newParentId, setNewParentId] = useState<number | null>(null)
   const [renamingId, setRenamingId] = useState<number | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<CourseGroup | null>(null)
 
   const tree = buildCourseGroupTree(courseGroups, courses.filter((c) => c.archived === 0))
   const flat = flattenGroups(tree)
@@ -116,19 +118,7 @@ export function CourseGroups({ courseGroups, courses, onAdd, onRename, onMove, o
                   <button type="button" onClick={() => startRename(group)}>
                     Umbenennen
                   </button>
-                  <button
-                    type="button"
-                    aria-label={`Ordner "${group.name}" löschen`}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Ordner "${group.name}" wirklich löschen? Enthaltene Fächer werden nicht gelöscht, landen aber wieder in der obersten Ebene.`,
-                        )
-                      ) {
-                        onRemove(group.id)
-                      }
-                    }}
-                  >
+                  <button type="button" aria-label={`Ordner "${group.name}" löschen`} onClick={() => setPendingDelete(group)}>
                     Löschen
                   </button>
                   {group.courses.length > 0 && (
@@ -191,6 +181,18 @@ export function CourseGroups({ courseGroups, courses, onAdd, onRename, onMove, o
             ))}
           </ul>
         </>
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Ordner löschen"
+          message={`Ordner "${pendingDelete.name}" wirklich löschen? Enthaltene Fächer werden nicht gelöscht, landen aber wieder in der obersten Ebene.`}
+          onConfirm={() => {
+            onRemove(pendingDelete.id)
+            setPendingDelete(null)
+          }}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
     </section>
   )

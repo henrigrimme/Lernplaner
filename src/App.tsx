@@ -76,6 +76,7 @@ import { insertReview, loadReviews } from './data/reviewsRepo'
 import { scheduleReview, type Grade } from './domain/spacedRepetition'
 import { ReviewSession } from './ui/ReviewSession'
 import { ErrorHistory } from './ui/ErrorHistory'
+import { ConfirmDialog } from './ui/ConfirmDialog'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationContent, type NotificationKind } from './domain/notifications'
 import { ensureNotificationPermission, showNotification } from './platform/notifications'
@@ -184,7 +185,7 @@ function readStoredPalette(): PalettePreference {
  */
 function renderSidebarCourseTree(
   nodes: CourseGroupTreeNode[],
-  selectedCourseId: number | null,
+  activeCourseId: number | null,
   onSelectCourse: (id: number) => void,
   depth = 0,
 ): ReactNode[] {
@@ -198,14 +199,14 @@ function renderSidebarCourseTree(
         type="button"
         className="app-nav-item"
         style={{ paddingLeft: 12 + (depth + 1) * 12 }}
-        aria-current={selectedCourseId === c.id ? 'page' : undefined}
+        aria-current={activeCourseId === c.id ? 'page' : undefined}
         onClick={() => onSelectCourse(c.id)}
         title={c.name}
       >
         <span className="app-nav-item-label">{c.name}</span>
       </button>
     )),
-    ...renderSidebarCourseTree(node.children, selectedCourseId, onSelectCourse, depth + 1),
+    ...renderSidebarCourseTree(node.children, activeCourseId, onSelectCourse, depth + 1),
   ])
 }
 
@@ -288,6 +289,7 @@ export function App() {
   }
 
   const [searchOpen, setSearchOpen] = useState(false)
+  const [confirmReplan, setConfirmReplan] = useState(false)
 
   // ⌘K/Strg+K öffnet die Schnellsuche von überall in der App (Nutzerwunsch
   // "Volltextsuche über Themen") — dieselbe Tastenkombination wie in
@@ -1359,7 +1361,14 @@ export function App() {
             <div className="app-nav">
               {renderSidebarCourseTree(
                 buildCourseGroupTree(courseGroups, courses.filter((c) => c.archived === 0)),
-                selectedCourseId,
+                // Nur hervorheben, solange auch "Fächer & Themen" der sichtbare
+                // Bereich ist — sonst blieb das zuletzt gewählte Fach orange
+                // markiert, auch nachdem man z. B. zu "Verfügbarkeit" gewechselt
+                // hatte (`selectedCourseId` selbst bleibt bewusst über
+                // Bereichswechsel hinweg gesetzt, siehe `selectCourse`-Kommentar
+                // — nur die Sidebar-Hervorhebung muss den sichtbaren Bereich
+                // widerspiegeln, nicht nur die Auswahl).
+                activeSection === 'faecher' ? selectedCourseId : null,
                 selectCourse,
               )}
               {ungroupedCourses(courses.filter((c) => c.archived === 0)).map((c) => (
@@ -1367,7 +1376,7 @@ export function App() {
                   key={c.id}
                   type="button"
                   className="app-nav-item"
-                  aria-current={selectedCourseId === c.id ? 'page' : undefined}
+                  aria-current={activeSection === 'faecher' && selectedCourseId === c.id ? 'page' : undefined}
                   onClick={() => selectCourse(c.id)}
                   title={c.name}
                 >
@@ -1636,16 +1645,28 @@ export function App() {
                 type="button"
                 className="button-primary"
                 onClick={() => {
-                  if (
-                    studyBlocks.length === 0 ||
-                    window.confirm('Plan wirklich neu übernehmen? Der bisherige Fortschritt für heute geht dabei verloren.')
-                  ) {
+                  if (studyBlocks.length === 0) {
                     generateStudyBlocks()
+                  } else {
+                    setConfirmReplan(true)
                   }
                 }}
               >
                 {studyBlocks.length === 0 ? 'Plan übernehmen' : 'Plan neu übernehmen (überschreibt heutigen Fortschritt)'}
               </button>
+
+              {confirmReplan && (
+                <ConfirmDialog
+                  title="Plan neu übernehmen"
+                  message="Plan wirklich neu übernehmen? Der bisherige Fortschritt für heute geht dabei verloren."
+                  confirmLabel="Neu übernehmen"
+                  onConfirm={() => {
+                    generateStudyBlocks()
+                    setConfirmReplan(false)
+                  }}
+                  onCancel={() => setConfirmReplan(false)}
+                />
+              )}
             </div>
 
             <ReplanView

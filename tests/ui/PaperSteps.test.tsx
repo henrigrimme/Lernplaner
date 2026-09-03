@@ -102,29 +102,34 @@ describe('PaperSteps', () => {
     expect(onUpdate).toHaveBeenCalledWith(10, { status: 'erledigt' })
   })
 
-  it('löscht einen Teilschritt nach Bestätigung', async () => {
+  it('löscht einen Teilschritt nach Bestätigung im eigenen Dialog', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn()
     const assessments = [assessment({ id: 1, title: 'Mein Paper' })]
     const steps = [step({ id: 10, assessment_id: 1, title: 'Literaturrecherche' })]
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<PaperSteps course={COURSE} assessments={assessments} steps={steps} {...noop()} onRemove={onRemove} />)
 
     const item = screen.getByText('Literaturrecherche').closest('li')!
     await user.click(within(item).getByRole('button', { name: 'Schritt "Literaturrecherche" löschen' }))
+
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Löschen' }))
     expect(onRemove).toHaveBeenCalledWith(10)
   })
 
-  it('löscht einen Teilschritt nicht, wenn die Bestätigung abgebrochen wird', async () => {
+  it('löscht einen Teilschritt nicht, wenn der Dialog abgebrochen wird', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn()
     const assessments = [assessment({ id: 1, title: 'Mein Paper' })]
     const steps = [step({ id: 10, assessment_id: 1, title: 'Literaturrecherche' })]
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<PaperSteps course={COURSE} assessments={assessments} steps={steps} {...noop()} onRemove={onRemove} />)
 
     const item = screen.getByText('Literaturrecherche').closest('li')!
     await user.click(within(item).getByRole('button', { name: 'Schritt "Literaturrecherche" löschen' }))
+
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }))
     expect(onRemove).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 })

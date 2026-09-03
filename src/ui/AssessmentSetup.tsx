@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { assessmentsByCourse } from '../data/assessments'
 import type { Assessment, AssessmentFormat, AssessmentType, Course } from '../data/schema'
 import type { NewAssessmentInput } from '../data/assessments'
+import { ConfirmDialog } from './ConfirmDialog'
 
 /**
  * Prüfungs-Setup für ein Fach: Klausuren/Paper/Präsentationen anlegen,
@@ -105,6 +106,7 @@ function fromDraft(courseId: number, d: DraftAssessment): Omit<Assessment, 'id'>
 export function AssessmentSetup({ course, assessments, onAdd, onUpdate, onRemove }: AssessmentSetupProps) {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [draft, setDraft] = useState<DraftAssessment>(EMPTY_DRAFT)
+  const [pendingDelete, setPendingDelete] = useState<Assessment | null>(null)
 
   const forCourse = assessmentsByCourse(assessments, course.id)
 
@@ -148,13 +150,7 @@ export function AssessmentSetup({ course, assessments, onAdd, onUpdate, onRemove
             <button type="button" onClick={() => startEdit(a)}>
               Bearbeiten
             </button>
-            <button
-              type="button"
-              aria-label={`Prüfung "${a.title}" löschen`}
-              onClick={() => {
-                if (window.confirm(`Prüfung "${a.title}" wirklich löschen?`)) onRemove(a.id)
-              }}
-            >
+            <button type="button" aria-label={`Prüfung "${a.title}" löschen`} onClick={() => setPendingDelete(a)}>
               Löschen
             </button>
           </li>
@@ -237,6 +233,18 @@ export function AssessmentSetup({ course, assessments, onAdd, onUpdate, onRemove
             Abbrechen
           </button>
         </form>
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Prüfung löschen"
+          message={`Prüfung "${pendingDelete.title}" wirklich löschen?`}
+          onConfirm={() => {
+            onRemove(pendingDelete.id)
+            setPendingDelete(null)
+          }}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
     </section>
   )

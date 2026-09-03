@@ -413,6 +413,16 @@ section[aria-label] ul:not(.topic-tree):not(.topic-tree ul) > li {
   align-items: center;
   gap: var(--space-sm);
   flex-wrap: wrap;
+  transition: background var(--duration-fast) var(--ease-out-quart);
+}
+
+/* Dezente Zeilen-Hervorhebung wie in System Settings/Mail/Notizen — die
+   Reihen waren bisher komplett statisch, obwohl fast jede einen
+   Bearbeiten-/Löschen-Button enthält. Gleicher Tönungswert wie
+   Sidebar-/Reiter-Hover (`oklch(from var(--color-ink) l c h / 0.06)"),
+   damit "etwas ist hier interaktiv" app-weit dieselbe Sprache spricht. */
+section[aria-label] ul:not(.topic-tree):not(.topic-tree ul) > li:hover {
+  background: oklch(from var(--color-ink) l c h / 0.06);
 }
 
 section[aria-label] ul:not(.topic-tree):not(.topic-tree ul) > li:last-child {
@@ -549,6 +559,13 @@ fieldset.segmented-fieldset > legend {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  /* Leichte Innen-Vertiefung ("Well"), in die die Pillen eingelassen
+     wirken — macOS-Segmented-Controls (System Settings, Safari-Tab-
+     Gruppen) sind nie ganz flach, sondern tragen genau diese dezente
+     Rille. Keine Verletzung von DESIGN.md „Shadow Strategy: keine" —
+     die gilt für Karten/gruppierte Listen (Abgrenzung über Fläche +
+     Hairline), nicht für Auswahl-Steuerelemente wie dieses. */
+  box-shadow: inset 0 1px 2px oklch(0.26 0.02 50 / 0.08);
 }
 
 .segmented-options > label {
@@ -567,17 +584,31 @@ fieldset.segmented-fieldset > legend {
   text-align: center;
   transition:
     background var(--duration-fast) var(--ease-out-quart),
-    color var(--duration-fast) var(--ease-out-quart);
+    color var(--duration-fast) var(--ease-out-quart),
+    transform var(--duration-fast) var(--ease-out-quart);
 }
 
 .segmented-options > label:hover {
   background: oklch(from var(--color-ink) l c h / 0.06);
 }
 
+/* Druck-Feedback wie jeder `<button>` (`button:active { transform: scale(0.97) }`)
+   — Pillen sind `<label>`, kein `<button>`, hatten dieses Feedback bisher
+   nicht, obwohl sie sich wie ein Steuerelement anfühlen sollen. */
+.segmented-options > label:active {
+  transform: scale(0.97);
+}
+
 .segmented-options > label:has(input:checked) {
   background: var(--color-primary);
   color: var(--color-primary-ink);
   font-weight: 560;
+  /* Dezenter Glanz-Highlight am oberen Rand der aktiven Pille — dieselbe
+     Idee wie `--glass-highlight` auf den Glas-Flächen, hier als
+     eigenständiger, sehr subtiler Wert (keine Glas-Transparenz, nur ein
+     1px-Lichtsaum), weil eine gefüllte Fläche ohne jede Lichtkante flach
+     statt "gedrückt/aktiv" wirkt. */
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.25);
 }
 
 .segmented-options > label:has(input:focus-visible) {
@@ -726,6 +757,10 @@ section[aria-label] ul.document-list > li.document-list-item {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  /* Gleiche Innen-Vertiefung wie `.segmented-options` — dasselbe
+     Steuerelement-Muster (DESIGN.md „Fach-Reiter ... dieselbe 'aktueller
+     Ort'-Sprache"), soll auch dieselbe Materialität tragen. */
+  box-shadow: inset 0 1px 2px oklch(0.26 0.02 50 / 0.08);
 }
 
 .tab-strip-button {
@@ -737,17 +772,24 @@ section[aria-label] ul.document-list > li.document-list-item {
   font-weight: 550;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out-quart);
+  transition:
+    background var(--duration-fast) var(--ease-out-quart),
+    transform var(--duration-fast) var(--ease-out-quart);
 }
 
 .tab-strip-button:hover {
   background: oklch(from var(--color-ink) l c h / 0.06);
 }
 
+.tab-strip-button:active {
+  transform: scale(0.97);
+}
+
 .tab-strip-button[aria-selected='true'] {
   background: var(--color-primary);
   color: var(--color-primary-ink);
   font-weight: 560;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.25);
 }
 
 .tab-panel {
@@ -1066,6 +1108,61 @@ button:disabled {
 .quick-search-result--active .quick-search-result-subtitle {
   color: inherit;
   opacity: 0.75;
+}
+
+/* ---------- Bestätigungs-Dialog (ui/ConfirmDialog.tsx) ---------- */
+/* Ersetzt `window.confirm` für destruktive Aktionen (Design-Review
+   2026-09-03, `apple-design`-Skill) — natives Browser-Dialog bricht aus
+   dem Glas-/Warm-Designsystem aus. Gleiches Backdrop-/Glas-Panel-Muster
+   wie Schnellsuche, gleicher z-index-Layer (kein gleichzeitiges Overlay
+   vorgesehen). */
+
+.confirm-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: oklch(0.1 0.01 50 / 0.35);
+}
+
+.confirm-dialog {
+  width: min(420px, calc(100vw - var(--space-2xl)));
+  padding: var(--space-lg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.confirm-dialog h2 {
+  margin: 0 0 var(--space-xs);
+}
+
+.confirm-dialog p {
+  margin: 0 0 var(--space-lg);
+  color: var(--color-muted);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.confirm-dialog-danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-danger-ink);
+}
+
+.confirm-dialog-danger:hover {
+  background: oklch(from var(--color-danger) calc(l - 0.06) c h);
+  border-color: oklch(from var(--color-danger) calc(l - 0.06) c h);
 }
 
 /* ---------- Update-Banner ---------- */
