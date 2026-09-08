@@ -1328,6 +1328,41 @@ export function App() {
     }
   }
 
+  // Anki-Deck-Import (Nutzerwunsch 2026-09-08): `.apkg`/`.colpkg` einlesen
+  // (`ingest/anki.ts`) und als Themen + Karteikarten unter dem gewählten
+  // Fach ablegen (`data/ankiImport.ts`). Feldnahes Fehler-Feedback über
+  // `importError`/`importInfo` wie beim Dokument-Import — beide
+  // Import-Bibliotheken (`sql.js`, `fzstd`) werden dabei erst per
+  // `import()` nachgeladen.
+  const importAnkiDeck = async (file: File) => {
+    if (selectedCourseId === null) return
+    setImportError(null)
+    setImportInfo(null)
+    try {
+      const data = new Uint8Array(await file.arrayBuffer())
+      const { extractApkg } = await import('./ingest/anki')
+      const deck = await extractApkg(data)
+      if (deck.cards.length === 0) {
+        setImportError(`„${file.name}" enthält keine lesbaren Karten.`)
+        return
+      }
+      const db = await getDb()
+      const { persistAnkiDeck } = await import('./data/ankiImport')
+      const result = await persistAnkiDeck(db, selectedCourseId, deck, topics, new Date().toISOString())
+      setTopics((prev) => [...prev, ...result.topics])
+      setCards((prev) => [...prev, ...result.cards])
+      setReviews((prev) => [...prev, ...result.reviews])
+      const skippedNote = deck.skipped > 0 ? `, ${deck.skipped} übersprungen` : ''
+      setImportInfo(
+        `${result.cards.length} Karteikarte(n) aus „${file.name}" importiert (${result.topics.length} neue(s) Thema/Themen)${skippedNote}.`,
+      )
+    } catch (error) {
+      console.error('Anki-Deck-Import fehlgeschlagen', error)
+      const message = error instanceof Error ? error.message : String(error)
+      setImportError(`„${file.name}" konnte nicht importiert werden: ${message}`)
+    }
+  }
+
   const mainInsetPx = sidebarCollapsed ? 0 : sidebarWidth
 
   return (
@@ -1564,6 +1599,25 @@ export function App() {
                         im gewählten Ordner (ohne Unterordner) verhalten sich wie beim normalen Import oben.
                         Unterstützte Formate: PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), Markdown (.md).
                       </p>
+
+                      <label>
+                        Anki-Deck importieren (.apkg / .colpkg) — jede Karte wird eine Karteikarte, jedes Deck ein Thema
+                        <input
+                          type="file"
+                          accept=".apkg,.colpkg"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            e.target.value = ''
+                            if (file) importAnkiDeck(file)
+                          }}
+                        />
+                      </label>
+                      <p>
+                        Lückentext-Karten (<code>{'{{c1::…}}'}</code>) werden übernommen. Bilder erscheinen vorerst als
+                        Platzhalter „[Bild: …]". Ist eine Karte in Anki schon gelernt, wird ihr Fälligkeitsstand grob
+                        übernommen, damit sie nicht sofort wieder abgefragt wird.
+                      </p>
+
                       {importError && <p role="alert">{importError}</p>}
                       {importInfo && <p role="status">{importInfo}</p>}
                     </section>

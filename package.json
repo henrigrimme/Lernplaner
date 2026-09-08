@@ -25,11 +25,13 @@
     "@tauri-apps/plugin-sql": "^2.4.0",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "fast-xml-parser": "^5.10.1",
+    "fzstd": "^0.1.1",
     "jszip": "^3.10.1",
     "mammoth": "^1.12.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "sql.js": "^1.12.0",
     "ts-fsrs": "^5.4.1"
   },
   "devDependencies": {
@@ -41,6 +43,7 @@
     "@types/node": "^22.10.5",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^4.3.4",
     "better-sqlite3": "^12.11.1",
     "jsdom": "^29.1.1",
