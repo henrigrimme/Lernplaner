@@ -1508,3 +1508,74 @@ button:disabled {
   gap: var(--space-xs);
   margin-top: var(--space-xs);
 }
+
+/* ---------- Sven-Chat (ui/AssistantChat.tsx) ---------- */
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-height: 52vh;
+  overflow-y: auto;
+  padding: var(--space-sm) 0;
+  margin-bottom: var(--space-sm);
+}
+
+.chat-turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  max-width: 80%;
+}
+
+.chat-turn-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.chat-turn-assistant {
+  align-self: flex-start;
+}
+
+.chat-bubble {
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.chat-turn-user .chat-bubble {
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+  border-bottom-right-radius: var(--radius-xs, 4px);
+}
+
+.chat-turn-assistant .chat-bubble {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-bottom-left-radius: var(--radius-xs, 4px);
+}
+
+.chat-proposal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
+  font-size: var(--text-label);
+}
+
+.chat-proposal ul {
+  margin: var(--space-2xs) 0 var(--space-xs);
+  padding-left: 1.4em;
+}
+
+.chat-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.chat-input textarea {
+  width: 100%;
+  resize: vertical;
+}
