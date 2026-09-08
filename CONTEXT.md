@@ -24,10 +24,14 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 3. September 2026, **aktuelle Version: v0.30.0.**
+**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.31.0.**
 Jüngster Stand ganz am Ende von Abschnitt 8:
-- „Apple-/HIG-Designdurchgang aus Parallel-Sitzung gemergt" (v0.30.0, PR
-  #79): Sidebar-Highlight-Fix, `ConfirmDialog` statt `window.confirm`,
+- „Sechs Alltags-Wünsche + Anki-Import" (v0.31.0, PRs #80–83): Verfügbar-
+  keits-Regel + Zeitraum-Ausnahmen (+ P0-Fix `reportDbError`-Rekursion),
+  Fächer-in-Ordner einfacher + Ordner-Symbol in der Seitenleiste,
+  Fortschritt pro Fach, Anki-`.apkg`-Import (Text + Lückentext).
+- davor „Apple-/HIG-Designdurchgang aus Parallel-Sitzung gemergt" (v0.30.0,
+  PR #79): Sidebar-Highlight-Fix, `ConfirmDialog` statt `window.confirm`,
   Reiter/Segmented-Controls poliert, `apple-design`-Skill.
 - davor „Impeccable-Kritik v0.28.0 abgearbeitet" (v0.29.0, PRs #76–78):
   P0 zentrales Fehler-Banner, P1 Verfügbarkeit in drei Reiter, P2 +
@@ -3461,6 +3465,74 @@ Auf Rückfrage als **v0.30.0** gemergt + released.
 
 ---
 
+### Sechs Alltags-Wünsche + Anki-Import (v0.31.0, 08.09.2026)
+
+Nutzer hatte die App genutzt und sechs Punkte geschickt, dazu später den
+Wunsch nach Anki-Integration. Autonom in fünf PRs abgearbeitet, jeweils
+Branch → PR → Squash-Merge, `tsc`/Tests/`vite build`(/`cargo check`) grün
+vor jedem Merge, Browser-Plausi-Check wo ohne echtes Tauri-Fenster möglich
+(DOM-Injektion / dynamischer Modul-Import im Dev-Server).
+
+1. **PR #80 — Verfügbarkeit: Regel + Zeitraum.**
+   - Wochenmuster: neue Zeile „Regel: von [Wochentag] bis [Wochentag] [n]
+     Minuten [Anwenden]" — setzt alle Tage im Bereich auf denselben Wert
+     (ruft nur mehrfach `onSetPatternMinutes`, kein neues Datenmodell).
+   - Abweichende Tage: Umschalter „Einzelner Tag" / „Zeitraum"; im
+     Zeitraum-Modus zwei Datumsfelder (von–bis inklusive) → `onAddException`
+     je Tag. Ersetzt die frühere Chip-Mehrfachauswahl. Bereich > 92 Tage
+     wird abgelehnt.
+   - **Dabei P0-Bug gefunden und behoben:** `reportDbError` (zentraler
+     Fehler-Handler aus PR #76) rief **sich selbst** auf statt
+     `console.error` → Endlosrekursion (`RangeError: Maximum call stack`)
+     bei jedem echten DB-Schreibfehler. Das P0-„zentrales Fehler-Banner"
+     war seit v0.29.0 faktisch wirkungslos. Ein Zeichen Fix; im Browser
+     verifiziert, dass jetzt das Banner erscheint. In normaler
+     Tauri-Nutzung unauffällig (dort gelingt `getDb()`).
+2. **PR #81 — Fächer in Ordner + Sidebar-Symbol.**
+   - Ordner-Zuweisung sitzt jetzt am Fach: „Ordner"-Dropdown je Zeile in
+     `CourseSetup`. `CourseGroups` verwaltet nur noch die Ordner selbst
+     (die „Fächer ohne Ordner"-Zweitliste ist weg); Elternordner-Auswahl
+     nur bei > 1 Ordner.
+   - Seitenleiste: Ordner tragen ein vorangestelltes CSS-Ordnersymbol und
+     eine eigene Zeilenoptik (`.app-nav-group`) statt der
+     `FACH`-Versalüberschrift — klar von den Fach-Einträgen abgesetzt
+     (wie Claude-Projekte).
+3. **PR #82 — Fortschritt pro Fach.** `domain/progress.ts`
+   `computeCourseProgress` — Vorbereitungsgrad über **alle** Lernblöcke
+   des Fachs (nicht nach `assessment_id` gefiltert). Neuer
+   „Pro Fach"-Abschnitt in `ProgressView` mit Balken, „X von Y Themen
+   begonnen", nächstem Schritt; nicht begonnene Fächer explizit als solche
+   markiert. Balkenfüllung neutral (nicht Akzentfarbe, „One Accent Rule").
+4. **PR #83 — Anki-`.apkg`-Import.** Siehe Abschnitt 9 „Anki-Import" für
+   die Einschränkungen. `ingest/anki.ts` `extractApkg` (jszip + sql.js
+   WASM + fzstd, alle dynamisch geladen), `data/ankiImport.ts`
+   `persistAnkiDeck` (Deck → Thema, `::`-Unterdecks → verschachtelte
+   Themen, Karte → Karteikarte, grober FSRS-Startzustand aus `ivl`/`ease`).
+   „Anki-Deck importieren"-Feld im Material-Bereich. `vite.config.ts`
+   kopiert `sql-wasm.wasm` nach `public/` (gitignored). 8 neue Tests bauen
+   mit `better-sqlite3` echte Fixture-`.apkg`s. Im echten Browser
+   verifiziert (WASM aus `/sql-wasm.wasm`, Basis- + Cloze-Karten korrekt).
+   Neue Abhängigkeiten: `sql.js`, `fzstd`, `@types/sql.js`.
+5. **Word/PowerPoint/Excel/Markdown-Import** (Punkt 1 der Nutzerliste)
+   war bereits seit v0.21.0 gebaut — nur CONTEXT.md Abschnitt 9 stand
+   noch auf „nur PDF". Am echten Material aus `4. Semester Kopie/`
+   gegengeprüft (funktioniert), Doku korrigiert.
+
+**Version 0.30.0 → 0.31.0** (chore-Commit auf main), signierter Release.
+
+**Offen / Folgeschritte:**
+- Anki-Bilder als echte Bilder statt `[Bild: …]`-Platzhalter (braucht
+  Karten-HTML-Rendering über `FlashcardReview`/`ReviewSession`/
+  `ErrorHistory` hinweg — bewusst nicht in dieser Runde).
+- `AvailabilitySetup.test.tsx`: die zwei alten „Chip-Mehrfachauswahl"-
+  Tests wurden durch Zeitraum-Tests ersetzt (nicht nur ergänzt).
+- Terrakotta-Kontrast im Hell-Modus 3,43:1 (< WCAG AA) — unverändert
+  offen aus v0.30.0.
+- `@xmldom/xmldom` Moderate-Advisory (transitiv via `mammoth`) — für
+  `npm run security:audit`.
+
+---
+
 ## 9. Bekannte Einschränkungen
 
 - **Kein Backup** — Gerätedefekt bedeutet Totalverlust (bewusst)
@@ -3473,12 +3545,26 @@ Auf Rückfrage als **v0.30.0** gemergt + released.
 - **Kein OCR** — gescannte Dokumente werden nicht unterstützt. Am echten
   Material bestätigt (22.07.2026): `Data & Information Management/Mock
   Exam.pdf` liefert 0 Zeichen auf allen Seiten
-- **Nur PDF, kein Word/Excel/PowerPoint** — bewusste, bestätigte
-  Einschränkung (Abschnitt 3), am echten Material konkret sichtbar
-  geworden (`.docx`/`.xlsx`/`.pptx` in `4. Semester Kopie/`, siehe
-  „Nachtsitzung"-Abschnitt, Ideen-Liste Punkt 1). Ordner-Import meldet
-  seit v0.20.0 wenigstens sichtbar, welche Dateien deswegen übersprungen
-  wurden, statt es stillschweigend zu tun
+- ~~**Nur PDF, kein Word/Excel/PowerPoint**~~ — **aufgehoben seit v0.21.0**
+  (ADR-018, PR #54): `.docx`/`.pptx`/`.xlsx`/`.md` werden deterministisch
+  ohne KI extrahiert (`ingest/documentImport.ts` `extractAnyDocument` →
+  `ingest/docx.ts`/`pptx.ts`/`xlsx.ts`/`markdown.ts`, alle mit eigener
+  Kapitelerkennung, Tests unter `tests/ingest/`). Am echten Material aus
+  `4. Semester Kopie/` gegengeprüft (08.09.2026): Word-Paper,
+  PowerPoint-Case und Excel-Gruppenliste liefern jeweils sinnvolle
+  Themen/Folien. Bleibt außen vor: CSV/HTML und gescannte/bildbasierte
+  Formate (kein OCR, siehe oben)
+- **Anki-Import: Text + Lückentext, keine Bilder/Templates** — seit
+  v0.31.0 (`ingest/anki.ts`) liest der Lernplaner `.apkg`/`.colpkg`
+  (SQLite via sql.js, Zstd via fzstd) und legt je Deck ein Thema, je
+  Karte eine Karteikarte an. Bewusst **kein** vollständiger
+  Anki-Template-Renderer (`{{FrontSide}}`, `{{#Feld}}` …) — eine
+  Heuristik (Feld 1 = Vorderseite, Rest = Rückseite; Lückentext je
+  Ordinal). Bilder erscheinen als `[Bild: name]`-Platzhalter, echtes
+  Medien-Rendering ist ein Folgeschritt (bräuchte eine gemeinsame
+  Karten-HTML-Render-Entscheidung über `FlashcardReview`/`ReviewSession`/
+  `ErrorHistory`). Der aus Anki übernommene FSRS-Startzustand ist eine
+  grobe Schätzung aus `ivl`/`ease`, kein exakter Übertrag
 
 ---
 
