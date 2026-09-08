@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
 import { AppSidebar, DEFAULT_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from './ui/AppSidebar'
 import { TopicTree } from './ui/TopicTree'
 import { CourseSetup } from './ui/CourseSetup'
@@ -40,15 +39,9 @@ import {
   updateCourseGroupRow,
   type NewCourseGroupInput,
 } from './data/courseGroupsRepo'
-import {
-  buildCourseGroupTree,
-  deleteCourseGroup,
-  moveCourseGroup,
-  renameCourseGroup,
-  ungroupedCourses,
-  type CourseGroupTreeNode,
-} from './data/courseGroups'
+import { deleteCourseGroup, moveCourseGroup, renameCourseGroup } from './data/courseGroups'
 import { CourseGroups } from './ui/CourseGroups'
+import { SidebarCourseTree } from './ui/SidebarCourseTree'
 import { CourseWorkspace } from './ui/CourseWorkspace'
 import { CourseInstructions } from './ui/CourseInstructions'
 import { QuickSearch } from './ui/QuickSearch'
@@ -169,49 +162,6 @@ function readStoredTheme(): ThemePreference {
 function readStoredPalette(): PalettePreference {
   const stored = window.localStorage.getItem(PALETTE_STORAGE_KEY)
   return PALETTE_OPTIONS.some((opt) => opt.value === stored) ? (stored as PalettePreference) : 'terrakotta'
-}
-
-/**
- * Rendert den Fach-Ordner-Baum (Migration 0005) in der Seitenleiste —
- * Ordner als reine, nicht klickbare Zwischenüberschriften (`app-nav-group`
- * mit vorangestelltem Ordner-Symbol, wie bei Claude-Projekten; eingerückt
- * je Tiefe), Fächer darunter wie bisher als `app-nav-item`. Das Symbol
- * (Nutzerwunsch 2026-09-08) unterscheidet Ordner optisch klar von den
- * Fach-Einträgen darunter, die vorher fast gleich aussahen.
- * Modulweite Funktion statt Komponenteninterna, weil sie keinen eigenen
- * Zustand braucht — nur `selectedCourseId`/`onSelectCourse` von `App()`
- * durchreicht. `onSelectCourse` (statt nur `setSelectedCourseId`) fasst
- * bewusst auch den Wechsel von `activeSection` mit ein (siehe `App()`,
- * Fehlerbericht: ein Klick auf ein Fach landete sonst "unsichtbar" unter
- * dem zuvor aktiven Seitenleisten-Bereich, weil nur die Auswahl, nicht
- * aber der sichtbare Bereich wechselte).
- */
-function renderSidebarCourseTree(
-  nodes: CourseGroupTreeNode[],
-  activeCourseId: number | null,
-  onSelectCourse: (id: number) => void,
-  depth = 0,
-): ReactNode[] {
-  return nodes.flatMap((node) => [
-    <div key={`group-${node.id}`} className="app-nav-group" style={{ paddingLeft: 12 + depth * 12 }}>
-      <span className="app-nav-group-icon" aria-hidden="true" />
-      <span className="app-nav-group-name">{node.name}</span>
-    </div>,
-    ...node.courses.map((c) => (
-      <button
-        key={`course-${c.id}`}
-        type="button"
-        className="app-nav-item"
-        style={{ paddingLeft: 12 + (depth + 1) * 12 }}
-        aria-current={activeCourseId === c.id ? 'page' : undefined}
-        onClick={() => onSelectCourse(c.id)}
-        title={c.name}
-      >
-        <span className="app-nav-item-label">{c.name}</span>
-      </button>
-    )),
-    ...renderSidebarCourseTree(node.children, activeCourseId, onSelectCourse, depth + 1),
-  ])
 }
 
 const NAV_ITEMS: { key: NavSection; label: string }[] = [
@@ -1397,32 +1347,17 @@ export function App() {
         {courses.length > 0 && (
           <div>
             <div className="app-nav-label">Fach</div>
-            <div className="app-nav">
-              {renderSidebarCourseTree(
-                buildCourseGroupTree(courseGroups, courses.filter((c) => c.archived === 0)),
-                // Nur hervorheben, solange auch "Fächer & Themen" der sichtbare
-                // Bereich ist — sonst blieb das zuletzt gewählte Fach orange
-                // markiert, auch nachdem man z. B. zu "Verfügbarkeit" gewechselt
-                // hatte (`selectedCourseId` selbst bleibt bewusst über
-                // Bereichswechsel hinweg gesetzt, siehe `selectCourse`-Kommentar
-                // — nur die Sidebar-Hervorhebung muss den sichtbaren Bereich
-                // widerspiegeln, nicht nur die Auswahl).
-                activeSection === 'faecher' ? selectedCourseId : null,
-                selectCourse,
-              )}
-              {ungroupedCourses(courses.filter((c) => c.archived === 0)).map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="app-nav-item"
-                  aria-current={activeSection === 'faecher' && selectedCourseId === c.id ? 'page' : undefined}
-                  onClick={() => selectCourse(c.id)}
-                  title={c.name}
-                >
-                  <span className="app-nav-item-label">{c.name}</span>
-                </button>
-              ))}
-            </div>
+            {/* Fach nur hervorheben, solange auch "Fächer & Themen" der
+                sichtbare Bereich ist — sonst blieb das zuletzt gewählte Fach
+                orange markiert, auch nach einem Wechsel z. B. zu
+                "Verfügbarkeit" (`selectedCourseId` bleibt bewusst über
+                Bereichswechsel gesetzt, siehe `selectCourse`). */}
+            <SidebarCourseTree
+              courseGroups={courseGroups}
+              courses={courses}
+              activeCourseId={activeSection === 'faecher' ? selectedCourseId : null}
+              onSelectCourse={selectCourse}
+            />
           </div>
         )}
       </AppSidebar>

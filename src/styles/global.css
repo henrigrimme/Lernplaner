@@ -305,11 +305,40 @@ p {
   display: flex;
   align-items: center;
   gap: var(--space-2xs);
+  width: 100%;
+  min-width: 0;
   padding: 6px var(--space-sm) var(--space-2xs);
+  border: none;
+  background: transparent;
+  font: inherit;
   font-size: var(--text-ui);
   font-weight: 600;
   color: var(--color-muted);
-  min-width: 0;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out-quart);
+}
+
+.app-nav-group:hover {
+  background: oklch(from var(--color-ink) l c h / 0.06);
+}
+
+/* Aufklapp-Dreieck vor dem Ordner — reines CSS (kein Icon-Set, wie die
+   übrigen `app-*`-Symbole). Zeigt nach unten (offen); eingeklappt um 90°
+   nach rechts gedreht. */
+.app-nav-group-caret {
+  flex-shrink: 0;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  transition: transform var(--duration-fast) var(--ease-out-quart);
+}
+
+.app-nav-group-caret.is-collapsed {
+  transform: rotate(-90deg);
 }
 
 .app-nav-group-name {
