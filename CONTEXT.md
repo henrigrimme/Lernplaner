@@ -24,12 +24,18 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.31.0.**
+**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.32.0.**
 Jüngster Stand ganz am Ende von Abschnitt 8:
-- „Sechs Alltags-Wünsche + Anki-Import" (v0.31.0, PRs #80–83): Verfügbar-
-  keits-Regel + Zeitraum-Ausnahmen (+ P0-Fix `reportDbError`-Rekursion),
-  Fächer-in-Ordner einfacher + Ordner-Symbol in der Seitenleiste,
-  Fortschritt pro Fach, Anki-`.apkg`-Import (Text + Lückentext).
+- „Anki-Rich-Karten, Ordner ein-/ausklappbar, WCAG-Kontrast" (v0.32.0,
+  PRs #84–86): Anki-Bilder als `data:`-URIs + Vorlagen-Konditionale +
+  Karten als sanitisiertes HTML, Sidebar-Ordner ein-/ausklappbar,
+  Terrakotta-Akzent auf WCAG AA, `@xmldom/xmldom`-Advisory behoben.
+  **Offen:** KI-Chat-Feld (Nutzerwunsch, Umfang noch zu klären).
+- davor „Sechs Alltags-Wünsche + Anki-Import" (v0.31.0, PRs #80–83):
+  Verfügbarkeits-Regel + Zeitraum-Ausnahmen (+ P0-Fix
+  `reportDbError`-Rekursion), Fächer-in-Ordner einfacher +
+  Ordner-Symbol in der Seitenleiste, Fortschritt pro Fach,
+  Anki-`.apkg`-Import (Text + Lückentext).
 - davor „Apple-/HIG-Designdurchgang aus Parallel-Sitzung gemergt" (v0.30.0,
   PR #79): Sidebar-Highlight-Fix, `ConfirmDialog` statt `window.confirm`,
   Reiter/Segmented-Controls poliert, `apple-design`-Skill.
@@ -3520,16 +3526,72 @@ vor jedem Merge, Browser-Plausi-Check wo ohne echtes Tauri-Fenster möglich
 
 **Version 0.30.0 → 0.31.0** (chore-Commit auf main), signierter Release.
 
-**Offen / Folgeschritte:**
-- Anki-Bilder als echte Bilder statt `[Bild: …]`-Platzhalter (braucht
-  Karten-HTML-Rendering über `FlashcardReview`/`ReviewSession`/
-  `ErrorHistory` hinweg — bewusst nicht in dieser Runde).
+**Offen / Folgeschritte (Stand nach v0.31.0):**
 - `AvailabilitySetup.test.tsx`: die zwei alten „Chip-Mehrfachauswahl"-
   Tests wurden durch Zeitraum-Tests ersetzt (nicht nur ergänzt).
-- Terrakotta-Kontrast im Hell-Modus 3,43:1 (< WCAG AA) — unverändert
-  offen aus v0.30.0.
-- `@xmldom/xmldom` Moderate-Advisory (transitiv via `mammoth`) — für
-  `npm run security:audit`.
+
+---
+
+### Anki-Rich-Karten, Ordner ein-/ausklappbar, WCAG-Kontrast (v0.32.0, 08.09.2026)
+
+Direkt anschließende Folgeschritte + zwei weitere Nutzerwünsche. Wieder
+Branch → PR → Squash-Merge, `tsc`/Tests/`vite build` grün vor jedem
+Merge, Browser-Plausi wo möglich.
+
+- **PR #84 — Anki: echte Bilder + Vorlagen-Konditionale + Karten als HTML.**
+  - `ingest/htmlSanitize.ts` (neu): DOM-freier Filter auf ein enges
+    Tag-Set, verwirft alle Attribute außer `src`/`alt` an `<img>`, lässt
+    `<img>` nur mit `data:image`-Quelle. `htmlToPlainText`,
+    `looksLikeHtml`.
+  - `ingest/anki.ts`: Bilder aus dem `media`-Archiv als `data:`-URI
+    eingebettet (Grenzen 1,5 MB/Bild, 6 MB gesamt). `renderTemplate` —
+    minimaler Mustache-Renderer für `qfmt`/`afmt` (`{{Feld}}`,
+    `{{FrontSide}}`, `{{#Feld}}`/`{{^Feld}}`, `{{hint:}}` …), genutzt
+    wenn der Notiztyp Vorlagen mitbringt; sonst weiter die
+    Feld-1/Rest-Heuristik. Ausgabe jetzt sanitisiertes HTML statt
+    reduziertem Text. Neu im Rückgabewert: `imagesEmbedded`.
+  - `ui/CardContent.tsx` (neu): Kartentext als `pre-wrap`, wenn kein HTML;
+    sonst sanitisiertes HTML (zweite Schicht vor `dangerouslySetInnerHTML`).
+    In `FlashcardReview` eingesetzt. `ErrorHistory`-Liste nutzt
+    `htmlToPlainText` fürs Kurz-Label. Selbst erstellte PDF-Karten bleiben
+    reiner Text.
+- **PR #85 — Ordner in der Seitenleiste ein-/ausklappbar** (Nutzerwunsch).
+  `ui/SidebarCourseTree.tsx` (neu) — der Fach-Baum aus `App.tsx`
+  (`renderSidebarCourseTree`) als testbare Komponente. Ordner sind Buttons
+  mit CSS-Aufklapp-Dreieck; Klick klappt samt Unterordnern ein/aus.
+  Zustand pro Gerät in `localStorage` (`lernplaner.collapsedGroups`).
+  App.tsx entsprechend entschlackt (ungenutzte Imports raus).
+- **PR #86 — chore.**
+  - **Terrakotta-Kontrast:** `--color-primary` Hell-Modus
+    `oklch(0.64 0.13 45)` → `oklch(0.56 0.13 45)`, Hover `0.58` → `0.51`.
+    Heller Text darauf jetzt **4,73:1 / 5,93:1** (Browser-gemessen), WCAG
+    AA — vorher 3,43:1. Ton bleibt Terrakotta (`#b1582b`). Dunkel-Modus
+    unverändert. DESIGN.md-Tabelle nachgeführt.
+  - **`npm audit fix`:** `@xmldom/xmldom` 0.8.13 → 0.8.15 (transitiv via
+    `mammoth`). **Prod-Audit jetzt 0 Advisories.** Verbleibende
+    Dev-Only-Advisories (vitest/vite-Kette) bräuchten einen Breaking-Bump
+    und bleiben für `npm run security:audit` offen.
+
+**Version 0.31.0 → 0.32.0**, signierter Release. 567 Tests, tsc, vite
+build grün.
+
+**Zur „flakigen Testrunde" aus v0.31.0:** in ~17 aufeinanderfolgenden
+vollen Läufen nicht mehr aufgetreten — als einmaliger transienter
+Worker-/IO-Effekt eingestuft, keine Änderung nötig.
+
+**Offen / Folgeschritte:**
+- **KI-Chat-Feld** (Nutzerwunsch 08.09., nach v0.32.0): natürlichsprachlich
+  Verfügbarkeit angeben („Mo–Fr abends 2h, Wochenende nichts") statt Tage
+  klicken; mit der KI über Problemfelder sprechen. Über den vorhandenen
+  API-Key (`ai/`-Infrastruktur, `getConfiguredAIProvider`). **Noch nicht
+  begonnen — Umfang mit dem Nutzer zu klären** (fokussierter
+  NL-Verfügbarkeits-Assistent vs. vollständiges Chat-Panel; ADR-005:
+  KI-Ergebnis als Vorschlag, Nutzer bestätigt).
+- Anki: `{{FrontSide}}` im afmt wiederholt die Vorderseite auf der
+  Rückseite (Anki-typisch, in unserer UI leicht redundant, da Vorderseite
+  ohnehin oben steht) — bei Bedarf später kürzen.
+- `.anki21b`-Protobuf-Medienmanifest weiterhin nicht gelesen (Karten
+  importieren, Bilder daraus nicht).
 
 ---
 
