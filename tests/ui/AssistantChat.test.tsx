@@ -1,8 +1,11 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AssistantChat } from '../../src/ui/AssistantChat'
 import type { ChatReply } from '../../src/ai/types'
+
+beforeEach(() => window.localStorage.clear())
+afterEach(() => window.localStorage.clear())
 
 function setup(reply: ChatReply | Error) {
   const onSend = vi.fn(async () => {
@@ -11,7 +14,7 @@ function setup(reply: ChatReply | Error) {
   })
   const onApplyAvailability = vi.fn()
   const onApplyTopicWeights = vi.fn()
-  render(
+  const view = render(
     <AssistantChat
       onSend={onSend}
       onApplyAvailability={onApplyAvailability}
@@ -19,7 +22,7 @@ function setup(reply: ChatReply | Error) {
       topicName={(id) => `Thema ${id}`}
     />,
   )
-  return { onSend, onApplyAvailability, onApplyTopicWeights }
+  return { onSend, onApplyAvailability, onApplyTopicWeights, view }
 }
 
 describe('AssistantChat', () => {
@@ -96,5 +99,92 @@ describe('AssistantChat', () => {
     const { onSend } = setup({ message: 'x', proposals: [] })
     expect(screen.getByRole('button', { name: 'Senden' })).toBeDisabled()
     expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('zeigt während des Wartens einen Spinner mit wechselndem Spruch', async () => {
+    const user = userEvent.setup()
+    let resolveReply: (r: ChatReply) => void = () => {}
+    const onSend = vi.fn(() => new Promise<ChatReply>((res) => (resolveReply = res)))
+    render(
+      <AssistantChat
+        onSend={onSend}
+        onApplyAvailability={vi.fn()}
+        onApplyTopicWeights={vi.fn()}
+        topicName={(id) => `Thema ${id}`}
+      />,
+    )
+
+    await user.type(screen.getByLabelText('Nachricht an Sven'), 'Hey Sven')
+    await user.click(screen.getByRole('button', { name: 'Senden' }))
+
+    const status = await screen.findByRole('status')
+    expect(status.textContent).toMatch(/^Sven .+ …$/)
+    expect(status.querySelector('.chat-spinner')).not.toBeNull()
+
+    resolveReply({ message: 'Da bin ich wieder.', proposals: [] })
+    expect(await screen.findByText('Da bin ich wieder.')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('sendet mit Enter, fügt mit Umschalt+Enter eine neue Zeile ein', async () => {
+    const user = userEvent.setup()
+    const { onSend } = setup({ message: 'ok', proposals: [] })
+    const input = screen.getByLabelText('Nachricht an Sven')
+
+    await user.type(input, 'Zeile eins{Shift>}{Enter}{/Shift}Zeile zwei')
+    expect(onSend).not.toHaveBeenCalled()
+    expect(input).toHaveValue('Zeile eins\nZeile zwei')
+
+    await user.type(input, '{Enter}')
+    expect(onSend).toHaveBeenCalledWith([{ role: 'user', content: 'Zeile eins\nZeile zwei' }])
+  })
+
+  it('behält den Verlauf über einen Neuaufbau (localStorage)', async () => {
+    const user = userEvent.setup()
+    const { view } = setup({ message: 'Antwort von Sven.', proposals: [] })
+
+    await user.type(screen.getByLabelText('Nachricht an Sven'), 'Meine Frage')
+    await user.click(screen.getByRole('button', { name: 'Senden' }))
+    await screen.findByText('Antwort von Sven.')
+
+    view.unmount()
+    setup({ message: 'egal', proposals: [] })
+
+    expect(screen.getByText('Meine Frage')).toBeInTheDocument()
+    expect(screen.getByText('Antwort von Sven.')).toBeInTheDocument()
+  })
+
+  it('merkt sich einen übernommenen Vorschlag über den Neuaufbau', async () => {
+    const user = userEvent.setup()
+    const reply: ChatReply = {
+      message: 'Vorschlag:',
+      proposals: [{ kind: 'topicWeights', changes: [{ topicId: 7, weight: 5 }], summary: 's' }],
+    }
+    const { view } = setup(reply)
+    await user.type(screen.getByLabelText('Nachricht an Sven'), 'x')
+    await user.click(screen.getByRole('button', { name: 'Senden' }))
+    const card = (await screen.findByText(/Themen-Gewichte/)).closest('.chat-proposal') as HTMLElement
+    await user.click(within(card).getByRole('button', { name: 'Übernehmen' }))
+
+    view.unmount()
+    setup(reply)
+    const card2 = (await screen.findByText(/Themen-Gewichte/)).closest('.chat-proposal') as HTMLElement
+    expect(within(card2).getByRole('button', { name: 'Übernommen' })).toBeDisabled()
+  })
+
+  it('löscht den Verlauf und leert damit auch den Speicher', async () => {
+    const user = userEvent.setup()
+    const { view } = setup({ message: 'Antwort.', proposals: [] })
+    await user.type(screen.getByLabelText('Nachricht an Sven'), 'Frage')
+    await user.click(screen.getByRole('button', { name: 'Senden' }))
+    await screen.findByText('Antwort.')
+
+    await user.click(screen.getByRole('button', { name: 'Verlauf löschen' }))
+    expect(screen.queryByText('Frage')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Verlauf löschen' })).not.toBeInTheDocument()
+
+    view.unmount()
+    setup({ message: 'egal', proposals: [] })
+    expect(screen.queryByText('Frage')).not.toBeInTheDocument()
   })
 })

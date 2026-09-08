@@ -1511,6 +1511,17 @@ button:disabled {
 
 /* ---------- Sven-Chat (ui/AssistantChat.tsx) ---------- */
 
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.chat-header h2 {
+  margin: 0;
+}
+
 .chat-log {
   display: flex;
   flex-direction: column;
@@ -1567,6 +1578,32 @@ button:disabled {
 .chat-proposal ul {
   margin: var(--space-2xs) 0 var(--space-xs);
   padding-left: 1.4em;
+}
+
+/* Warte-Anzeige, während Sven antwortet — Spinner + wechselnder Spruch. */
+.chat-thinking {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: var(--space-xs) 0;
+  color: var(--color-muted);
+  font-size: var(--text-label);
+}
+
+.chat-spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid oklch(from var(--color-ink) l c h / 0.2);
+  border-top-color: var(--color-primary);
+  border-radius: 999px;
+  animation: chat-spin 0.7s linear infinite;
+}
+
+@keyframes chat-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .chat-input {
