@@ -5,7 +5,7 @@ import type { Card } from './schema'
  * Echte SQL-Operationen für `cards` über `SqlConnection` (siehe
  * `data/db.ts`) — ROADMAP.md Phase 4 „Markieren im Dokument →
  * Karteikarten". Anlegen, Bearbeiten (`updateCardRow` seit dem
- * Karteikarten-Bereich v0.36.0, `ui/CardList.tsx`) und Löschen.
+ * Karteikarten-Bereich v0.35.0, `ui/CardList.tsx`) und Löschen.
  */
 
 export async function loadCards(conn: SqlConnection): Promise<Card[]> {

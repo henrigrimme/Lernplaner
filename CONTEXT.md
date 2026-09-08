@@ -24,12 +24,16 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.34.0.**
+**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.35.0.**
 Jüngster Stand ganz am Ende von Abschnitt 8:
-- „‚Sven' — Chat-Feinschliff + Upload" (v0.34.0, PRs #89–90):
+- „.txt/.csv-Import, Sven-Anhänge, Karteikarten-Bereich" (v0.35.0, PRs
+  #91/#93/#94): `.txt`/`.csv` importierbar; Dateien im Sven-Eingabefeld
+  anhängen (wie Claude) → Sven ordnet sie einem Fach zu; „Wiederholen"
+  → „Karteikarten" mit Reitern Üben/Neu/Alle Karten (Handeingabe,
+  Kartenübersicht je Fach, Fach-Filter).
+- davor „‚Sven' — Chat-Feinschliff + Upload" (v0.34.0, PRs #89–90):
   Chatverlauf über Sitzungen (localStorage), Enter zum Senden,
-  Warte-Spinner mit Sprüchen; Dokumente/Ordner direkt im Sven-Chat
-  hochladen und einem Fach zuordnen.
+  Warte-Spinner mit Sprüchen.
 - davor „‚Sven' — KI-Assistent" (v0.33.0, PRs #87–88): Verfügbarkeit per
   Freitext beschreiben statt Tage klicken; Lern-Chat mit Kontext zu
   Fächern/Fortschritt/Verfügbarkeit; Sven schlägt Änderungen vor, Nutzer
@@ -3675,12 +3679,43 @@ Weitere Nutzerwünsche am Sven-Chat, drei kleine PRs + ein größerer.
 **Version 0.33.0 → 0.34.0**, signierter Release. 603 Tests, tsc, vite
 build grün.
 
+---
+
+### .txt/.csv-Import, Sven-Anhänge, Karteikarten-Bereich (v0.35.0, 08.09.2026)
+
+Rückfragen des Nutzers zum Import („warum wird manches übersprungen?") und
+zum Karteikarten-Bereich („wo ist der?") — beantwortet + umgesetzt.
+
+- **PR #91 — `.txt`/`.csv`-Import.** `SUPPORTED_EXTENSIONS` += `.txt`
+  (läuft durch den Markdown-Weg), `.csv` (`ingest/csv.ts` neu: ganze
+  Datei = ein Thema aus dem Dateinamen, Trennzeichen `,`/`;`/Tab
+  geraten, `"…"`/`""` behandelt). `chapterNameFromFilename` schneidet
+  jetzt auch `xlsx`/`txt`/`csv` ab. CONTEXT.md §9 präzisiert: außen
+  bleiben OCR-lose/gescannte Formate, Altformate `.doc`/`.ppt`/`.xls`
+  (anderes Binärformat), HTML/RTF/`.pages`/`.key` (kein Parser).
+- **PR #93 — Sven: Dateien im Eingabefeld anhängen (wie Claude).** Der
+  eigenständige Upload-Block aus PR #90 ist weg. Stattdessen im Composer
+  „📎 Dateien anhängen" / „📁 Ordner anhängen" → Chips; die Namen wandern
+  beim Senden als `[Angehängte Dateien: …]` in den Nachrichtentext
+  (Bytes bleiben in `attachedRef`, nicht in `localStorage`). Sven
+  antwortet mit einem ```` ```import ````-Block (`courseId` + Dateinamen);
+  „Übernehmen" importiert die gehaltenen Bytes. `assistantContext`
+  nennt Fächer jetzt mit „Fach #<id>".
+- **PR #94 — Karteikarten-Bereich.** Sidebar „Wiederholen" →
+  „Karteikarten". Drei Reiter: **Üben** (Review + Fehlerhistorie + neuer
+  Fach-Filter; Leer-Ansicht erklärt, wie man Karten anlegt), **Neu**
+  (`ui/ManualCardForm.tsx` — Fach → Thema → Vorder-/Rückseite von Hand),
+  **Alle Karten (n)** (`ui/CardList.tsx` — nach Fach → Thema gruppiert,
+  Kartenzahl je Gruppe, Bearbeiten inline, Löschen mit Zeilen-Rückfrage).
+  `data/cardsRepo.ts` `updateCardRow` neu.
+
+**Version 0.34.0 → 0.35.0**, signierter Release. 622 Tests, tsc, vite
+build grün.
+
 **Offen / Folgeschritte:**
 - Der Chat rendert Svens Antworten als reinen Text (`pre-wrap`) — kein
   Markdown-Rendering.
-- Sven „weiß" nach einem Upload noch nichts davon in derselben Nachricht
-  — beim nächsten Prompt sieht er die neuen Themen über den Kontext
-  (`buildAssistantContext`).
+- `.anki21b`-Protobuf-Medienmanifest weiterhin ungelesen.
 
 ---
 
