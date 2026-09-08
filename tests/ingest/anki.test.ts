@@ -205,6 +205,46 @@ describe('extractApkg', () => {
     expect(card!.back).toContain('[Bild: weg.png]')
   })
 
+  it('liest das neue Protobuf-Medienmanifest (Anki ≥ 2.1.50)', async () => {
+    const db = new Database(':memory:')
+    db.exec(`CREATE TABLE col (id integer primary key, crt integer, models text, decks text);
+      CREATE TABLE notes (id integer primary key, mid integer, flds text, tags text);
+      CREATE TABLE cards (id integer primary key, nid integer, did integer, ord integer, type integer,
+        ivl integer, factor integer, reps integer, due integer);`)
+    db.prepare('INSERT INTO col VALUES (1,?,?,?)').run(0, MODELS, DECKS)
+    db.prepare('INSERT INTO notes VALUES (10,1000,?,?)').run(`Neues Medienformat${US}<img src="pic.png">`, '')
+    db.prepare('INSERT INTO cards VALUES (100,10,1,0,0,0,0,0,0)').run()
+    const bytes = db.serialize()
+    db.close()
+
+    // `media` als Protobuf `MediaEntries` statt JSON; Datei "0" = die PNG.
+    const varint = (n: number): number[] => {
+      const out: number[] = []
+      let v = n
+      while (v > 0x7f) {
+        out.push((v & 0x7f) | 0x80)
+        v = Math.floor(v / 128)
+      }
+      out.push(v)
+      return out
+    }
+    const nameField = [...new TextEncoder().encode('pic.png')]
+    const entry = [(1 << 3) | 2, ...varint(nameField.length), ...nameField]
+    const mediaProto = new Uint8Array([(1 << 3) | 2, ...varint(entry.length), ...entry])
+
+    const zip = new JSZip()
+    zip.file('collection.anki2', bytes)
+    zip.file('media', mediaProto)
+    zip.file('0', PNG_1PX)
+    const apkg = await zip.generateAsync({ type: 'uint8array' })
+
+    const deck = await extractApkg(apkg, { locateFile })
+    const card = deck.cards.find((c) => c.front === 'Neues Medienformat')
+    expect(card!.back).toContain('<img src="data:image/png;base64,')
+    expect(deck.imagesEmbedded).toBe(1)
+    expect(deck.mediaCount).toBe(1)
+  })
+
   it('wirft einen klaren Fehler, wenn keine Anki-Sammlung im ZIP liegt', async () => {
     const zip = new JSZip()
     zip.file('irgendwas.txt', 'kein anki')
