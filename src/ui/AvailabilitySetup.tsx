@@ -79,6 +79,8 @@ export interface AvailabilitySetupProps {
   recurringBlockers: RecurringBlocker[]
   onAddRecurringBlocker: (input: NewRecurringBlockerInput) => void
   onRemoveRecurringBlocker: (id: number) => void
+  /** Optionaler „Sven"-Assistent (`ui/AvailabilityAssistant.tsx`) — nur gesetzt, wenn ein KI-Anbieter konfiguriert ist. */
+  assistant?: React.ReactNode
 }
 
 export function AvailabilitySetup({
@@ -90,6 +92,7 @@ export function AvailabilitySetup({
   recurringBlockers,
   onAddRecurringBlocker,
   onRemoveRecurringBlocker,
+  assistant,
 }: AvailabilitySetupProps) {
   const [ruleFrom, setRuleFrom] = useState<AvailabilityPattern['weekday']>(1)
   const [ruleTo, setRuleTo] = useState<AvailabilityPattern['weekday']>(5)
@@ -376,6 +379,7 @@ export function AvailabilitySetup({
   return (
     <section aria-label="Verfügbarkeit">
       <h2>Verfügbarkeit</h2>
+      {assistant}
       <TabbedPanel
         tablistLabel="Verfügbarkeitsbereiche"
         tabs={[
