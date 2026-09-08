@@ -6,18 +6,23 @@ import { describeAvailabilityProposal } from '../domain/availabilityProposal'
  * „Sven" — freies Lern-Gespräch (Nutzerwunsch 2026-09-08). Sven sieht
  * über den von `App.tsx` gebauten Kontext die aktuelle Lage (Fächer,
  * Fortschritt, Verfügbarkeit) und kann darüber sprechen. Er kann
- * Änderungen an Verfügbarkeit oder Themen-Gewichten **vorschlagen** —
- * angewandt wird erst per Klick (ADR-005: „vorschlagen, nie bevormunden").
+ * Änderungen an Verfügbarkeit / Themen-Gewichten **vorschlagen** oder
+ * **angehängte Dokumente einem Fach zuordnen** — ausgeführt wird erst per
+ * Klick (ADR-005: „vorschlagen, nie bevormunden").
  *
- * **Verlauf bleibt über Sitzungen erhalten** (Nutzerwunsch 2026-09-08):
- * in `localStorage`, wie die übrigen Geräte-Zustände (Sidebar-Breite,
- * eingeklappte Ordner, Theme). Bewusst nicht in SQLite — der Verlauf ist
- * geräte-/personengebunden, muss nicht zwischen den zwei Nutzern geteilt
- * werden und soll auch ohne `getDb()` funktionieren. Auf die letzten
- * `MAX_STORED_TURNS` Beiträge begrenzt, damit er nicht unbegrenzt wächst.
+ * **Dateien anhängen wie bei Claude/ChatGPT** (Nutzerwunsch 2026-09-08):
+ * im Eingabefeld Dateien (oder einen Ordner) anhängen und dann normal
+ * schreiben „die gehören zu Fach X". Sven schlägt dann einen
+ * `importDocuments`-Block vor; die App hält die echten Datei-Bytes in
+ * `attachedRef` und importiert sie erst bei „Übernehmen".
  *
- * Reine Präsentation: `onSend` (KI-Aufruf mit Verlauf) und die
- * `onApply*`-Callbacks kommen von `App.tsx`.
+ * **Verlauf bleibt über Sitzungen erhalten** — in `localStorage`, wie die
+ * übrigen Geräte-Zustände. Angehängte Datei-**Bytes** werden bewusst
+ * nicht persistiert (sind gross, ephemer); nur die Dateinamen erscheinen
+ * im gespeicherten Verlauf.
+ *
+ * Reine Präsentation: `onSend`, `onApply*`, `onUploadDocuments`,
+ * `onPickFolder` kommen von `App.tsx`.
  */
 
 const STORAGE_KEY = 'lernplaner.svenChat'
@@ -39,13 +44,11 @@ const THINKING_PHRASES = [
 
 const THINKING_INTERVAL_MS = 2500
 
-/** Bilanz eines Uploads, die Sven als Chat-Nachricht meldet. */
+/** Bilanz eines Imports, die Sven als Chat-Nachricht meldet. */
 export interface SvenUploadResult {
   added: number
   failed: string[]
   topicsCreated: number
-  /** Nur beim Ordner-Upload: übersprungene Dateien wegen nicht unterstütztem Format. */
-  skippedFormats?: number
   courseName: string
 }
 
@@ -55,10 +58,11 @@ export interface AssistantChatProps {
   onApplyTopicWeights: (changes: { topicId: number; weight: 1 | 2 | 3 | 4 | 5 }[]) => void
   /** Für die Anzeige „Thema X → Gewicht 5" statt nur der id. */
   topicName: (topicId: number) => string
-  /** Aktive Fächer für die „zu welchem Fach"-Auswahl beim Upload. */
+  /** Aktive Fächer — für die Fach-Namen in Import-Vorschlägen. */
   courses: { id: number; name: string }[]
   onUploadDocuments: (courseId: number, files: File[]) => Promise<SvenUploadResult>
-  onUploadFolder: (courseId: number) => Promise<SvenUploadResult>
+  /** Öffnet den nativen Ordner-Dialog und liefert die enthaltenen (unterstützten) Dateien als Bytes. */
+  onPickFolder: () => Promise<{ name: string; data: Uint8Array }[] | null>
 }
 
 interface Turn {
@@ -66,6 +70,8 @@ interface Turn {
   role: 'user' | 'assistant'
   content: string
   proposals?: ChatProposal[]
+  /** Dateinamen, die zu dieser Nutzer-Nachricht angehängt waren (nur Anzeige). */
+  attachments?: string[]
 }
 
 interface StoredChat {
@@ -77,6 +83,11 @@ let turnCounter = 0
 function newTurnId(): string {
   turnCounter += 1
   return `${Date.now().toString(36)}-${turnCounter}`
+}
+
+/** Vergleichsschlüssel für Datei-Namen: nur der Basename, klein geschrieben. */
+function fileKey(name: string): string {
+  return (name.split(/[\\/]/).pop() ?? name).trim().toLowerCase()
 }
 
 function loadStored(): StoredChat {
@@ -108,7 +119,7 @@ export function AssistantChat({
   topicName,
   courses,
   onUploadDocuments,
-  onUploadFolder,
+  onPickFolder,
 }: AssistantChatProps) {
   const initial = useRef(loadStored()).current
   const [turns, setTurns] = useState<Turn[]>(initial.turns)
@@ -117,8 +128,9 @@ export function AssistantChat({
   const [error, setError] = useState<string | null>(null)
   const [appliedKeys, setAppliedKeys] = useState<Set<string>>(new Set(initial.applied))
   const [thinkingPhrase, setThinkingPhrase] = useState<string>(THINKING_PHRASES[0])
-  const [uploadCourseId, setUploadCourseId] = useState<number | null>(courses[0]?.id ?? null)
-  const [uploading, setUploading] = useState(false)
+  const [attached, setAttached] = useState<string[]>([])
+  const [pickingFolder, setPickingFolder] = useState(false)
+  const attachedRef = useRef<Map<string, File>>(new Map())
   const logRef = useRef<HTMLDivElement>(null)
 
   // Während gewartet wird, alle paar Sekunden einen anderen Spruch zeigen.
@@ -140,11 +152,6 @@ export function AssistantChat({
     }
   }, [turns, appliedKeys])
 
-  // Fächer laden asynchron nach — Vorauswahl aktuell halten.
-  useEffect(() => {
-    setUploadCourseId((cur) => (cur !== null && courses.some((c) => c.id === cur) ? cur : (courses[0]?.id ?? null)))
-  }, [courses])
-
   const scrollToEnd = () => {
     requestAnimationFrame(() => {
       const log = logRef.current
@@ -153,17 +160,60 @@ export function AssistantChat({
     })
   }
 
+  const courseName = (courseId: number) => courses.find((c) => c.id === courseId)?.name ?? `Fach ${courseId}`
+
+  const addFiles = (files: File[]) => {
+    if (files.length === 0) return
+    for (const file of files) attachedRef.current.set(fileKey(file.name), file)
+    setAttached((prev) => {
+      const set = new Set(prev)
+      for (const f of files) set.add(fileKey(f.name))
+      return [...set]
+    })
+  }
+
+  const removeAttachment = (key: string) => {
+    attachedRef.current.delete(key)
+    setAttached((prev) => prev.filter((k) => k !== key))
+  }
+
+  const pickFolder = async () => {
+    setError(null)
+    setPickingFolder(true)
+    try {
+      const picked = await onPickFolder()
+      if (!picked || picked.length === 0) return
+      addFiles(
+        picked.map((p) => new File([p.data as unknown as BlobPart], p.name.split(/[\\/]/).pop() ?? p.name)),
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPickingFolder(false)
+    }
+  }
+
   const send = async (e: React.FormEvent) => {
     e.preventDefault()
     const text = draft.trim()
     if (text.length === 0 || busy) return
     setError(null)
-    const nextTurns: Turn[] = [...turns, { id: newTurnId(), role: 'user', content: text }]
+
+    const attachedNow = [...attached]
+    const contentForModel = attachedNow.length > 0 ? `${text}\n\n[Angehängte Dateien: ${attachedNow.join(', ')}]` : text
+
+    const userTurn: Turn = { id: newTurnId(), role: 'user', content: text }
+    if (attachedNow.length > 0) userTurn.attachments = attachedNow
+    const nextTurns: Turn[] = [...turns, userTurn]
     setTurns(nextTurns)
     setDraft('')
+    setAttached([]) // Chips „wandern" in die gesendete Nachricht; die Bytes bleiben in attachedRef
     setBusy(true)
     try {
-      const history: ChatMessage[] = nextTurns.map((t) => ({ role: t.role, content: t.content }))
+      const history: ChatMessage[] = nextTurns.map((t, i) => ({
+        role: t.role,
+        content: i === nextTurns.length - 1 ? contentForModel : t.content,
+      }))
       const reply = await onSend(history)
       setTurns([
         ...nextTurns,
@@ -172,60 +222,74 @@ export function AssistantChat({
       scrollToEnd()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
-      setTurns(nextTurns) // die (fehlgeschlagene) Nutzer-Nachricht bleibt stehen
+      setTurns(nextTurns)
     } finally {
       setBusy(false)
     }
   }
 
-  const applyProposal = (key: string, proposal: ChatProposal) => {
-    if (proposal.kind === 'availability') onApplyAvailability(proposal.proposal)
-    else onApplyTopicWeights(proposal.changes)
-    setAppliedKeys((prev) => new Set(prev).add(key))
+  const pushLocalNote = (content: string) => {
+    setTurns((prev) => [...prev, { id: newTurnId(), role: 'assistant', content }])
+    scrollToEnd()
+  }
+
+  const summariseImport = (r: SvenUploadResult, missing: string[]): string => {
+    const parts = [`📎 ${r.added} ${r.added === 1 ? 'Dokument' : 'Dokumente'} zu „${r.courseName}" hinzugefügt`]
+    if (r.topicsCreated > 0) parts.push(`, ${r.topicsCreated} neue${r.topicsCreated === 1 ? 's Thema' : ' Themen'}`)
+    parts.push('.')
+    if (r.failed.length > 0) parts.push(` Nicht gelesen: ${r.failed.slice(0, 5).join(', ')}${r.failed.length > 5 ? ', …' : ''}.`)
+    if (missing.length > 0) parts.push(` Nicht (mehr) angehängt: ${missing.join(', ')}.`)
+    return parts.join('')
+  }
+
+  const applyProposal = async (key: string, proposal: ChatProposal) => {
+    if (proposal.kind === 'availability') {
+      onApplyAvailability(proposal.proposal)
+      setAppliedKeys((prev) => new Set(prev).add(key))
+      return
+    }
+    if (proposal.kind === 'topicWeights') {
+      onApplyTopicWeights(proposal.changes)
+      setAppliedKeys((prev) => new Set(prev).add(key))
+      return
+    }
+
+    // importDocuments
+    const files: File[] = []
+    const missing: string[] = []
+    for (const name of proposal.fileNames) {
+      const file = attachedRef.current.get(fileKey(name))
+      if (file) files.push(file)
+      else missing.push(name)
+    }
+    if (files.length === 0) {
+      setError('Die angehängten Dateien sind nicht mehr da — häng sie bitte nochmal an.')
+      return
+    }
+    setError(null)
+    setBusy(true)
+    try {
+      const result = await onUploadDocuments(proposal.courseId, files)
+      for (const file of files) attachedRef.current.delete(fileKey(file.name))
+      pushLocalNote(summariseImport(result, missing))
+      setAppliedKeys((prev) => new Set(prev).add(key))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
   }
 
   const clearHistory = () => {
     setTurns([])
     setAppliedKeys(new Set())
     setError(null)
+    setAttached([])
+    attachedRef.current.clear()
   }
 
-  /** Hängt eine lokale Sven-Nachricht an (keine KI, kein Token-Verbrauch). */
-  const pushLocalNote = (content: string) => {
-    setTurns((prev) => [...prev, { id: newTurnId(), role: 'assistant', content }])
-    scrollToEnd()
-  }
-
-  const summariseUpload = (r: SvenUploadResult, source: string): string => {
-    const parts = [
-      `📎 ${r.added} ${r.added === 1 ? 'Dokument' : 'Dokumente'} aus ${source} zu „${r.courseName}" hinzugefügt`,
-    ]
-    if (r.topicsCreated > 0) parts.push(`, ${r.topicsCreated} neue${r.topicsCreated === 1 ? 's Thema' : ' Themen'}`)
-    parts.push('.')
-    if (r.skippedFormats) parts.push(` ${r.skippedFormats} Datei(en) mit nicht unterstütztem Format übersprungen.`)
-    if (r.failed.length > 0) parts.push(` Nicht gelesen: ${r.failed.slice(0, 5).join(', ')}${r.failed.length > 5 ? ', …' : ''}.`)
-    return parts.join('')
-  }
-
-  const runUpload = async (action: () => Promise<SvenUploadResult>, source: string) => {
-    if (uploadCourseId === null) {
-      setError('Wähl zuerst ein Fach aus, zu dem die Unterlagen gehören.')
-      return
-    }
-    setError(null)
-    setUploading(true)
-    try {
-      const result = await action()
-      if (result.added === 0 && result.failed.length === 0 && !result.skippedFormats) return // Nutzer hat abgebrochen
-      pushLocalNote(summariseUpload(result, source))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const hasCourses = courses.length > 0
+  const proposalTitle = (p: ChatProposal): string =>
+    p.kind === 'availability' ? 'Verfügbarkeit' : p.kind === 'topicWeights' ? 'Themen-Gewichte' : 'Dokumente hinzufügen'
 
   return (
     <section aria-label="Sven">
@@ -239,86 +303,55 @@ export function AssistantChat({
       </div>
       <p className="empty-state-inline">
         Dein Lern-Assistent. Er kennt deine Fächer, den Fortschritt und deine Verfügbarkeit. Frag ihn nach einem
-        Plan für die Woche, wo du gerade hängst, oder sag ihm, wie viel Zeit du hast — Änderungen macht er nur als
-        Vorschlag, den du bestätigst. Der Verlauf bleibt auf diesem Gerät erhalten.
+        Plan für die Woche, oder häng Unterlagen an und sag ihm, zu welchem Fach sie gehören. Änderungen macht er nur
+        als Vorschlag, den du bestätigst. Der Verlauf bleibt auf diesem Gerät erhalten.
       </p>
-
-      <div className="chat-upload" aria-label="Unterlagen hinzufügen">
-        <span className="chat-upload-title">Unterlagen hinzufügen</span>
-        {hasCourses ? (
-          <>
-            <label>
-              Zu welchem Fach?
-              <select
-                value={uploadCourseId ?? ''}
-                onChange={(e) => setUploadCourseId(e.target.value === '' ? null : Number(e.target.value))}
-              >
-                {courses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Dateien wählen (PDF, Word, PowerPoint, Excel, Markdown, Text, CSV)
-              <input
-                type="file"
-                multiple
-                disabled={uploading}
-                onChange={(e) => {
-                  const files = Array.from(e.target.files ?? [])
-                  e.target.value = ''
-                  if (files.length > 0 && uploadCourseId !== null) {
-                    void runUpload(() => onUploadDocuments(uploadCourseId, files), `${files.length} Datei(en)`)
-                  } else if (files.length > 0) {
-                    setError('Wähl zuerst ein Fach aus, zu dem die Unterlagen gehören.')
-                  }
-                }}
-              />
-            </label>
-            <button
-              type="button"
-              disabled={uploading || uploadCourseId === null}
-              onClick={() => void runUpload(() => onUploadFolder(uploadCourseId!), 'einem Ordner')}
-            >
-              {uploading ? 'lädt …' : 'Oder ganzen Ordner wählen'}
-            </button>
-            <p className="empty-state-inline">
-              Unterordner werden 1:1 als verschachtelte Themen übernommen. Sven legt alles direkt beim gewählten Fach
-              ab und meldet unten, was angekommen ist.
-            </p>
-          </>
-        ) : (
-          <p className="empty-state-inline">Leg zuerst unter „Fächer &amp; Themen" ein Fach an.</p>
-        )}
-      </div>
 
       {turns.length > 0 && (
         <div className="chat-log" ref={logRef}>
           {turns.map((turn) => (
             <div key={turn.id} className={`chat-turn chat-turn-${turn.role}`}>
-              <div className="chat-bubble">{turn.content}</div>
+              <div className="chat-bubble">
+                {turn.content}
+                {turn.attachments && turn.attachments.length > 0 && (
+                  <div className="chat-attachments">
+                    {turn.attachments.map((name) => (
+                      <span key={name} className="chat-chip">
+                        📎 {name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
               {turn.proposals?.map((proposal, j) => {
-                const key = `${turn.id}:${j}`
-                const applied = appliedKeys.has(key)
+                const pkey = `${turn.id}:${j}`
+                const applied = appliedKeys.has(pkey)
                 return (
-                  <div key={key} className="chat-proposal">
-                    <strong>Vorschlag: {proposal.kind === 'availability' ? 'Verfügbarkeit' : 'Themen-Gewichte'}</strong>
+                  <div key={pkey} className="chat-proposal">
+                    <strong>Vorschlag: {proposalTitle(proposal)}</strong>
                     <ul>
-                      {proposal.kind === 'availability'
-                        ? describeAvailabilityProposal(proposal.proposal).map((line) => <li key={line}>{line}</li>)
-                        : proposal.changes.map((c) => (
-                            <li key={c.topicId}>
-                              {topicName(c.topicId)} → Gewicht {c.weight}/5
-                            </li>
+                      {proposal.kind === 'availability' &&
+                        describeAvailabilityProposal(proposal.proposal).map((line) => <li key={line}>{line}</li>)}
+                      {proposal.kind === 'topicWeights' &&
+                        proposal.changes.map((c) => (
+                          <li key={c.topicId}>
+                            {topicName(c.topicId)} → Gewicht {c.weight}/5
+                          </li>
+                        ))}
+                      {proposal.kind === 'importDocuments' && (
+                        <>
+                          <li>Fach: {courseName(proposal.courseId)}</li>
+                          {proposal.fileNames.map((n) => (
+                            <li key={n}>{n}</li>
                           ))}
+                        </>
+                      )}
                     </ul>
                     <button
                       type="button"
                       className="button-primary"
-                      disabled={applied}
-                      onClick={() => applyProposal(key, proposal)}
+                      disabled={applied || busy}
+                      onClick={() => void applyProposal(pkey, proposal)}
                     >
                       {applied ? 'Übernommen' : 'Übernehmen'}
                     </button>
@@ -340,13 +373,25 @@ export function AssistantChat({
       {error && <p role="alert">{error}</p>}
 
       <form onSubmit={send} className="chat-input">
+        {attached.length > 0 && (
+          <div className="chat-attachments" aria-label="Angehängte Dateien">
+            {attached.map((key) => (
+              <span key={key} className="chat-chip">
+                📎 {key}
+                <button type="button" aria-label={`${key} entfernen`} onClick={() => removeAttachment(key)}>
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <label>
           Nachricht an Sven
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={2}
-            placeholder="z. B. „Ich hab Mo–Do je 2h Zeit, wie teile ich das auf?“ — Enter sendet, Umschalt+Enter für eine neue Zeile"
+            placeholder="z. B. „Häng die Folien an und sag: die gehören zu Micro“ — Enter sendet, Umschalt+Enter neue Zeile"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
@@ -355,9 +400,25 @@ export function AssistantChat({
             }}
           />
         </label>
-        <button type="submit" disabled={draft.trim().length === 0 || busy}>
-          Senden
-        </button>
+        <div className="chat-input-actions">
+          <label className="chat-attach-button">
+            📎 Dateien anhängen
+            <input
+              type="file"
+              multiple
+              onChange={(e) => {
+                addFiles(Array.from(e.target.files ?? []))
+                e.target.value = ''
+              }}
+            />
+          </label>
+          <button type="button" onClick={() => void pickFolder()} disabled={pickingFolder}>
+            {pickingFolder ? 'Ordner …' : '📁 Ordner anhängen'}
+          </button>
+          <button type="submit" disabled={draft.trim().length === 0 || busy}>
+            Senden
+          </button>
+        </div>
       </form>
     </section>
   )

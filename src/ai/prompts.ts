@@ -61,6 +61,13 @@ export function buildChatSystemPrompt(context: string): string {
     '```topicWeights',
     '{ "changes": [{ "topicId": number, "weight": 1-5 }], "summary": "..." }',
     '```',
+    '3. Angehängte Dokumente einem Fach hinzufügen — wenn der Nutzer Dateien angehängt hat UND',
+    '   erkennbar sagt, zu welchem Fach sie gehören. Block:',
+    '```import',
+    '{ "courseId": number, "files": ["genau der angehängte Dateiname", ...] }',
+    '```',
+    '   Die courseId ist die Zahl hinter „Fach #" im Kontext. Wenn unklar ist, zu welchem Fach die',
+    '   Dateien gehören, frag nach statt zu raten.',
     'Nutze die Blöcke nur, wenn der Nutzer erkennbar eine solche Änderung will. Sonst normal antworten.',
     '',
     'Kontext zur aktuellen Lage des Nutzers:',
@@ -77,20 +84,28 @@ export function parseChatReply(text: string): ChatReply {
   const proposals: ChatProposal[] = []
   let message = text
 
-  const blockRe = /```(availability|topicWeights)\s*([\s\S]*?)```/g
+  const blockRe = /```(availability|topicWeights|import)\s*([\s\S]*?)```/g
   message = message.replace(blockRe, (_whole, kind: string, body: string) => {
     try {
       const json = JSON.parse(body.trim()) as Record<string, unknown>
       if (kind === 'availability') {
         const proposal = normalizeAvailabilityProposal(json)
         if (!isEmptyAvailabilityProposal(proposal)) proposals.push({ kind: 'availability', proposal })
-      } else {
+      } else if (kind === 'topicWeights') {
         const changes = (Array.isArray(json.changes) ? json.changes : [])
           .map((c) => c as Record<string, unknown>)
           .filter((c) => Number.isInteger(Number(c.topicId)) && [1, 2, 3, 4, 5].includes(Number(c.weight)))
           .map((c) => ({ topicId: Number(c.topicId), weight: Number(c.weight) as 1 | 2 | 3 | 4 | 5 }))
         if (changes.length > 0) {
           proposals.push({ kind: 'topicWeights', changes, summary: typeof json.summary === 'string' ? json.summary : '' })
+        }
+      } else {
+        const courseId = Number(json.courseId)
+        const fileNames = (Array.isArray(json.files) ? json.files : [])
+          .filter((f): f is string => typeof f === 'string' && f.trim().length > 0)
+          .map((f) => f.trim())
+        if (Number.isInteger(courseId) && fileNames.length > 0) {
+          proposals.push({ kind: 'importDocuments', courseId, fileNames })
         }
       }
     } catch {

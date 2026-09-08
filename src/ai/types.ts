@@ -118,6 +118,7 @@ export interface ChatMessage {
 export type ChatProposal =
   | { kind: 'availability'; proposal: AvailabilityProposal }
   | { kind: 'topicWeights'; changes: { topicId: number; weight: 1 | 2 | 3 | 4 | 5 }[]; summary: string }
+  | { kind: 'importDocuments'; courseId: number; fileNames: string[] }
 
 export interface ChatReply {
   /** Sichtbarer Antworttext (ohne die herausgelösten Vorschlags-Blöcke). */
