@@ -1622,6 +1622,37 @@ button:disabled {
   border-bottom-left-radius: var(--radius-xs, 4px);
 }
 
+/* Svens Antworten kommen als gerendertes Markdown (HTML) — kein
+   `pre-wrap`, dafür echte Block-Abstände. */
+.chat-bubble-md {
+  white-space: normal;
+}
+
+.chat-bubble-md > :first-child {
+  margin-top: 0;
+}
+
+.chat-bubble-md > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-bubble-md p {
+  margin: var(--space-2xs) 0;
+}
+
+.chat-bubble-md ul,
+.chat-bubble-md ol {
+  margin: var(--space-2xs) 0;
+  padding-left: 1.4em;
+}
+
+.chat-bubble-md code {
+  padding: 0 3px;
+  background: oklch(from var(--color-ink) l c h / 0.08);
+  border-radius: 3px;
+  font-size: 0.92em;
+}
+
 .chat-proposal {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
