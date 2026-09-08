@@ -24,11 +24,13 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.36.0.**
+**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.37.0.**
 Jüngster Stand ganz am Ende von Abschnitt 8:
-- „Sven-Chat rendert Markdown" (v0.36.0, PR #96): Svens Antworten mit
-  fett/kursiv/Listen/Code statt rohem Text; `renderMarkdownToHtml` mit
-  HTML-Escape + `sanitizeCardHtml`.
+- „Anki: neues Medienformat (.anki21b) lesen" (v0.37.0, PR #97):
+  Protobuf-`MediaEntries` + Zstd-Mediendateien; Bilder aus neuen Anki-
+  Decks werden echt eingebettet. Damit ist die Folgeschritt-Liste leer.
+- davor „Sven-Chat rendert Markdown" (v0.36.0, PR #96): Svens Antworten
+  mit fett/kursiv/Listen/Code statt rohem Text.
 - davor „.txt/.csv-Import, Sven-Anhänge, Karteikarten-Bereich" (v0.35.0,
   PRs #91/#93/#94): `.txt`/`.csv` importierbar; Dateien im
   Sven-Eingabefeld anhängen (wie Claude) → Sven ordnet sie einem Fach
@@ -3727,9 +3729,22 @@ KI-Antwort kommt nur das enge sichere Tag-Set — `<script>`/`<img onerror>`
 Nutzer-Blasen bleiben reiner Text. +9 Tests. **Version 0.35.0 → 0.36.0**,
 signierter Release, 631 Tests grün.
 
-**Offen / Folgeschritte:**
-- `.anki21b`-Protobuf-Medienmanifest weiterhin ungelesen (Karten
-  importieren, Bilder daraus nicht).
+---
+
+### Anki: neues Medienformat (.anki21b) lesen (v0.37.0, 08.09.2026)
+
+Der letzte offene Punkt. Ab Anki 2.1.50 ist die `media`-Datei kein JSON
+mehr, sondern ein (evtl. Zstd-komprimiertes) Protobuf `MediaEntries`; die
+nummerierten Mediendateien sind dann ebenfalls Zstd-komprimiert. **PR
+#97:** `ingest/ankiMediaManifest.ts` (neu) — handgeschriebener
+Mini-Wire-Format-Parser (kein Protobuf-Runtime) + `isZstd`. `anki.ts`
+`readMedia`: erst JSON, sonst Protobuf; `media` und jede Mediendatei bei
+Bedarf per `fzstd` entpacken. Bilder aus neuen Decks werden damit echt
+eingebettet statt `[Bild: …]`. +11 Tests. **Version 0.36.0 → 0.37.0**,
+signierter Release, 638 Tests grün.
+
+**Offen:** derzeit nichts aus der Folgeschritt-Liste — nur die
+dauerhaften Einschränkungen unten (kein OCR, kein Backup usw.).
 
 ---
 
