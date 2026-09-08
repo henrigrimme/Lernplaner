@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createTestConnection } from './testConnection'
-import { deleteCardRow, insertCard, loadCards } from '../../src/data/cardsRepo'
+import { deleteCardRow, insertCard, loadCards, updateCardRow } from '../../src/data/cardsRepo'
 import { insertCourse } from '../../src/data/coursesRepo'
 import { insertTopic } from '../../src/data/topicsRepo'
 import type { SqlConnection } from '../../src/data/db'
@@ -37,6 +37,18 @@ describe('cardsRepo', () => {
     const card = await insertCard(conn, input, '2026-08-01T10:00:00.000Z')
     expect(card).toMatchObject({ id: 1, created_at: '2026-08-01T10:00:00.000Z', ...input })
     expect(await loadCards(conn)).toEqual([card])
+  })
+
+  it('bearbeitet Vorder-/Rückseite einer Karte', async () => {
+    const conn = createTestConnection()
+    const topic = await seedTopic(conn)
+    const card = await insertCard(
+      conn,
+      { topic_id: topic.id, document_id: null, page: null, front: 'alt', back: 'alt', source_quote: null },
+      'x',
+    )
+    await updateCardRow(conn, card.id, { front: 'neu vorne', back: 'neu hinten' })
+    expect(await loadCards(conn)).toEqual([{ ...card, front: 'neu vorne', back: 'neu hinten' }])
   })
 
   it('löscht eine Karteikarte vollständig', async () => {

@@ -45,6 +45,7 @@ import {
 import { deleteCourseGroup, moveCourseGroup, renameCourseGroup } from './data/courseGroups'
 import { CourseGroups } from './ui/CourseGroups'
 import { SidebarCourseTree } from './ui/SidebarCourseTree'
+import { TabbedPanel } from './ui/TabbedPanel'
 import { CourseWorkspace } from './ui/CourseWorkspace'
 import { CourseInstructions } from './ui/CourseInstructions'
 import { QuickSearch } from './ui/QuickSearch'
@@ -67,11 +68,13 @@ import { loadTopics, syncTopics } from './data/topicsRepo'
 import { loadTopicSections } from './data/topicSectionsRepo'
 import { loadStudyBlocks, syncStudyBlocks } from './data/studyBlocksRepo'
 import { insertPlanVersion, loadPlanVersions } from './data/planVersionsRepo'
-import { deleteCardRow, insertCard, loadCards, type NewCardInput } from './data/cardsRepo'
+import { deleteCardRow, insertCard, loadCards, updateCardRow, type NewCardInput } from './data/cardsRepo'
 import { insertReview, loadReviews } from './data/reviewsRepo'
 import { scheduleReview, type Grade } from './domain/spacedRepetition'
 import { ReviewSession } from './ui/ReviewSession'
 import { ErrorHistory } from './ui/ErrorHistory'
+import { ManualCardForm } from './ui/ManualCardForm'
+import { CardList } from './ui/CardList'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationContent, type NotificationKind } from './domain/notifications'
@@ -149,7 +152,7 @@ type NavSection =
   | 'verfuegbarkeit'
   | 'plan'
   | 'heute'
-  | 'wiederholen'
+  | 'karteikarten'
   | 'quiz'
   | 'fortschritt'
   | 'sven'
@@ -187,7 +190,7 @@ const NAV_ITEMS: { key: NavSection; label: string }[] = [
   { key: 'verfuegbarkeit', label: 'Verfügbarkeit' },
   { key: 'plan', label: 'Planung' },
   { key: 'heute', label: 'Heute' },
-  { key: 'wiederholen', label: 'Wiederholen' },
+  { key: 'karteikarten', label: 'Karteikarten' },
   { key: 'quiz', label: 'Quiz' },
   { key: 'fortschritt', label: 'Fortschritt' },
   { key: 'sven', label: 'Sven' },
@@ -279,6 +282,8 @@ export function App() {
   }
 
   const [searchOpen, setSearchOpen] = useState(false)
+  // Fach-Filter im Karteikarten-„Üben"-Reiter — `null` = alle Fächer.
+  const [practiceCourseId, setPracticeCourseId] = useState<number | null>(null)
   const [confirmReplan, setConfirmReplan] = useState(false)
 
   // ⌘K/Strg+K öffnet die Schnellsuche von überall in der App (Nutzerwunsch
@@ -630,6 +635,16 @@ export function App() {
       setCards((prev) => [...prev, card])
     } catch (error) {
       reportDbError('Karteikarte konnte nicht gespeichert werden', error)
+    }
+  }
+
+  const handleUpdateCard = async (id: number, changes: Partial<NewCardInput>) => {
+    try {
+      const db = await getDb()
+      await updateCardRow(db, id, changes)
+      setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...changes } : c)))
+    } catch (error) {
+      reportDbError('Karteikarte konnte nicht geändert werden', error)
     }
   }
 
@@ -1836,19 +1851,85 @@ export function App() {
           />
         )}
 
-        {activeSection === 'wiederholen' && (
-          <>
-            <ReviewSession
-              cards={cards}
-              reviews={reviews}
-              topics={topics}
-              now={() => new Date().toISOString()}
-              onReview={handleReview}
-            />
+        {activeSection === 'karteikarten' &&
+          (() => {
+            const topicIdsOfCourse = new Set(
+              topics.filter((t) => practiceCourseId === null || t.course_id === practiceCourseId).map((t) => t.id),
+            )
+            const practiceCards =
+              practiceCourseId === null ? cards : cards.filter((c) => topicIdsOfCourse.has(c.topic_id))
+            const activeCourses = courses.filter((c) => c.archived === 0)
 
-            <ErrorHistory cards={cards} reviews={reviews} topics={topics} onReview={handleReview} />
-          </>
-        )}
+            return (
+              <section aria-label="Karteikarten">
+                <h2>Karteikarten</h2>
+                <TabbedPanel
+                  tablistLabel="Karteikarten-Bereiche"
+                  tabs={[
+                    {
+                      key: 'ueben',
+                      label: 'Üben',
+                      content: (
+                        <>
+                          {activeCourses.length > 0 && cards.length > 0 && (
+                            <label className="field-inline">
+                              Fach
+                              <select
+                                value={practiceCourseId ?? ''}
+                                onChange={(e) => setPracticeCourseId(e.target.value === '' ? null : Number(e.target.value))}
+                              >
+                                <option value="">Alle Fächer</option>
+                                {activeCourses.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                          {cards.length === 0 ? (
+                            <p className="empty-state">
+                              Noch keine Karteikarten. Leg im Reiter „Neu" welche an, importiere ein Anki-Deck, oder
+                              markiere Text in einem Dokument (Fach → „Themen" → „Quellen").
+                            </p>
+                          ) : (
+                            <>
+                              <ReviewSession
+                                cards={practiceCards}
+                                reviews={reviews}
+                                topics={topics}
+                                now={() => new Date().toISOString()}
+                                onReview={handleReview}
+                              />
+                              <ErrorHistory cards={practiceCards} reviews={reviews} topics={topics} onReview={handleReview} />
+                            </>
+                          )}
+                        </>
+                      ),
+                    },
+                    {
+                      key: 'neu',
+                      label: 'Neu',
+                      content: <ManualCardForm courses={courses} topics={topics} onCreate={handleCreateCard} />,
+                    },
+                    {
+                      key: 'alle',
+                      label: `Alle Karten (${cards.length})`,
+                      content: (
+                        <CardList
+                          cards={cards}
+                          topics={topics}
+                          courses={courses}
+                          onUpdate={handleUpdateCard}
+                          onDelete={handleDeleteCard}
+                        />
+                      ),
+                    },
+                  ]}
+                />
+              </section>
+            )
+          })()}
 
         {activeSection === 'quiz' &&
           (activeQuiz ? (
