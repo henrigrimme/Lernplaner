@@ -23,6 +23,22 @@ import { describeAvailabilityProposal } from '../domain/availabilityProposal'
 const STORAGE_KEY = 'lernplaner.svenChat'
 const MAX_STORED_TURNS = 60
 
+/** Kleine Sprüche fürs Warten auf Svens Antwort (Nutzerwunsch) — wechseln alle paar Sekunden. */
+const THINKING_PHRASES = [
+  'denkt nach',
+  'kramt in deinen Unterlagen',
+  'sortiert die Gedanken',
+  'ist kurz Milch holen',
+  'blättert durch deine Themen',
+  'rechnet einmal nach',
+  'macht sich Notizen',
+  'holt tief Luft',
+  'sucht die beste Antwort',
+  'wärmt den Bleistift an',
+] as const
+
+const THINKING_INTERVAL_MS = 2500
+
 export interface AssistantChatProps {
   onSend: (history: ChatMessage[]) => Promise<ChatReply>
   onApplyAvailability: (proposal: AvailabilityProposal) => void
@@ -78,7 +94,18 @@ export function AssistantChat({ onSend, onApplyAvailability, onApplyTopicWeights
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [appliedKeys, setAppliedKeys] = useState<Set<string>>(new Set(initial.applied))
+  const [thinkingPhrase, setThinkingPhrase] = useState<string>(THINKING_PHRASES[0])
   const logRef = useRef<HTMLDivElement>(null)
+
+  // Während gewartet wird, alle paar Sekunden einen anderen Spruch zeigen.
+  useEffect(() => {
+    if (!busy) return
+    setThinkingPhrase(THINKING_PHRASES[Math.floor(Math.random() * THINKING_PHRASES.length)]!)
+    const timer = setInterval(() => {
+      setThinkingPhrase(THINKING_PHRASES[Math.floor(Math.random() * THINKING_PHRASES.length)]!)
+    }, THINKING_INTERVAL_MS)
+    return () => clearInterval(timer)
+  }, [busy])
 
   useEffect(() => {
     try {
@@ -186,6 +213,13 @@ export function AssistantChat({ onSend, onApplyAvailability, onApplyTopicWeights
         </div>
       )}
 
+      {busy && (
+        <p className="chat-thinking" role="status">
+          <span className="chat-spinner" aria-hidden="true" />
+          Sven {thinkingPhrase} …
+        </p>
+      )}
+
       {error && <p role="alert">{error}</p>}
 
       <form onSubmit={send} className="chat-input">
@@ -205,7 +239,7 @@ export function AssistantChat({ onSend, onApplyAvailability, onApplyTopicWeights
           />
         </label>
         <button type="submit" disabled={draft.trim().length === 0 || busy}>
-          {busy ? 'Sven antwortet …' : 'Senden'}
+          Senden
         </button>
       </form>
     </section>

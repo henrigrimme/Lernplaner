@@ -101,6 +101,31 @@ describe('AssistantChat', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
+  it('zeigt während des Wartens einen Spinner mit wechselndem Spruch', async () => {
+    const user = userEvent.setup()
+    let resolveReply: (r: ChatReply) => void = () => {}
+    const onSend = vi.fn(() => new Promise<ChatReply>((res) => (resolveReply = res)))
+    render(
+      <AssistantChat
+        onSend={onSend}
+        onApplyAvailability={vi.fn()}
+        onApplyTopicWeights={vi.fn()}
+        topicName={(id) => `Thema ${id}`}
+      />,
+    )
+
+    await user.type(screen.getByLabelText('Nachricht an Sven'), 'Hey Sven')
+    await user.click(screen.getByRole('button', { name: 'Senden' }))
+
+    const status = await screen.findByRole('status')
+    expect(status.textContent).toMatch(/^Sven .+ …$/)
+    expect(status.querySelector('.chat-spinner')).not.toBeNull()
+
+    resolveReply({ message: 'Da bin ich wieder.', proposals: [] })
+    expect(await screen.findByText('Da bin ich wieder.')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('sendet mit Enter, fügt mit Umschalt+Enter eine neue Zeile ein', async () => {
     const user = userEvent.setup()
     const { onSend } = setup({ message: 'ok', proposals: [] })
