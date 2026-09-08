@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Rating, type Grade } from '../domain/spacedRepetition'
 import type { Card, Topic } from '../data/schema'
+import { CardContent } from './CardContent'
 
 /**
  * Vorder-/Rückseite mit den vier FSRS-Bewertungsstufen für eine einzelne
@@ -70,10 +71,10 @@ export function FlashcardReview({ card, topics, onRate }: FlashcardReviewProps) 
   return (
     <div>
       <p>{topicById.get(card.topic_id)?.name ?? `Thema ${card.topic_id}`}</p>
-      <p>{card.front}</p>
+      <CardContent html={card.front} side="front" />
       {revealed ? (
         <>
-          <p>{card.back}</p>
+          <CardContent html={card.back} side="back" />
           <div>
             {RATING_OPTIONS.map((opt, i) => (
               <button key={opt.value} type="button" onClick={() => rate(opt.value)} title={`Kürzel: ${i + 1}`}>
