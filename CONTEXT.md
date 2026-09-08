@@ -3770,17 +3770,24 @@ dauerhaften Einschränkungen unten (kein OCR, kein Backup usw.).
   liefern sinnvolle Themen/Folien. Bleibt außen vor: gescannte/
   bildbasierte Formate (kein OCR), alte Office-Formate `.doc`/`.ppt`/
   `.xls` (anderes Binärformat), HTML/RTF/`.pages`/`.key` (kein Parser)
-- **Anki-Import: Text + Lückentext, keine Bilder/Templates** — seit
+- **Anki-Import: Heuristik statt vollständigem Template-Renderer** — seit
   v0.31.0 (`ingest/anki.ts`) liest der Lernplaner `.apkg`/`.colpkg`
   (SQLite via sql.js, Zstd via fzstd) und legt je Deck ein Thema, je
-  Karte eine Karteikarte an. Bewusst **kein** vollständiger
-  Anki-Template-Renderer (`{{FrontSide}}`, `{{#Feld}}` …) — eine
-  Heuristik (Feld 1 = Vorderseite, Rest = Rückseite; Lückentext je
-  Ordinal). Bilder erscheinen als `[Bild: name]`-Platzhalter, echtes
-  Medien-Rendering ist ein Folgeschritt (bräuchte eine gemeinsame
-  Karten-HTML-Render-Entscheidung über `FlashcardReview`/`ReviewSession`/
-  `ErrorHistory`). Der aus Anki übernommene FSRS-Startzustand ist eine
-  grobe Schätzung aus `ivl`/`ease`, kein exakter Übertrag
+  Karte eine Karteikarte an. **Bilder werden gerendert** (seit v0.32.0,
+  PR #84): `inlineImages` bettet sie als `data:`-URIs direkt in die
+  Karten-HTML ein (Obergrenzen `MAX_IMAGE_BYTES` 1,5 MB /
+  `MAX_TOTAL_IMAGE_BYTES` 6 MB — nur was darüber liegt, bleibt als
+  `[Bild: name]` stehen), Anzeige über `ui/CardContent.tsx` in
+  `FlashcardReview`/`ReviewSession` (`ErrorHistory` zeigt bewusst nur
+  Klartext-Vorschauen). `renderTemplate` deckt die gängigen
+  Mustache-Bausteine ab (`{{Feld}}`, `{{FrontSide}}`,
+  `{{#Feld}}`/`{{^Feld}}`, `{{hint:}}`), Lückentext je Ordinal; volle
+  Fidelity beliebiger Custom-Templates ist weiterhin nicht das Ziel. Das
+  neue Anki-Medienformat (Protobuf `MediaEntries` + Zstd-komprimierte
+  Mediendateien, Anki ≥ 2.1.50) wird seit v0.37.0 gelesen (PR #97,
+  `ingest/ankiMediaManifest.ts`). Der aus Anki übernommene
+  FSRS-Startzustand bleibt eine grobe Schätzung aus `ivl`/`ease`, kein
+  exakter Übertrag
 
 ---
 
