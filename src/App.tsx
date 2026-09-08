@@ -1630,7 +1630,7 @@ export function App() {
                         </label>
                       )}
                       <label>
-                        Dokumente für {selectedCourse.name} importieren (PDF, Word, PowerPoint, Excel, Markdown)
+                        Dokumente für {selectedCourse.name} importieren (PDF, Word, PowerPoint, Excel, Markdown, Text, CSV)
                         <input
                           type="file"
                           accept={SUPPORTED_EXTENSIONS.join(',')}
@@ -1669,7 +1669,7 @@ export function App() {
                         Unterordner des gewählten Ordners werden 1:1 als verschachtelte Themen übernommen —
                         praktisch, wenn Material schon nach Unterthemen sortiert in Ordnern liegt. Dokumente direkt
                         im gewählten Ordner (ohne Unterordner) verhalten sich wie beim normalen Import oben.
-                        Unterstützte Formate: PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), Markdown (.md).
+                        Unterstützte Formate: PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), Markdown (.md), Text (.txt), CSV.
                       </p>
 
                       <label>

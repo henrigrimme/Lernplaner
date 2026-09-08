@@ -3697,14 +3697,15 @@ build grün.
   Material bestätigt (22.07.2026): `Data & Information Management/Mock
   Exam.pdf` liefert 0 Zeichen auf allen Seiten
 - ~~**Nur PDF, kein Word/Excel/PowerPoint**~~ — **aufgehoben seit v0.21.0**
-  (ADR-018, PR #54): `.docx`/`.pptx`/`.xlsx`/`.md` werden deterministisch
-  ohne KI extrahiert (`ingest/documentImport.ts` `extractAnyDocument` →
-  `ingest/docx.ts`/`pptx.ts`/`xlsx.ts`/`markdown.ts`, alle mit eigener
-  Kapitelerkennung, Tests unter `tests/ingest/`). Am echten Material aus
-  `4. Semester Kopie/` gegengeprüft (08.09.2026): Word-Paper,
-  PowerPoint-Case und Excel-Gruppenliste liefern jeweils sinnvolle
-  Themen/Folien. Bleibt außen vor: CSV/HTML und gescannte/bildbasierte
-  Formate (kein OCR, siehe oben)
+  (ADR-018, PR #54): `.docx`/`.pptx`/`.xlsx`/`.md`/`.txt`/`.csv` werden
+  deterministisch ohne KI extrahiert (`ingest/documentImport.ts`
+  `extractAnyDocument` → `ingest/docx.ts`/`pptx.ts`/`xlsx.ts`/`markdown.ts`/
+  `csv.ts`; `.txt` läuft durch den Markdown-Weg). `.txt`/`.csv` seit
+  v0.35.0 (Nutzerwunsch 08.09.). Am echten Material aus `4. Semester
+  Kopie/` gegengeprüft: Word-Paper, PowerPoint-Case, Excel-Gruppenliste
+  liefern sinnvolle Themen/Folien. Bleibt außen vor: gescannte/
+  bildbasierte Formate (kein OCR), alte Office-Formate `.doc`/`.ppt`/
+  `.xls` (anderes Binärformat), HTML/RTF/`.pages`/`.key` (kein Parser)
 - **Anki-Import: Text + Lückentext, keine Bilder/Templates** — seit
   v0.31.0 (`ingest/anki.ts`) liest der Lernplaner `.apkg`/`.colpkg`
   (SQLite via sql.js, Zstd via fzstd) und legt je Deck ein Thema, je

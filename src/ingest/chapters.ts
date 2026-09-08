@@ -196,7 +196,7 @@ function detectDividerChapters(slides: Slide[]): Map<number, string> | null {
  */
 export function chapterNameFromFilename(filename: string): string {
   return filename
-    .replace(/\.(pdf|docx|pptx|md|markdown)$/i, '')
+    .replace(/\.(pdf|docx|pptx|xlsx|md|markdown|txt|csv)$/i, '')
     .replace(/^\d+[\s._-]+/, '')
     .trim()
 }

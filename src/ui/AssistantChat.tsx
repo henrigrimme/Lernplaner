@@ -261,7 +261,7 @@ export function AssistantChat({
               </select>
             </label>
             <label>
-              Dateien wählen (PDF, Word, PowerPoint, Excel, Markdown)
+              Dateien wählen (PDF, Word, PowerPoint, Excel, Markdown, Text, CSV)
               <input
                 type="file"
                 multiple
