@@ -24,13 +24,15 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.35.0.**
+**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.36.0.**
 Jüngster Stand ganz am Ende von Abschnitt 8:
-- „.txt/.csv-Import, Sven-Anhänge, Karteikarten-Bereich" (v0.35.0, PRs
-  #91/#93/#94): `.txt`/`.csv` importierbar; Dateien im Sven-Eingabefeld
-  anhängen (wie Claude) → Sven ordnet sie einem Fach zu; „Wiederholen"
-  → „Karteikarten" mit Reitern Üben/Neu/Alle Karten (Handeingabe,
-  Kartenübersicht je Fach, Fach-Filter).
+- „Sven-Chat rendert Markdown" (v0.36.0, PR #96): Svens Antworten mit
+  fett/kursiv/Listen/Code statt rohem Text; `renderMarkdownToHtml` mit
+  HTML-Escape + `sanitizeCardHtml`.
+- davor „.txt/.csv-Import, Sven-Anhänge, Karteikarten-Bereich" (v0.35.0,
+  PRs #91/#93/#94): `.txt`/`.csv` importierbar; Dateien im
+  Sven-Eingabefeld anhängen (wie Claude) → Sven ordnet sie einem Fach
+  zu; „Wiederholen" → „Karteikarten" mit Reitern Üben/Neu/Alle Karten.
 - davor „‚Sven' — Chat-Feinschliff + Upload" (v0.34.0, PRs #89–90):
   Chatverlauf über Sitzungen (localStorage), Enter zum Senden,
   Warte-Spinner mit Sprüchen.
@@ -3712,10 +3714,22 @@ zum Karteikarten-Bereich („wo ist der?") — beantwortet + umgesetzt.
 **Version 0.34.0 → 0.35.0**, signierter Release. 622 Tests, tsc, vite
 build grün.
 
+---
+
+### Sven-Chat rendert Markdown (v0.36.0, 08.09.2026)
+
+Letzter offener Folgeschritt. **PR #96:** `ui/renderMarkdown.ts` (neu) —
+winziger Markdown→HTML-Renderer (fett/kursiv, Inline-Code, Aufzählungen,
+`#`→fett, Absätze/Umbrüche, Links→Linktext). Kein DOM; Quelltext wird
+erst HTML-escaped, das Ergebnis durch `sanitizeCardHtml` (aus einer
+KI-Antwort kommt nur das enge sichere Tag-Set — `<script>`/`<img onerror>`
+→ escaped). `AssistantChat`: Sven-Blasen per `dangerouslySetInnerHTML`,
+Nutzer-Blasen bleiben reiner Text. +9 Tests. **Version 0.35.0 → 0.36.0**,
+signierter Release, 631 Tests grün.
+
 **Offen / Folgeschritte:**
-- Der Chat rendert Svens Antworten als reinen Text (`pre-wrap`) — kein
-  Markdown-Rendering.
-- `.anki21b`-Protobuf-Medienmanifest weiterhin ungelesen.
+- `.anki21b`-Protobuf-Medienmanifest weiterhin ungelesen (Karten
+  importieren, Bilder daraus nicht).
 
 ---
 
