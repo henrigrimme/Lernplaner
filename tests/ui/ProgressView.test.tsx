@@ -1,7 +1,23 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ProgressView } from '../../src/ui/ProgressView'
-import type { Assessment, StudyBlock, Topic } from '../../src/data/schema'
+import type { Assessment, Course, StudyBlock, Topic } from '../../src/data/schema'
+
+function course(overrides: Partial<Course> & { id: number }): Course {
+  return {
+    name: `Fach ${overrides.id}`,
+    semester: 'WS26',
+    color: '#000',
+    priority: 3,
+    difficulty: 3,
+    archived: 0,
+    created_at: 'x',
+    language: 'de',
+    group_id: null,
+    instructions: '',
+    ...overrides,
+  }
+}
 
 function assessment(overrides: Partial<Assessment> & { id: number }): Assessment {
   return {
@@ -81,6 +97,47 @@ describe('ProgressView', () => {
     // (1*1 + 4*0) / (1+4) = 20%
     expect(screen.getByText(/Vorbereitungsgrad: 20 %/)).toBeInTheDocument()
     expect(screen.getByText(/Nächster Schritt: Producer Theory/)).toBeInTheDocument()
+  })
+
+  it('zeigt pro Fach den Gesamtfortschritt mit Balken und begonnenen Themen', () => {
+    const topics = [
+      topic({ id: 1, course_id: 7, name: 'Consumer Theory', weight: 1 }),
+      topic({ id: 2, course_id: 7, name: 'Producer Theory', weight: 4 }),
+    ]
+    const blocks = [block({ id: 1, topic_id: 1, assessment_id: 99, status: 'erledigt', actual_minutes: 45 })]
+    render(
+      <ProgressView
+        assessments={[]}
+        topics={topics}
+        studyBlocks={blocks}
+        courses={[course({ id: 7, name: 'Microeconomics' })]}
+        from="2026-08-10"
+      />,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Pro Fach' })).toBeInTheDocument()
+    const bar = screen.getByRole('progressbar', { name: 'Fortschritt Microeconomics' })
+    // (1*1 + 4*0) / 5 = 20 %
+    expect(bar).toHaveAttribute('aria-valuenow', '20')
+    expect(screen.getByText(/1 von 2 Themen begonnen/)).toBeInTheDocument()
+    expect(screen.getByText(/Nächster Schritt: Producer Theory/)).toBeInTheDocument()
+  })
+
+  it('markiert ein noch nicht begonnenes Fach als solches ohne Prozentzahl', () => {
+    const topics = [topic({ id: 1, course_id: 7, weight: 3 })]
+    render(
+      <ProgressView
+        assessments={[]}
+        topics={topics}
+        studyBlocks={[]}
+        courses={[course({ id: 7, name: 'Microeconomics' })]}
+        from="2026-08-10"
+      />,
+    )
+
+    const item = screen.getByText('Microeconomics').closest('li')!
+    expect(within(item).getByText('Noch nicht begonnen')).toBeInTheDocument()
+    expect(within(item).getByText('–')).toBeInTheDocument()
   })
 
   it('listet nur bevorstehende Prüfungen, nicht vergangene', () => {

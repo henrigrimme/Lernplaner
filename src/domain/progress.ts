@@ -107,6 +107,56 @@ export function computePreparedness(assessmentId: number, studyBlocks: StudyBloc
   return weightSum === 0 ? null : weightedSum / weightSum
 }
 
+export interface CourseProgressResult {
+  /**
+   * Σ(mastery × weight) / Σ(weight) über **alle** Themen des Fachs — wie
+   * `computePreparedness`, aber nicht auf eine einzelne Prüfung
+   * eingeschränkt: „wie weit bin ich in diesem Fach insgesamt"
+   * (Nutzerwunsch 2026-09-08). `null`, wenn das Fach keine Themen hat.
+   */
+  preparedness: number | null
+  /** Themen mit mindestens einem nicht gestrichenen Lernblock. */
+  topicsStarted: number
+  /** Themen des Fachs insgesamt. */
+  topicsTotal: number
+  /** Nächster sinnvoller Lernschritt (größtes weight × (1 − mastery)) oder `null`, wenn das Fach keine Themen hat. */
+  nextTopicId: number | null
+}
+
+/**
+ * Fortschritt eines ganzen Fachs aus **allen** seinen Lernblöcken (nicht
+ * nach `assessment_id` gefiltert — anders als `computePreparedness`).
+ * `courseBlocks`/`topics` übergibt der Aufrufer bereits auf das Fach
+ * eingegrenzt (`ui/ProgressView.tsx`), passend zum sonstigen Stil dieses
+ * Moduls („der Aufrufer stellt die Themenmenge zusammen").
+ */
+export function computeCourseProgress(topics: ProgressTopic[], courseBlocks: StudyBlock[]): CourseProgressResult {
+  const masteryByTopic = computeMasteryByTopic(courseBlocks)
+  const startedTopicIds = new Set(
+    courseBlocks
+      .filter((b) => b.status !== 'gestrichen' && b.topic_id !== null)
+      .map((b) => b.topic_id as number),
+  )
+
+  let weightedSum = 0
+  let weightSum = 0
+  let best: NextStepSuggestion | null = null
+  for (const topic of topics) {
+    const mastery = masteryByTopic.get(topic.topicId) ?? 0
+    weightedSum += mastery * topic.weight
+    weightSum += topic.weight
+    const urgency = topic.weight * (1 - mastery)
+    if (!best || urgency > best.urgency) best = { topicId: topic.topicId, urgency }
+  }
+
+  return {
+    preparedness: weightSum === 0 ? null : weightedSum / weightSum,
+    topicsStarted: topics.filter((t) => startedTopicIds.has(t.topicId)).length,
+    topicsTotal: topics.length,
+    nextTopicId: best?.topicId ?? null,
+  }
+}
+
 export interface NextStepSuggestion {
   topicId: number
   /** weight × (1 − mastery) — je höher, desto dringender. */
