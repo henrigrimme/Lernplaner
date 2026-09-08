@@ -173,8 +173,11 @@ function readStoredPalette(): PalettePreference {
 
 /**
  * Rendert den Fach-Ordner-Baum (Migration 0005) in der Seitenleiste —
- * Ordner als reine, nicht klickbare Zwischenüberschriften (`app-nav-label`,
- * eingerückt je Tiefe), Fächer darunter wie bisher als `app-nav-item`.
+ * Ordner als reine, nicht klickbare Zwischenüberschriften (`app-nav-group`
+ * mit vorangestelltem Ordner-Symbol, wie bei Claude-Projekten; eingerückt
+ * je Tiefe), Fächer darunter wie bisher als `app-nav-item`. Das Symbol
+ * (Nutzerwunsch 2026-09-08) unterscheidet Ordner optisch klar von den
+ * Fach-Einträgen darunter, die vorher fast gleich aussahen.
  * Modulweite Funktion statt Komponenteninterna, weil sie keinen eigenen
  * Zustand braucht — nur `selectedCourseId`/`onSelectCourse` von `App()`
  * durchreicht. `onSelectCourse` (statt nur `setSelectedCourseId`) fasst
@@ -190,8 +193,9 @@ function renderSidebarCourseTree(
   depth = 0,
 ): ReactNode[] {
   return nodes.flatMap((node) => [
-    <div key={`group-${node.id}`} className="app-nav-label" style={{ paddingLeft: 12 + depth * 12 }}>
-      {node.name}
+    <div key={`group-${node.id}`} className="app-nav-group" style={{ paddingLeft: 12 + depth * 12 }}>
+      <span className="app-nav-group-icon" aria-hidden="true" />
+      <span className="app-nav-group-name">{node.name}</span>
     </div>,
     ...node.courses.map((c) => (
       <button
@@ -1441,10 +1445,12 @@ export function App() {
               <summary>Fächer &amp; Ordner verwalten</summary>
               <CourseSetup
                 courses={courses}
+                courseGroups={courseGroups}
                 onAdd={handleAddCourse}
                 onUpdate={handleUpdateCourse}
                 onArchive={handleArchiveCourse}
                 onRemove={handleRemoveCourse}
+                onAssignCourse={handleSetCourseGroup}
               />
 
               <CourseGroups
@@ -1454,7 +1460,6 @@ export function App() {
                 onRename={handleRenameCourseGroup}
                 onMove={handleMoveCourseGroup}
                 onRemove={handleRemoveCourseGroup}
-                onAssignCourse={handleSetCourseGroup}
               />
             </details>
 

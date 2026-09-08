@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { CourseSetup } from '../../src/ui/CourseSetup'
-import type { Course } from '../../src/data/schema'
+import type { Course, CourseGroup } from '../../src/data/schema'
 
 function course(overrides: Partial<Course> & { id: number }): Course {
   return {
@@ -13,12 +13,19 @@ function course(overrides: Partial<Course> & { id: number }): Course {
     difficulty: 3,
     archived: 0,
     created_at: '2026-01-01T00:00:00.000Z',
+    language: 'de',
+    group_id: null,
+    instructions: '',
     ...overrides,
   } as Course
 }
 
+function group(overrides: Partial<CourseGroup> & { id: number }): CourseGroup {
+  return { parent_id: null, name: `Ordner ${overrides.id}`, sort_order: 0, ...overrides }
+}
+
 function noop() {
-  return { onAdd: vi.fn(), onUpdate: vi.fn(), onArchive: vi.fn(), onRemove: vi.fn() }
+  return { onAdd: vi.fn(), onUpdate: vi.fn(), onArchive: vi.fn(), onRemove: vi.fn(), onAssignCourse: vi.fn() }
 }
 
 describe('CourseSetup', () => {
@@ -119,6 +126,28 @@ describe('CourseSetup', () => {
     const dialog = screen.getByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Löschen' }))
     expect(onRemove).toHaveBeenCalledWith(1)
+  })
+
+  it('weist ein Fach über die Ordner-Auswahl in der Zeile einem Ordner zu', async () => {
+    const user = userEvent.setup()
+    const onAssignCourse = vi.fn()
+    const courses = [course({ id: 1, name: 'Microeconomics', group_id: null })]
+    render(
+      <CourseSetup
+        courses={courses}
+        courseGroups={[group({ id: 7, name: '3. Semester' })]}
+        {...noop()}
+        onAssignCourse={onAssignCourse}
+      />,
+    )
+
+    await user.selectOptions(screen.getByLabelText('Ordner für Microeconomics'), '3. Semester')
+    expect(onAssignCourse).toHaveBeenCalledWith(1, 7)
+  })
+
+  it('blendet die Ordner-Auswahl in der Zeile aus, solange kein Ordner existiert', () => {
+    render(<CourseSetup courses={[course({ id: 1, name: 'Microeconomics' })]} {...noop()} />)
+    expect(screen.queryByLabelText(/^Ordner für /)).not.toBeInTheDocument()
   })
 
   it('löscht ein Fach nicht, wenn der Dialog abgebrochen wird', async () => {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { buildCourseGroupTree, ungroupedCourses, type CourseGroupTreeNode } from '../data/courseGroups'
+import { buildCourseGroupTree, type CourseGroupTreeNode } from '../data/courseGroups'
 import type { NewCourseGroupInput } from '../data/courseGroupsRepo'
 import type { Course, CourseGroup } from '../data/schema'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -12,10 +12,13 @@ import { ConfirmDialog } from './ConfirmDialog'
  * wie `CourseSetup`/`TopicTree` — jede Aktion geht über einen Callback
  * nach außen.
  *
- * Bewusst keine Drag-&-Drop-Zuweisung (wie schon `TopicTree.tsx`
- * begründet: tastaturbedienbar, keine neue Laufzeit-Abhängigkeit) —
- * Fächer werden stattdessen per Dropdown einem Ordner zugewiesen, direkt
- * unter der (flachen) Liste der noch nicht zugewiesenen Fächer.
+ * **Nur noch die Ordner selbst** (Nutzerwunsch 2026-09-08, „einfacher und
+ * simpler"): Anlegen, Umbenennen, Verschachteln, Löschen. Welches Fach in
+ * welchen Ordner kommt, wird jetzt direkt in der Fach-Zeile in
+ * `ui/CourseSetup.tsx` eingestellt (`<select>` je Fach) — die frühere
+ * zweite Liste „Fächer ohne Ordner" mit eigenem Zuweisungs-Dropdown fiel
+ * weg, weil man das Fach dort erneut suchen musste. Der Elternordner-
+ * Auswahl erscheint nur, wenn es überhaupt mehr als einen Ordner gibt.
  */
 
 export interface CourseGroupsProps {
@@ -25,14 +28,13 @@ export interface CourseGroupsProps {
   onRename: (id: number, name: string) => void
   onMove: (id: number, newParentId: number | null) => void
   onRemove: (id: number) => void
-  onAssignCourse: (courseId: number, groupId: number | null) => void
 }
 
 function flattenGroups(nodes: CourseGroupTreeNode[], depth = 0): { group: CourseGroupTreeNode; depth: number }[] {
   return nodes.flatMap((node) => [{ group: node, depth }, ...flattenGroups(node.children, depth + 1)])
 }
 
-export function CourseGroups({ courseGroups, courses, onAdd, onRename, onMove, onRemove, onAssignCourse }: CourseGroupsProps) {
+export function CourseGroups({ courseGroups, courses, onAdd, onRename, onMove, onRemove }: CourseGroupsProps) {
   const [newName, setNewName] = useState('')
   const [newParentId, setNewParentId] = useState<number | null>(null)
   const [renamingId, setRenamingId] = useState<number | null>(null)
@@ -41,8 +43,6 @@ export function CourseGroups({ courseGroups, courses, onAdd, onRename, onMove, o
 
   const tree = buildCourseGroupTree(courseGroups, courses.filter((c) => c.archived === 0))
   const flat = flattenGroups(tree)
-  const activeCourses = courses.filter((c) => c.archived === 0)
-  const unassigned = ungroupedCourses(activeCourses)
 
   const submitAdd = (e: React.FormEvent) => {
     e.preventDefault()
@@ -68,8 +68,9 @@ export function CourseGroups({ courseGroups, courses, onAdd, onRename, onMove, o
     <section aria-label="Fach-Ordner">
       <h2>Ordner</h2>
       <p>
-        Fächer lassen sich in frei benannten Ordnern gruppieren, auch verschachtelt (z. B. „3. Semester" &gt; „Q1") —
-        praktisch, wenn eine Klausur mehrere Fächer gleichzeitig abdeckt.
+        Ordner gruppieren Fächer in der Seitenleiste (auch verschachtelt, z. B. „3. Semester" &gt; „Q1") — praktisch,
+        wenn eine Klausur mehrere Fächer abdeckt. Welches Fach in welchen Ordner kommt, stellst du oben in der
+        Fächer-Liste je Fach ein.
       </p>
 
       {flat.length > 0 && (
@@ -98,41 +99,34 @@ export function CourseGroups({ courseGroups, courses, onAdd, onRename, onMove, o
                 </>
               ) : (
                 <>
-                  <span>{group.name}</span>
-                  <label>
-                    Verschieben nach
-                    <select
-                      value={group.parent_id ?? ''}
-                      onChange={(e) => onMove(group.id, e.target.value === '' ? null : Number(e.target.value))}
-                    >
-                      <option value="">— oberste Ebene —</option>
-                      {courseGroups
-                        .filter((g) => g.id !== group.id)
-                        .map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
+                  <span className="course-group-name">{group.name}</span>
+                  {group.courses.length > 0 && (
+                    <span className="course-group-contents">{group.courses.map((c) => c.name).join(', ')}</span>
+                  )}
+                  {courseGroups.length > 1 && (
+                    <label>
+                      Verschieben nach
+                      <select
+                        value={group.parent_id ?? ''}
+                        onChange={(e) => onMove(group.id, e.target.value === '' ? null : Number(e.target.value))}
+                      >
+                        <option value="">— oberste Ebene —</option>
+                        {courseGroups
+                          .filter((g) => g.id !== group.id)
+                          .map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.name}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  )}
                   <button type="button" onClick={() => startRename(group)}>
                     Umbenennen
                   </button>
                   <button type="button" aria-label={`Ordner "${group.name}" löschen`} onClick={() => setPendingDelete(group)}>
                     Löschen
                   </button>
-                  {group.courses.length > 0 && (
-                    <ul>
-                      {group.courses.map((course) => (
-                        <li key={course.id}>
-                          <span>{course.name}</span>
-                          <button type="button" onClick={() => onAssignCourse(course.id, null)}>
-                            Aus Ordner entfernen
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
                 </>
               )}
             </li>
@@ -145,43 +139,21 @@ export function CourseGroups({ courseGroups, courses, onAdd, onRename, onMove, o
           Name
           <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="z. B. 3. Semester" />
         </label>
-        <label>
-          Übergeordneter Ordner (optional)
-          <select value={newParentId ?? ''} onChange={(e) => setNewParentId(e.target.value === '' ? null : Number(e.target.value))}>
-            <option value="">— oberste Ebene —</option>
-            {courseGroups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {courseGroups.length > 0 && (
+          <label>
+            Übergeordneter Ordner (optional)
+            <select value={newParentId ?? ''} onChange={(e) => setNewParentId(e.target.value === '' ? null : Number(e.target.value))}>
+              <option value="">— oberste Ebene —</option>
+              {courseGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <button type="submit">Ordner hinzufügen</button>
       </form>
-
-      {courseGroups.length > 0 && unassigned.length > 0 && (
-        <>
-          <h3>Fächer ohne Ordner</h3>
-          <ul>
-            {unassigned.map((course) => (
-              <li key={course.id}>
-                <span>{course.name}</span>
-                <label>
-                  In Ordner verschieben
-                  <select value="" onChange={(e) => e.target.value !== '' && onAssignCourse(course.id, Number(e.target.value))}>
-                    <option value="">— auswählen —</option>
-                    {courseGroups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
 
       {pendingDelete && (
         <ConfirmDialog

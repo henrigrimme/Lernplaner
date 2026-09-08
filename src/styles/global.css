@@ -295,6 +295,55 @@ p {
   text-overflow: ellipsis;
 }
 
+/* Ordner im Fach-Baum der Seitenleiste (`renderSidebarCourseTree` in
+   App.tsx) — anders als die Versal-Zwischenüberschrift `.app-nav-label`
+   ("FACH") ein normal geschriebener Eintrag mit vorangestelltem
+   Ordner-Symbol, wie bei Claude-Projekten. Nicht klickbar, aber optisch
+   klar von den Fach-Einträgen (`.app-nav-item`) darunter unterscheidbar,
+   die vorher fast gleich aussahen (Nutzerwunsch 2026-09-08). */
+.app-nav-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: 6px var(--space-sm) var(--space-2xs);
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-muted);
+  min-width: 0;
+}
+
+.app-nav-group-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Ordner-Symbol rein aus CSS (kein Icon-Set im Projekt, wie
+   `.app-sidebar-toggle-icon`/`.document-list-icon`): ein abgerundetes
+   Rechteck (Ordnerkörper) mit einer kleinen Lasche oben links. */
+.app-nav-group-icon {
+  position: relative;
+  width: 14px;
+  height: 11px;
+  flex-shrink: 0;
+  margin-top: 3px;
+  border: 1.4px solid currentColor;
+  border-radius: 1px 2.5px 2.5px 2.5px;
+}
+
+.app-nav-group-icon::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -0.7px;
+  width: 6px;
+  height: 4px;
+  border: 1.4px solid currentColor;
+  border-bottom: none;
+  border-radius: 2px 2px 0 0;
+}
+
 /* Kurzer Übergangszustand zwischen App-Start und dem ersten `loadCourses`-
    Ergebnis (`getDb()` braucht in der echten Tauri-App spürbar länger als im
    Dev-Server) — verhindert, dass die Seitenleiste in diesem Moment wie ein
@@ -926,6 +975,26 @@ section[aria-label] ul.document-list > li.document-list-item {
 .availability-rule input[type='number'] {
   width: 88px;
   text-align: right;
+}
+
+/* Ordner-Auswahl direkt in der Fach-Zeile (`ui/CourseSetup.tsx`, seit
+   2026-09-08) — kompakt, damit die Zeile nicht umbricht. */
+.course-row-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-size: var(--text-label);
+  color: var(--color-muted);
+}
+
+/* Ordnername + (muted) Liste der enthaltenen Fächer in `ui/CourseGroups.tsx`. */
+.course-group-name {
+  font-weight: 600;
+}
+
+.course-group-contents {
+  color: var(--color-muted);
+  font-size: var(--text-label);
 }
 
 /* ---------- Leerer Zustand ---------- */
