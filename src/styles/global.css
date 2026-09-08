@@ -1671,3 +1671,82 @@ button:disabled {
   width: 100%;
   resize: vertical;
 }
+
+/* ---------- Karteikarten-Bereich (ui/CardList.tsx, ManualCardForm.tsx) ---------- */
+
+.field-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.card-list h3 {
+  margin-bottom: var(--space-2xs);
+}
+
+.card-list h4 {
+  margin: var(--space-xs) 0 var(--space-2xs);
+  font-size: var(--text-ui);
+  color: var(--color-muted);
+}
+
+/* „Deck"-Kartenzahl hinter Fach-/Thema-Überschrift. */
+.card-list-count {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 var(--space-2xs);
+  font-size: var(--text-label);
+  font-weight: 550;
+  text-align: center;
+  color: var(--color-muted);
+  background: oklch(from var(--color-ink) l c h / 0.06);
+  border-radius: 999px;
+}
+
+.card-list-topic ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.card-list-topic li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.card-list-front {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-list-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  flex-shrink: 0;
+  font-size: var(--text-label);
+  color: var(--color-muted);
+}
+
+.card-list-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  width: 100%;
+}
+
+.card-list-edit textarea {
+  width: 100%;
+  resize: vertical;
+}
