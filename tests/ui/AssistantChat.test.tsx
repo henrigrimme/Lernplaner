@@ -17,7 +17,7 @@ function setup(reply: ChatReply | Error, extra?: Partial<React.ComponentProps<ty
   const onApplyAvailability = vi.fn()
   const onApplyTopicWeights = vi.fn()
   const onUploadDocuments = vi.fn(async () => EMPTY_UPLOAD)
-  const onUploadFolder = vi.fn(async () => EMPTY_UPLOAD)
+  const onPickFolder = vi.fn(async () => null)
   const view = render(
     <AssistantChat
       onSend={onSend}
@@ -26,11 +26,11 @@ function setup(reply: ChatReply | Error, extra?: Partial<React.ComponentProps<ty
       topicName={(id) => `Thema ${id}`}
       courses={[{ id: 1, name: 'Microeconomics' }]}
       onUploadDocuments={onUploadDocuments}
-      onUploadFolder={onUploadFolder}
+      onPickFolder={onPickFolder}
       {...extra}
     />,
   )
-  return { onSend, onApplyAvailability, onApplyTopicWeights, onUploadDocuments, onUploadFolder, view }
+  return { onSend, onApplyAvailability, onApplyTopicWeights, onUploadDocuments, onPickFolder, view }
 }
 
 describe('AssistantChat', () => {
@@ -109,65 +109,79 @@ describe('AssistantChat', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
-  it('lädt Dokumente zum gewählten Fach hoch und meldet das Ergebnis als Sven-Nachricht', async () => {
+  it('hängt Dateien an, schickt die Namen mit und importiert sie erst auf Svens Vorschlag hin', async () => {
     const user = userEvent.setup()
     const onUploadDocuments = vi.fn(async () => ({
       added: 2,
       failed: ['kaputt.pdf'],
       topicsCreated: 1,
-      courseName: 'Microeconomics',
+      courseName: 'Money & Banking',
     }))
-    setup({ message: 'x', proposals: [] }, {
-      courses: [{ id: 1, name: 'Microeconomics' }, { id: 2, name: 'Money & Banking' }],
-      onUploadDocuments,
-    })
-
-    await user.selectOptions(screen.getByLabelText('Zu welchem Fach?'), '2')
-    await user.upload(
-      screen.getByLabelText(/Dateien wählen/),
-      [new File(['a'], 'a.pdf', { type: 'application/pdf' }), new File(['b'], 'b.pdf', { type: 'application/pdf' })],
+    const { onSend } = setup(
+      { message: 'Alles klar, die kommen zu Money & Banking.', proposals: [{ kind: 'importDocuments', courseId: 2, fileNames: ['a.pdf', 'b.pdf'] }] },
+      { courses: [{ id: 1, name: 'Microeconomics' }, { id: 2, name: 'Money & Banking' }], onUploadDocuments },
     )
 
-    expect(onUploadDocuments).toHaveBeenCalledWith(2, expect.arrayContaining([expect.any(File)]))
-    expect(await screen.findByText(/2 Dokumente aus 2 Datei\(en\) zu „Microeconomics" hinzugefügt/)).toBeInTheDocument()
-    expect(screen.getByText(/1 neues Thema/)).toBeInTheDocument()
+    await user.upload(screen.getByLabelText(/Dateien anhängen/), [
+      new File(['a'], 'a.pdf', { type: 'application/pdf' }),
+      new File(['b'], 'b.pdf', { type: 'application/pdf' }),
+    ])
+    expect(screen.getByLabelText('Angehängte Dateien')).toHaveTextContent('a.pdf')
+
+    await user.type(screen.getByLabelText('Nachricht an Sven'), 'Die gehören zu Money & Banking')
+    await user.click(screen.getByRole('button', { name: 'Senden' }))
+
+    // Dateinamen wandern in den an die KI geschickten Nachrichtentext
+    expect(onSend).toHaveBeenCalledWith([
+      { role: 'user', content: 'Die gehören zu Money & Banking\n\n[Angehängte Dateien: a.pdf, b.pdf]' },
+    ])
+    expect(onUploadDocuments).not.toHaveBeenCalled()
+
+    const card = (await screen.findByText(/Vorschlag: Dokumente hinzufügen/)).closest('.chat-proposal') as HTMLElement
+    expect(within(card).getByText('Fach: Money & Banking')).toBeInTheDocument()
+    await user.click(within(card).getByRole('button', { name: 'Übernehmen' }))
+
+    expect(onUploadDocuments).toHaveBeenCalledWith(2, [expect.any(File), expect.any(File)])
+    expect(await screen.findByText(/2 Dokumente zu „Money & Banking" hinzugefügt/)).toBeInTheDocument()
     expect(screen.getByText(/Nicht gelesen: kaputt\.pdf/)).toBeInTheDocument()
   })
 
-  it('lädt einen ganzen Ordner hoch', async () => {
+  it('hängt die Dateien eines Ordners als Chips an', async () => {
     const user = userEvent.setup()
-    const onUploadFolder = vi.fn(async () => ({
-      added: 5,
-      failed: [],
-      topicsCreated: 3,
-      skippedFormats: 2,
-      courseName: 'Microeconomics',
-    }))
-    setup({ message: 'x', proposals: [] }, { onUploadFolder })
+    const onPickFolder = vi.fn(async () => [
+      { name: 'Kapitel 1/folien.pdf', data: new Uint8Array([1, 2, 3]) },
+      { name: 'notizen.md', data: new Uint8Array([4]) },
+    ])
+    setup({ message: 'x', proposals: [] }, { onPickFolder })
 
-    await user.click(screen.getByRole('button', { name: 'Oder ganzen Ordner wählen' }))
-    expect(onUploadFolder).toHaveBeenCalledWith(1)
-    expect(await screen.findByText(/5 Dokumente aus einem Ordner zu „Microeconomics" hinzugefügt/)).toBeInTheDocument()
-    expect(screen.getByText(/2 Datei\(en\) mit nicht unterstütztem Format übersprungen/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Ordner anhängen/ }))
+    const chips = screen.getByLabelText('Angehängte Dateien')
+    expect(chips).toHaveTextContent('folien.pdf')
+    expect(chips).toHaveTextContent('notizen.md')
   })
 
-  it('weist auf ein fehlendes Fach hin', async () => {
-    setup({ message: 'x', proposals: [] }, { courses: [] })
-    expect(screen.getByText(/Leg zuerst unter .* ein Fach an/)).toBeInTheDocument()
-    expect(screen.queryByLabelText('Zu welchem Fach?')).not.toBeInTheDocument()
-  })
-
-  it('speichert die Upload-Meldung im Verlauf', async () => {
+  it('entfernt einen Anhang wieder', async () => {
     const user = userEvent.setup()
-    const { view } = setup({ message: 'x', proposals: [] }, {
-      onUploadFolder: vi.fn(async () => ({ added: 1, failed: [], topicsCreated: 0, courseName: 'Microeconomics' })),
-    })
-    await user.click(screen.getByRole('button', { name: 'Oder ganzen Ordner wählen' }))
-    await screen.findByText(/1 Dokument aus einem Ordner/)
-
-    view.unmount()
     setup({ message: 'x', proposals: [] })
-    expect(screen.getByText(/1 Dokument aus einem Ordner zu „Microeconomics" hinzugefügt/)).toBeInTheDocument()
+    await user.upload(screen.getByLabelText(/Dateien anhängen/), new File(['a'], 'weg.pdf'))
+    expect(screen.getByLabelText('Angehängte Dateien')).toHaveTextContent('weg.pdf')
+    await user.click(screen.getByRole('button', { name: 'weg.pdf entfernen' }))
+    expect(screen.queryByLabelText('Angehängte Dateien')).not.toBeInTheDocument()
+  })
+
+  it('meldet, wenn die Dateien für einen Import-Vorschlag nicht mehr angehängt sind', async () => {
+    const user = userEvent.setup()
+    const { onUploadDocuments } = setup({
+      message: 'Import:',
+      proposals: [{ kind: 'importDocuments', courseId: 1, fileNames: ['fehlt.pdf'] }],
+    })
+    await user.type(screen.getByLabelText('Nachricht an Sven'), 'importier mal')
+    await user.click(screen.getByRole('button', { name: 'Senden' }))
+    const card = (await screen.findByText(/Vorschlag: Dokumente hinzufügen/)).closest('.chat-proposal') as HTMLElement
+    await user.click(within(card).getByRole('button', { name: 'Übernehmen' }))
+
+    expect(onUploadDocuments).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(/nicht mehr da/)
   })
 
   it('zeigt während des Wartens einen Spinner mit wechselndem Spruch', async () => {
@@ -182,7 +196,7 @@ describe('AssistantChat', () => {
         topicName={(id) => `Thema ${id}`}
         courses={[{ id: 1, name: 'Microeconomics' }]}
         onUploadDocuments={vi.fn(async () => EMPTY_UPLOAD)}
-        onUploadFolder={vi.fn(async () => EMPTY_UPLOAD)}
+        onPickFolder={vi.fn(async () => null)}
       />,
     )
 

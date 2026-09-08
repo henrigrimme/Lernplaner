@@ -1433,21 +1433,26 @@ export function App() {
     }
   }
 
-  // „Sven"-Upload (Nutzerwunsch 2026-09-08): Dokumente/Ordner direkt im
-  // Chat hochladen und einem Fach zuordnen. Nutzt exakt die bestehende
-  // Import-Pipeline (`importDocuments`/`importFolder`), nur mit explizit
-  // gewähltem `courseId` statt `selectedCourseId`, und reicht eine
-  // Bilanz für die Sven-Meldung zurück.
+  // „Sven"-Upload (Nutzerwunsch 2026-09-08): Dateien im Chat anhängen und
+  // sagen, zu welchem Fach sie gehören. Sven schlägt den Import vor
+  // (`importDocuments`-Vorschlag), erst „Übernehmen" ruft hier die
+  // bestehende Import-Pipeline mit explizit gewähltem `courseId`.
   const courseNameById = (courseId: number) => courses.find((c) => c.id === courseId)?.name ?? `Fach ${courseId}`
 
   const handleSvenUploadDocuments = async (courseId: number, files: File[]) => {
     const r = await importDocuments(courseId, files, null)
-    return { ...r, courseName: courseNameById(courseId) }
+    return { added: r.added, failed: r.failed, topicsCreated: r.topicsCreated, courseName: courseNameById(courseId) }
   }
 
-  const handleSvenUploadFolder = async (courseId: number) => {
-    const r = await importFolder(courseId)
-    return { added: r.added, failed: r.failed, topicsCreated: r.topicsCreated, skippedFormats: r.skippedFormats, courseName: courseNameById(courseId) }
+  // Ordner-Dialog nur öffnen und die (unterstützten) Dateien als Bytes
+  // zurückgeben — `AssistantChat` hängt sie dann wie einzeln gewählte
+  // Dateien an. `readDocumentFilesRecursively` filtert bereits auf
+  // unterstützte Formate.
+  const handleSvenPickFolder = async (): Promise<{ name: string; data: Uint8Array }[] | null> => {
+    const folder = await pickFolder()
+    if (folder === null) return null
+    const { files } = await readDocumentFilesRecursively(folder)
+    return files.map((f) => ({ name: f.relativePath, data: f.data }))
   }
 
   const mainInsetPx = sidebarCollapsed ? 0 : sidebarWidth
@@ -1901,7 +1906,7 @@ export function App() {
               topicName={(id) => topics.find((t) => t.id === id)?.name ?? `Thema ${id}`}
               courses={courses.filter((c) => c.archived === 0).map((c) => ({ id: c.id, name: c.name }))}
               onUploadDocuments={handleSvenUploadDocuments}
-              onUploadFolder={handleSvenUploadFolder}
+              onPickFolder={handleSvenPickFolder}
             />
           ) : (
             <section aria-label="Sven">

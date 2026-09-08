@@ -49,7 +49,7 @@ export function buildAssistantContext(input: AssistantContextInput): string {
     for (const course of activeCourses) {
       const courseTopics = topics.filter((t) => t.course_id === course.id)
       if (courseTopics.length === 0) {
-        lines.push(`- ${course.name}: noch keine Themen.`)
+        lines.push(`- Fach #${course.id} "${course.name}": noch keine Themen.`)
         continue
       }
       const courseTopicIds = new Set(courseTopics.map((t) => t.id))
@@ -60,7 +60,7 @@ export function buildAssistantContext(input: AssistantContextInput): string {
       )
       const pct = progress.preparedness === null ? '–' : `${Math.round(progress.preparedness * 100)}%`
       lines.push(
-        `- ${course.name}: ${pct} vorbereitet, ${progress.topicsStarted}/${progress.topicsTotal} Themen begonnen.`,
+        `- Fach #${course.id} "${course.name}": ${pct} vorbereitet, ${progress.topicsStarted}/${progress.topicsTotal} Themen begonnen.`,
       )
       for (const t of courseTopics) {
         lines.push(`    Thema #${t.id} "${t.name}" (Gewicht ${t.weight}/5, Status ${t.status})`)

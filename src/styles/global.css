@@ -1522,20 +1522,59 @@ button:disabled {
   margin: 0;
 }
 
-/* Upload-Block im Sven-Chat (Dokumente/Ordner einem Fach zuordnen). */
-.chat-upload {
+/* Angehängte Dateien — im Eingabefeld (mit ×) und in der gesendeten Blase. */
+.chat-attachments {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  margin: var(--space-sm) 0;
-  padding: var(--space-sm) var(--space-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  margin-top: var(--space-2xs);
 }
 
-.chat-upload-title {
-  font-weight: 600;
+.chat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: 2px var(--space-xs);
+  font-size: var(--text-label);
+  background: oklch(from var(--color-ink) l c h / 0.06);
+  border-radius: 999px;
+}
+
+.chat-chip button {
+  border: none;
+  background: transparent;
+  padding: 0 2px;
+  cursor: pointer;
+  font-size: 1em;
+  line-height: 1;
+}
+
+.chat-input-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* „📎 Dateien anhängen" — ein `<label>` um einen versteckten File-Input,
+   optisch wie ein normaler Button. */
+.chat-attach-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-ui);
+}
+
+.chat-attach-button input {
+  display: none;
+}
+
+.chat-input-actions button[type='submit'] {
+  margin-left: auto;
 }
 
 .chat-log {
