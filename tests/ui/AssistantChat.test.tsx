@@ -7,22 +7,30 @@ import type { ChatReply } from '../../src/ai/types'
 beforeEach(() => window.localStorage.clear())
 afterEach(() => window.localStorage.clear())
 
-function setup(reply: ChatReply | Error) {
+const EMPTY_UPLOAD = { added: 0, failed: [], topicsCreated: 0, courseName: '' }
+
+function setup(reply: ChatReply | Error, extra?: Partial<React.ComponentProps<typeof AssistantChat>>) {
   const onSend = vi.fn(async () => {
     if (reply instanceof Error) throw reply
     return reply
   })
   const onApplyAvailability = vi.fn()
   const onApplyTopicWeights = vi.fn()
+  const onUploadDocuments = vi.fn(async () => EMPTY_UPLOAD)
+  const onUploadFolder = vi.fn(async () => EMPTY_UPLOAD)
   const view = render(
     <AssistantChat
       onSend={onSend}
       onApplyAvailability={onApplyAvailability}
       onApplyTopicWeights={onApplyTopicWeights}
       topicName={(id) => `Thema ${id}`}
+      courses={[{ id: 1, name: 'Microeconomics' }]}
+      onUploadDocuments={onUploadDocuments}
+      onUploadFolder={onUploadFolder}
+      {...extra}
     />,
   )
-  return { onSend, onApplyAvailability, onApplyTopicWeights, view }
+  return { onSend, onApplyAvailability, onApplyTopicWeights, onUploadDocuments, onUploadFolder, view }
 }
 
 describe('AssistantChat', () => {
@@ -101,6 +109,67 @@ describe('AssistantChat', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
+  it('lädt Dokumente zum gewählten Fach hoch und meldet das Ergebnis als Sven-Nachricht', async () => {
+    const user = userEvent.setup()
+    const onUploadDocuments = vi.fn(async () => ({
+      added: 2,
+      failed: ['kaputt.pdf'],
+      topicsCreated: 1,
+      courseName: 'Microeconomics',
+    }))
+    setup({ message: 'x', proposals: [] }, {
+      courses: [{ id: 1, name: 'Microeconomics' }, { id: 2, name: 'Money & Banking' }],
+      onUploadDocuments,
+    })
+
+    await user.selectOptions(screen.getByLabelText('Zu welchem Fach?'), '2')
+    await user.upload(
+      screen.getByLabelText(/Dateien wählen/),
+      [new File(['a'], 'a.pdf', { type: 'application/pdf' }), new File(['b'], 'b.pdf', { type: 'application/pdf' })],
+    )
+
+    expect(onUploadDocuments).toHaveBeenCalledWith(2, expect.arrayContaining([expect.any(File)]))
+    expect(await screen.findByText(/2 Dokumente aus 2 Datei\(en\) zu „Microeconomics" hinzugefügt/)).toBeInTheDocument()
+    expect(screen.getByText(/1 neues Thema/)).toBeInTheDocument()
+    expect(screen.getByText(/Nicht gelesen: kaputt\.pdf/)).toBeInTheDocument()
+  })
+
+  it('lädt einen ganzen Ordner hoch', async () => {
+    const user = userEvent.setup()
+    const onUploadFolder = vi.fn(async () => ({
+      added: 5,
+      failed: [],
+      topicsCreated: 3,
+      skippedFormats: 2,
+      courseName: 'Microeconomics',
+    }))
+    setup({ message: 'x', proposals: [] }, { onUploadFolder })
+
+    await user.click(screen.getByRole('button', { name: 'Oder ganzen Ordner wählen' }))
+    expect(onUploadFolder).toHaveBeenCalledWith(1)
+    expect(await screen.findByText(/5 Dokumente aus einem Ordner zu „Microeconomics" hinzugefügt/)).toBeInTheDocument()
+    expect(screen.getByText(/2 Datei\(en\) mit nicht unterstütztem Format übersprungen/)).toBeInTheDocument()
+  })
+
+  it('weist auf ein fehlendes Fach hin', async () => {
+    setup({ message: 'x', proposals: [] }, { courses: [] })
+    expect(screen.getByText(/Leg zuerst unter .* ein Fach an/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Zu welchem Fach?')).not.toBeInTheDocument()
+  })
+
+  it('speichert die Upload-Meldung im Verlauf', async () => {
+    const user = userEvent.setup()
+    const { view } = setup({ message: 'x', proposals: [] }, {
+      onUploadFolder: vi.fn(async () => ({ added: 1, failed: [], topicsCreated: 0, courseName: 'Microeconomics' })),
+    })
+    await user.click(screen.getByRole('button', { name: 'Oder ganzen Ordner wählen' }))
+    await screen.findByText(/1 Dokument aus einem Ordner/)
+
+    view.unmount()
+    setup({ message: 'x', proposals: [] })
+    expect(screen.getByText(/1 Dokument aus einem Ordner zu „Microeconomics" hinzugefügt/)).toBeInTheDocument()
+  })
+
   it('zeigt während des Wartens einen Spinner mit wechselndem Spruch', async () => {
     const user = userEvent.setup()
     let resolveReply: (r: ChatReply) => void = () => {}
@@ -111,6 +180,9 @@ describe('AssistantChat', () => {
         onApplyAvailability={vi.fn()}
         onApplyTopicWeights={vi.fn()}
         topicName={(id) => `Thema ${id}`}
+        courses={[{ id: 1, name: 'Microeconomics' }]}
+        onUploadDocuments={vi.fn(async () => EMPTY_UPLOAD)}
+        onUploadFolder={vi.fn(async () => EMPTY_UPLOAD)}
       />,
     )
 
