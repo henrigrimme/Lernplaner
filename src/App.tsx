@@ -5,6 +5,7 @@ import { CourseSetup } from './ui/CourseSetup'
 import { AssessmentSetup } from './ui/AssessmentSetup'
 import { PaperSteps } from './ui/PaperSteps'
 import { AvailabilitySetup } from './ui/AvailabilitySetup'
+import { AvailabilityAssistant } from './ui/AvailabilityAssistant'
 import { PlanView } from './ui/PlanView'
 import { TodayView } from './ui/TodayView'
 import { ReplanView } from './ui/ReplanView'
@@ -78,7 +79,7 @@ import { completeQuiz, insertQuiz, loadQuizzes } from './data/quizzesRepo'
 import { insertQuestion, loadQuestions } from './data/questionsRepo'
 import { insertAnswer, loadAnswers } from './data/answersRepo'
 import { insertAiUsage } from './data/aiUsageRepo'
-import { getActiveProvider, getConfiguredAIProvider, type AIUsage } from './ai'
+import { getActiveProvider, getConfiguredAIProvider, type AIUsage, type AvailabilityProposal } from './ai'
 import { computeQuizScore } from './domain/quiz'
 import { suggestWeightAdjustments, type WeightSuggestion } from './domain/examWeighting'
 import type {
@@ -214,6 +215,23 @@ export function App() {
   const [theme, setTheme] = useState<ThemePreference>(readStoredTheme)
   const [palette, setPalette] = useState<PalettePreference>(readStoredPalette)
   const [dbError, setDbError] = useState<string | null>(null)
+  // Ob überhaupt ein KI-Anbieter konfiguriert ist — steuert nur, ob der
+  // „Sven"-Verfügbarkeits-Assistent angeboten wird (der eigentliche
+  // Aufruf prüft ohnehin erneut). Einmalig beim Start.
+  const [aiAvailable, setAiAvailable] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    getConfiguredAIProvider()
+      .then((provider) => {
+        if (!cancelled) setAiAvailable(provider !== null)
+      })
+      .catch(() => {
+        /* kein Tauri-Fenster o. Ä. — Assistent bleibt aus */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
 
@@ -1050,6 +1068,25 @@ export function App() {
   // Vorschau (`domain/examWeighting.ts`), angewendet wird sie erst über
   // `handleApplyWeightSuggestions` nach ausdrücklicher Bestätigung in
   // `ui/AltklausurAnalysis.tsx`.
+  // „Sven"-Verfügbarkeits-Assistent (Nutzerwunsch 2026-09-08): Freitext →
+  // strukturierter Vorschlag → Bestätigung → schreiben. Der KI-Aufruf
+  // liefert bereits einen bereinigten Vorschlag
+  // (`normalizeAvailabilityProposal`); `applyAvailabilityProposal` geht
+  // dann über exakt dieselben Callbacks wie die manuelle Eingabe.
+  const parseAvailabilityText = async (text: string): Promise<AvailabilityProposal> => {
+    const provider = await getConfiguredAIProvider(logAiUsage)
+    if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
+    return provider.parseAvailability(text, today)
+  }
+
+  const applyAvailabilityProposal = (proposal: AvailabilityProposal) => {
+    for (const { weekday, minutes } of proposal.weekdayMinutes) handleSetPatternMinutes(weekday, minutes)
+    for (const ex of proposal.exceptions) handleAddException(ex.date, ex.minutes, ex.note)
+    for (const b of proposal.recurringBlockers) {
+      handleAddRecurringBlocker({ weekday: b.weekday, starts_at: b.startsAt, ends_at: b.endsAt, label: b.label })
+    }
+  }
+
   const handleAnalyzeAltklausur = async (documentIds: number[]): Promise<WeightSuggestion[]> => {
     const provider = await getConfiguredAIProvider(logAiUsage)
     if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
@@ -1617,6 +1654,11 @@ export function App() {
             recurringBlockers={recurringBlockers}
             onAddRecurringBlocker={handleAddRecurringBlocker}
             onRemoveRecurringBlocker={handleRemoveRecurringBlocker}
+            assistant={
+              aiAvailable ? (
+                <AvailabilityAssistant onParse={parseAvailabilityText} onApply={applyAvailabilityProposal} />
+              ) : undefined
+            }
           />
         )}
 

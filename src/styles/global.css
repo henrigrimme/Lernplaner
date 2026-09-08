@@ -1473,3 +1473,38 @@ button:disabled {
   border: 1px solid var(--color-border);
   padding: 2px var(--space-2xs);
 }
+
+/* ---------- KI-Assistent "Sven" (ui/AvailabilityAssistant.tsx u. a.) ---------- */
+
+/* Leicht abgesetzte Fläche über dem manuellen Verfügbarkeits-Formular —
+   der schnelle Weg ("einfacher als die ganzen Tage anzuklicken"), das
+   Formular darunter bleibt der genaue. */
+.assistant-box {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.assistant-box h3 {
+  margin-top: 0;
+}
+
+.assistant-box textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 3lh;
+}
+
+.assistant-proposal {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.assistant-proposal-actions {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}

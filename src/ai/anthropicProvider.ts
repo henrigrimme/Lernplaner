@@ -5,6 +5,9 @@ import type {
   AIProvider,
   AIUsage,
   AIUsageListener,
+  AvailabilityProposal,
+  ChatMessage,
+  ChatReply,
   ExamTopicMatch,
   QuestionFocus,
   QuestionSuggestion,
@@ -12,6 +15,7 @@ import type {
   TextTopicSuggestion,
   TopicSuggestion,
 } from './types'
+import { buildAvailabilityPrompt, buildChatSystemPrompt, parseAvailabilityReply, parseChatReply } from './prompts'
 
 const LANGUAGE_INSTRUCTION: Record<CourseLanguage, string> = {
   de: 'Antworte auf Deutsch.',
@@ -235,5 +239,33 @@ export class AnthropicProvider implements AIProvider {
     const parsed = extractJson(text)
     if (!Array.isArray(parsed)) throw new Error('Claude-Antwort war kein JSON-Array')
     return parsed as TextTopicSuggestion[]
+  }
+
+  async parseAvailability(text: string, todayISO: string): Promise<AvailabilityProposal> {
+    const { text: reply, usage } = await callClaude(this.apiKey, buildAvailabilityPrompt(text, todayISO))
+    this.report('parse_availability', usage)
+    return parseAvailabilityReply(extractJson(reply))
+  }
+
+  async chat(history: ChatMessage[], context: string): Promise<ChatReply> {
+    const response = await fetch(ANTHROPIC_API_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': this.apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 2048,
+        system: buildChatSystemPrompt(context),
+        messages: history.map((m) => ({ role: m.role, content: m.content })),
+      }),
+    })
+    if (!response.ok) throw new Error(`Claude-API-Fehler ${response.status}: ${await response.text()}`)
+    const data = (await response.json()) as AnthropicMessageResponse
+    this.report('chat', data.usage)
+    const raw = data.content.find((block) => block.type === 'text')?.text ?? ''
+    return parseChatReply(raw)
   }
 }
