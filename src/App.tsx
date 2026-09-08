@@ -6,6 +6,8 @@ import { AssessmentSetup } from './ui/AssessmentSetup'
 import { PaperSteps } from './ui/PaperSteps'
 import { AvailabilitySetup } from './ui/AvailabilitySetup'
 import { AvailabilityAssistant } from './ui/AvailabilityAssistant'
+import { AssistantChat } from './ui/AssistantChat'
+import { buildAssistantContext } from './domain/assistantContext'
 import { PlanView } from './ui/PlanView'
 import { TodayView } from './ui/TodayView'
 import { ReplanView } from './ui/ReplanView'
@@ -79,7 +81,13 @@ import { completeQuiz, insertQuiz, loadQuizzes } from './data/quizzesRepo'
 import { insertQuestion, loadQuestions } from './data/questionsRepo'
 import { insertAnswer, loadAnswers } from './data/answersRepo'
 import { insertAiUsage } from './data/aiUsageRepo'
-import { getActiveProvider, getConfiguredAIProvider, type AIUsage, type AvailabilityProposal } from './ai'
+import {
+  getActiveProvider,
+  getConfiguredAIProvider,
+  type AIUsage,
+  type AvailabilityProposal,
+  type ChatMessage,
+} from './ai'
 import { computeQuizScore } from './domain/quiz'
 import { suggestWeightAdjustments, type WeightSuggestion } from './domain/examWeighting'
 import type {
@@ -136,7 +144,16 @@ import type {
  * Fächer-/Prüfungs-Bausteinen, hier nur der Vollständigkeit halber erneut
  * festgehalten, da sie jetzt auch Themen und Lernblöcke betrifft.
  */
-type NavSection = 'faecher' | 'verfuegbarkeit' | 'plan' | 'heute' | 'wiederholen' | 'quiz' | 'fortschritt' | 'einstellungen'
+type NavSection =
+  | 'faecher'
+  | 'verfuegbarkeit'
+  | 'plan'
+  | 'heute'
+  | 'wiederholen'
+  | 'quiz'
+  | 'fortschritt'
+  | 'sven'
+  | 'einstellungen'
 
 // Reine UI-Präferenz (Breite/Ein-Ausgeklappt-Status der Seitenleiste), kein
 // Lerninhalt — bewusst in `localStorage` statt SQLite: unterscheidet sich
@@ -173,6 +190,7 @@ const NAV_ITEMS: { key: NavSection; label: string }[] = [
   { key: 'wiederholen', label: 'Wiederholen' },
   { key: 'quiz', label: 'Quiz' },
   { key: 'fortschritt', label: 'Fortschritt' },
+  { key: 'sven', label: 'Sven' },
   { key: 'einstellungen', label: 'Einstellungen' },
 ]
 
@@ -1087,6 +1105,31 @@ export function App() {
     }
   }
 
+  // „Sven"-Chat (Nutzerwunsch 2026-09-08, Teil 2): freies Gespräch mit
+  // Kontext zur aktuellen Lage. Svens Vorschläge werden erst per Klick
+  // angewandt — Verfügbarkeit über `applyAvailabilityProposal` (oben),
+  // Themen-Gewichte über den bestehenden `handleChangeTopics`-Weg.
+  const handleSvenChat = async (history: ChatMessage[]) => {
+    const provider = await getConfiguredAIProvider(logAiUsage)
+    if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
+    const context = buildAssistantContext({
+      courses,
+      topics,
+      assessments,
+      studyBlocks,
+      pattern,
+      exceptions,
+      recurringBlockers,
+      today,
+    })
+    return provider.chat(history, context)
+  }
+
+  const applyTopicWeightChanges = (changes: { topicId: number; weight: 1 | 2 | 3 | 4 | 5 }[]) => {
+    const byId = new Map(changes.map((c) => [c.topicId, c.weight]))
+    void handleChangeTopics(topics.map((t) => (byId.has(t.id) ? { ...t, weight: byId.get(t.id)! } : t)))
+  }
+
   const handleAnalyzeAltklausur = async (documentIds: number[]): Promise<WeightSuggestion[]> => {
     const provider = await getConfiguredAIProvider(logAiUsage)
     if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
@@ -1791,6 +1834,24 @@ export function App() {
             from={today}
           />
         )}
+
+        {activeSection === 'sven' &&
+          (aiAvailable ? (
+            <AssistantChat
+              onSend={handleSvenChat}
+              onApplyAvailability={applyAvailabilityProposal}
+              onApplyTopicWeights={applyTopicWeightChanges}
+              topicName={(id) => topics.find((t) => t.id === id)?.name ?? `Thema ${id}`}
+            />
+          ) : (
+            <section aria-label="Sven">
+              <h2>Sven</h2>
+              <p className="empty-state">
+                Sven braucht einen KI-Anbieter. Hinterlege in den Einstellungen unter „KI-Anbindung" einen
+                API-Schlüssel, dann kannst du hier mit ihm sprechen.
+              </p>
+            </section>
+          ))}
 
         {activeSection === 'einstellungen' && (
           <SettingsView
