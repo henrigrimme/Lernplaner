@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  computeCourseProgress,
   computeMasteryByTopic,
   computePreparedness,
   computeTopicMastery,
@@ -135,5 +136,48 @@ describe('suggestNextTopic', () => {
       { topicId: 2, weight: 3 as const },
     ]
     expect(suggestNextTopic(1, [], topics)).toEqual({ topicId: 1, urgency: 3 })
+  })
+})
+
+describe('computeCourseProgress', () => {
+  it('meldet preparedness null und 0 begonnene Themen für ein Fach ohne Themen', () => {
+    expect(computeCourseProgress([], [])).toEqual({
+      preparedness: null,
+      topicsStarted: 0,
+      topicsTotal: 0,
+      nextTopicId: null,
+    })
+  })
+
+  it('rechnet über ALLE Lernblöcke des Fachs, nicht nach assessment_id gefiltert', () => {
+    const topics = [
+      { topicId: 1, weight: 1 as const },
+      { topicId: 2, weight: 4 as const },
+    ]
+    // Thema 1 fertig — aber die Blöcke hängen an zwei verschiedenen Prüfungen.
+    const blocks = [
+      block({ id: 1, topic_id: 1, assessment_id: 1, status: 'erledigt', actual_minutes: 45 }),
+      block({ id: 2, topic_id: 2, assessment_id: 2, status: 'offen' }),
+    ]
+    const result = computeCourseProgress(topics, blocks)
+    // (1*1 + 4*0) / (1+4) = 0.2
+    expect(result.preparedness).toBeCloseTo(0.2)
+    expect(result.topicsStarted).toBe(2)
+    expect(result.topicsTotal).toBe(2)
+    expect(result.nextTopicId).toBe(2)
+  })
+
+  it('zählt nur Themen mit nicht gestrichenem Block als begonnen', () => {
+    const topics = [
+      { topicId: 1, weight: 3 as const },
+      { topicId: 2, weight: 3 as const },
+      { topicId: 3, weight: 3 as const },
+    ]
+    const blocks = [
+      block({ id: 1, topic_id: 1, status: 'erledigt', actual_minutes: 45 }),
+      block({ id: 2, topic_id: 2, status: 'gestrichen' }),
+      // Thema 3 hat gar keinen Block
+    ]
+    expect(computeCourseProgress(topics, blocks).topicsStarted).toBe(1)
   })
 })

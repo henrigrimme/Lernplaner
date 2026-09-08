@@ -997,6 +997,45 @@ section[aria-label] ul.document-list > li.document-list-item {
   font-size: var(--text-label);
 }
 
+/* ---------- Fortschritt pro Fach (ui/ProgressView.tsx) ---------- */
+.course-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.course-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.course-progress-meta {
+  margin: var(--space-2xs) 0 0;
+  color: var(--color-muted);
+  font-size: var(--text-label);
+}
+
+/* Dünner Fortschrittsbalken. Füllung bewusst NICHT in der Akzentfarbe
+   (DESIGN.md „One Accent Rule" — Terrakotta nur auf Submit-Buttons/aktiver
+   Navigation), sondern ein ruhiger Tintenbasierter Ton auf der
+   Formularflächen-Spur. */
+.progress-bar {
+  margin-top: var(--space-xs);
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: oklch(from var(--color-ink) l c h / 0.45);
+  transition: width var(--duration-fast) var(--ease-out-quart);
+}
+
 /* ---------- Leerer Zustand ---------- */
 /* Bisher ein einzelner, linksbündiger Absatz direkt unter dem Panel/der
    Toolbar (z. B. "Für heute ist nichts geplant." — ausgerechnet die

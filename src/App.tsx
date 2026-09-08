@@ -1752,7 +1752,13 @@ export function App() {
           ))}
 
         {activeSection === 'fortschritt' && (
-          <ProgressView assessments={assessments} topics={topics} studyBlocks={studyBlocks} from={today} />
+          <ProgressView
+            assessments={assessments}
+            topics={topics}
+            studyBlocks={studyBlocks}
+            courses={courses.filter((c) => c.archived === 0)}
+            from={today}
+          />
         )}
 
         {activeSection === 'einstellungen' && (
