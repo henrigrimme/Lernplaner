@@ -24,13 +24,18 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.32.0.**
+**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.33.0.**
 Jüngster Stand ganz am Ende von Abschnitt 8:
-- „Anki-Rich-Karten, Ordner ein-/ausklappbar, WCAG-Kontrast" (v0.32.0,
-  PRs #84–86): Anki-Bilder als `data:`-URIs + Vorlagen-Konditionale +
-  Karten als sanitisiertes HTML, Sidebar-Ordner ein-/ausklappbar,
-  Terrakotta-Akzent auf WCAG AA, `@xmldom/xmldom`-Advisory behoben.
-  **Offen:** KI-Chat-Feld (Nutzerwunsch, Umfang noch zu klären).
+- „‚Sven' — KI-Assistent" (v0.33.0, PRs #87–88): Verfügbarkeit per
+  Freitext beschreiben statt Tage klicken; Lern-Chat mit Kontext zu
+  Fächern/Fortschritt/Verfügbarkeit; Sven schlägt Änderungen vor, Nutzer
+  bestätigt (ADR-005). Neuer Sidebar-Bereich „Sven". Dazu
+  `vitest.config.ts` `pool: 'forks'` gegen die seltene Test-Flakiness.
+- davor „Anki-Rich-Karten, Ordner ein-/ausklappbar, WCAG-Kontrast"
+  (v0.32.0, PRs #84–86): Anki-Bilder als `data:`-URIs +
+  Vorlagen-Konditionale + Karten als sanitisiertes HTML, Sidebar-Ordner
+  ein-/ausklappbar, Terrakotta-Akzent auf WCAG AA,
+  `@xmldom/xmldom`-Advisory behoben.
 - davor „Sechs Alltags-Wünsche + Anki-Import" (v0.31.0, PRs #80–83):
   Verfügbarkeits-Regel + Zeitraum-Ausnahmen (+ P0-Fix
   `reportDbError`-Rekursion), Fächer-in-Ordner einfacher +
@@ -3580,18 +3585,68 @@ vollen Läufen nicht mehr aufgetreten — als einmaliger transienter
 Worker-/IO-Effekt eingestuft, keine Änderung nötig.
 
 **Offen / Folgeschritte:**
-- **KI-Chat-Feld** (Nutzerwunsch 08.09., nach v0.32.0): natürlichsprachlich
-  Verfügbarkeit angeben („Mo–Fr abends 2h, Wochenende nichts") statt Tage
-  klicken; mit der KI über Problemfelder sprechen. Über den vorhandenen
-  API-Key (`ai/`-Infrastruktur, `getConfiguredAIProvider`). **Noch nicht
-  begonnen — Umfang mit dem Nutzer zu klären** (fokussierter
-  NL-Verfügbarkeits-Assistent vs. vollständiges Chat-Panel; ADR-005:
-  KI-Ergebnis als Vorschlag, Nutzer bestätigt).
 - Anki: `{{FrontSide}}` im afmt wiederholt die Vorderseite auf der
   Rückseite (Anki-typisch, in unserer UI leicht redundant, da Vorderseite
   ohnehin oben steht) — bei Bedarf später kürzen.
 - `.anki21b`-Protobuf-Medienmanifest weiterhin nicht gelesen (Karten
   importieren, Bilder daraus nicht).
+
+---
+
+### „Sven" — KI-Assistent (Chat + Verfügbarkeit per Freitext) (v0.33.0, 08.09.2026)
+
+Nutzerwunsch: ein KI-Feld, in dem man die Verfügbarkeit frei beschreibt
+statt alles anzuklicken, und mit dem man über Problemfelder sprechen
+kann — über den schon vorhandenen API-Key. Der Assistent heißt **Sven**
+(Nutzerwunsch). Umfang „Assistent + Lern-Chat" gewählt. Zwei PRs.
+
+- **PR #87 — Verfügbarkeit per Freitext (Teil 1).**
+  - `ai/types.ts`: `AIProvider` um `parseAvailability(text, todayISO)`
+    und `chat(history, context)` erweitert (beide Anbieter). Neue Typen
+    `AvailabilityProposal`, `ChatMessage`/`ChatReply`/`ChatProposal`.
+    `chat` nutzt echte Mehr-Turn-`messages` + `system`-Prompt.
+  - `ai/prompts.ts` (neu): geteilte Prompt-Bausteine + `parseChatReply`
+    (löst ```` ```availability ````/```` ```topicWeights ````-Blöcke aus
+    der Antwort, verwirft kaputte still).
+  - `domain/availabilityProposal.ts` (neu): `normalizeAvailabilityProposal`
+    — defensiv gegen KI-Halluzination (Wochentag 0–6, Minuten ≥ 0
+    geklemmt, ISO-Datum/`HH:MM`-Prüfung, Dedup). Reine Funktion.
+  - `ui/AvailabilityAssistant.tsx` (neu): Freitext → Vorschau
+    (lesbare Zeilen + Svens Zusammenfassung) → „Übernehmen" (ADR-005).
+    Sitzt als optionaler `assistant`-Slot über den
+    Verfügbarkeits-Reitern; erscheint nur bei konfiguriertem KI-Anbieter
+    (`aiAvailable`, einmalig beim Start geprüft). „Übernehmen" geht über
+    exakt dieselben Callbacks wie die manuelle Eingabe.
+- **PR #88 — Lern-Chat (Teil 2).**
+  - `domain/assistantContext.ts` (neu): `buildAssistantContext` — kompakte
+    Zusammenfassung (Fächer + Vorbereitungsgrad, Themen mit **id** +
+    Gewicht, bevorstehende Prüfungen, Wochen-Verfügbarkeit, feste Blocker,
+    abweichende Tage), die Sven als Kontext bekommt.
+  - `ui/AssistantChat.tsx` (neu): Chatverlauf (nur Sitzung), Eingabe
+    (⌘/Strg+Enter sendet), Antwort. Strukturierte Vorschläge
+    (Verfügbarkeit / Themen-Gewichte) als Karte mit „Übernehmen" — erst
+    per Klick angewandt (ADR-005).
+  - `App.tsx`: neuer Sidebar-Bereich **„Sven"** (`NavSection`).
+    `handleSvenChat` baut den Kontext + ruft `provider.chat`;
+    Themen-Gewichte über `handleChangeTopics`, Verfügbarkeit über das
+    `applyAvailabilityProposal` aus #87. Ohne KI-Anbieter: Hinweis auf
+    die Einstellungen.
+
+- **chore (im 0.33.0-Bump):** `vitest.config.ts` `pool: 'forks'` statt des
+  Standard-`threads`-Pools — die seltene (~10 %) flakige Runde aus
+  v0.31.0/v0.32.0 im **vollen** Parallel-Lauf ließ sich auf native Addons
+  (`better-sqlite3` in `tests/data/*` + `tests/ingest/anki`, sql.js-WASM)
+  in Worker-Threads zurückführen. Mit Prozess-Isolation **12/12 volle
+  Läufe grün** (vorher 2 Fehlschläge in ~14). Einzeln liefen die
+  betroffenen Dateien immer durch.
+
+**Version 0.32.0 → 0.33.0**, signierter Release. 594 Tests, tsc, vite
+build grün.
+
+**Offen / Folgeschritte:**
+- Sven-Chatverlauf über Sitzungen hinweg speichern (aktuell nur in-memory).
+- Der Chat rendert Svens Antworten als reinen Text (`pre-wrap`) — kein
+  Markdown-Rendering.
 
 ---
 
