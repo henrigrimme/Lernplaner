@@ -1511,6 +1511,17 @@ button:disabled {
 
 /* ---------- Sven-Chat (ui/AssistantChat.tsx) ---------- */
 
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.chat-header h2 {
+  margin: 0;
+}
+
 .chat-log {
   display: flex;
   flex-direction: column;
