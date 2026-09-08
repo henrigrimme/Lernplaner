@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AvailabilityProposal, ChatMessage, ChatProposal, ChatReply } from '../ai/types'
 import { describeAvailabilityProposal } from '../domain/availabilityProposal'
+import { renderMarkdownToHtml } from './renderMarkdown'
 
 /**
  * „Sven" — freies Lern-Gespräch (Nutzerwunsch 2026-09-08). Sven sieht
@@ -311,18 +312,27 @@ export function AssistantChat({
         <div className="chat-log" ref={logRef}>
           {turns.map((turn) => (
             <div key={turn.id} className={`chat-turn chat-turn-${turn.role}`}>
-              <div className="chat-bubble">
-                {turn.content}
-                {turn.attachments && turn.attachments.length > 0 && (
-                  <div className="chat-attachments">
-                    {turn.attachments.map((name) => (
-                      <span key={name} className="chat-chip">
-                        📎 {name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {turn.role === 'assistant' ? (
+                <div
+                  className="chat-bubble chat-bubble-md"
+                  // Svens Text ist Markdown; `renderMarkdownToHtml` escaped zuerst und
+                  // sanitisiert danach auf ein enges Tag-Set.
+                  dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(turn.content) }}
+                />
+              ) : (
+                <div className="chat-bubble">
+                  {turn.content}
+                  {turn.attachments && turn.attachments.length > 0 && (
+                    <div className="chat-attachments">
+                      {turn.attachments.map((name) => (
+                        <span key={name} className="chat-chip">
+                          📎 {name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {turn.proposals?.map((proposal, j) => {
                 const pkey = `${turn.id}:${j}`
                 const applied = appliedKeys.has(pkey)

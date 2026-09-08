@@ -46,6 +46,17 @@ describe('AssistantChat', () => {
     expect(screen.getByText('Wie plane ich Montag?')).toBeInTheDocument()
   })
 
+  it('rendert Markdown in Svens Antwort (fett + Liste)', async () => {
+    const user = userEvent.setup()
+    setup({ message: 'Plan:\n- **Montag** Micro\n- Dienstag Macro', proposals: [] })
+    await user.type(screen.getByLabelText('Nachricht an Sven'), 'plan bitte')
+    await user.click(screen.getByRole('button', { name: 'Senden' }))
+
+    const bubble = (await screen.findByText('Montag')).closest('.chat-bubble-md') as HTMLElement
+    expect(bubble.querySelector('strong')).toHaveTextContent('Montag')
+    expect(bubble.querySelectorAll('li')).toHaveLength(2)
+  })
+
   it('zeigt einen Verfügbarkeits-Vorschlag und übernimmt ihn erst auf Klick', async () => {
     const user = userEvent.setup()
     const { onApplyAvailability } = setup({
