@@ -24,9 +24,13 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.33.0.**
+**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.34.0.**
 Jüngster Stand ganz am Ende von Abschnitt 8:
-- „‚Sven' — KI-Assistent" (v0.33.0, PRs #87–88): Verfügbarkeit per
+- „‚Sven' — Chat-Feinschliff + Upload" (v0.34.0, PRs #89–90):
+  Chatverlauf über Sitzungen (localStorage), Enter zum Senden,
+  Warte-Spinner mit Sprüchen; Dokumente/Ordner direkt im Sven-Chat
+  hochladen und einem Fach zuordnen.
+- davor „‚Sven' — KI-Assistent" (v0.33.0, PRs #87–88): Verfügbarkeit per
   Freitext beschreiben statt Tage klicken; Lern-Chat mit Kontext zu
   Fächern/Fortschritt/Verfügbarkeit; Sven schlägt Änderungen vor, Nutzer
   bestätigt (ADR-005). Neuer Sidebar-Bereich „Sven". Dazu
@@ -3643,10 +3647,40 @@ kann — über den schon vorhandenen API-Key. Der Assistent heißt **Sven**
 **Version 0.32.0 → 0.33.0**, signierter Release. 594 Tests, tsc, vite
 build grün.
 
+---
+
+### „Sven" — Chat-Feinschliff + Upload (v0.34.0, 08.09.2026)
+
+Weitere Nutzerwünsche am Sven-Chat, drei kleine PRs + ein größerer.
+
+- **PR #89 — Verlauf / Enter / Warte-Spruch.**
+  - Chatverlauf (Turns + welche Vorschläge übernommen wurden) in
+    `localStorage` (`lernplaner.svenChat`), letzte 60 Beiträge, stabile
+    Turn-`id`. „Verlauf löschen"-Button.
+  - **Enter** sendet, **Umschalt+Enter** = neue Zeile (vorher
+    ⌘/Strg+Enter).
+  - Warte-Anzeige während `onSend`: CSS-Spinner + zufälliger Spruch aus
+    einer kleinen Liste („ist kurz Milch holen" …), wechselt alle 2,5 s.
+- **PR #90 — Dokumente/Ordner im Chat hochladen.**
+  - `App.tsx`: die Import-Funktionen nehmen jetzt eine **explizite
+    `courseId`** statt `selectedCourseId` (`importSummaryPdf`/
+    `importRegularDocument` als 1. Argument; `importDocuments(courseId,
+    files, docType|null)` und `importFolder(courseId)` geben zusätzlich
+    eine Bilanz zurück). `docType null` → je Datei aus dem Namen ableiten.
+    Der Material-Reiter ruft unverändert mit `selectedCourseId`.
+  - `AssistantChat`: Block „Unterlagen hinzufügen" — Fach-Auswahl +
+    Datei-Mehrfachauswahl + „ganzen Ordner wählen". Ergebnis als lokale
+    Sven-Nachricht (kein KI-Aufruf), landet im persistierten Verlauf.
+
+**Version 0.33.0 → 0.34.0**, signierter Release. 603 Tests, tsc, vite
+build grün.
+
 **Offen / Folgeschritte:**
-- Sven-Chatverlauf über Sitzungen hinweg speichern (aktuell nur in-memory).
 - Der Chat rendert Svens Antworten als reinen Text (`pre-wrap`) — kein
   Markdown-Rendering.
+- Sven „weiß" nach einem Upload noch nichts davon in derselben Nachricht
+  — beim nächsten Prompt sieht er die neuen Themen über den Kontext
+  (`buildAssistantContext`).
 
 ---
 
