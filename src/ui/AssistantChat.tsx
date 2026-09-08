@@ -39,12 +39,26 @@ const THINKING_PHRASES = [
 
 const THINKING_INTERVAL_MS = 2500
 
+/** Bilanz eines Uploads, die Sven als Chat-Nachricht meldet. */
+export interface SvenUploadResult {
+  added: number
+  failed: string[]
+  topicsCreated: number
+  /** Nur beim Ordner-Upload: übersprungene Dateien wegen nicht unterstütztem Format. */
+  skippedFormats?: number
+  courseName: string
+}
+
 export interface AssistantChatProps {
   onSend: (history: ChatMessage[]) => Promise<ChatReply>
   onApplyAvailability: (proposal: AvailabilityProposal) => void
   onApplyTopicWeights: (changes: { topicId: number; weight: 1 | 2 | 3 | 4 | 5 }[]) => void
   /** Für die Anzeige „Thema X → Gewicht 5" statt nur der id. */
   topicName: (topicId: number) => string
+  /** Aktive Fächer für die „zu welchem Fach"-Auswahl beim Upload. */
+  courses: { id: number; name: string }[]
+  onUploadDocuments: (courseId: number, files: File[]) => Promise<SvenUploadResult>
+  onUploadFolder: (courseId: number) => Promise<SvenUploadResult>
 }
 
 interface Turn {
@@ -87,7 +101,15 @@ function loadStored(): StoredChat {
   }
 }
 
-export function AssistantChat({ onSend, onApplyAvailability, onApplyTopicWeights, topicName }: AssistantChatProps) {
+export function AssistantChat({
+  onSend,
+  onApplyAvailability,
+  onApplyTopicWeights,
+  topicName,
+  courses,
+  onUploadDocuments,
+  onUploadFolder,
+}: AssistantChatProps) {
   const initial = useRef(loadStored()).current
   const [turns, setTurns] = useState<Turn[]>(initial.turns)
   const [draft, setDraft] = useState('')
@@ -95,6 +117,8 @@ export function AssistantChat({ onSend, onApplyAvailability, onApplyTopicWeights
   const [error, setError] = useState<string | null>(null)
   const [appliedKeys, setAppliedKeys] = useState<Set<string>>(new Set(initial.applied))
   const [thinkingPhrase, setThinkingPhrase] = useState<string>(THINKING_PHRASES[0])
+  const [uploadCourseId, setUploadCourseId] = useState<number | null>(courses[0]?.id ?? null)
+  const [uploading, setUploading] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
 
   // Während gewartet wird, alle paar Sekunden einen anderen Spruch zeigen.
@@ -115,6 +139,11 @@ export function AssistantChat({ onSend, onApplyAvailability, onApplyTopicWeights
       /* privater Modus / Kontingent voll — Verlauf gilt dann nur für die Sitzung */
     }
   }, [turns, appliedKeys])
+
+  // Fächer laden asynchron nach — Vorauswahl aktuell halten.
+  useEffect(() => {
+    setUploadCourseId((cur) => (cur !== null && courses.some((c) => c.id === cur) ? cur : (courses[0]?.id ?? null)))
+  }, [courses])
 
   const scrollToEnd = () => {
     requestAnimationFrame(() => {
@@ -161,6 +190,43 @@ export function AssistantChat({ onSend, onApplyAvailability, onApplyTopicWeights
     setError(null)
   }
 
+  /** Hängt eine lokale Sven-Nachricht an (keine KI, kein Token-Verbrauch). */
+  const pushLocalNote = (content: string) => {
+    setTurns((prev) => [...prev, { id: newTurnId(), role: 'assistant', content }])
+    scrollToEnd()
+  }
+
+  const summariseUpload = (r: SvenUploadResult, source: string): string => {
+    const parts = [
+      `📎 ${r.added} ${r.added === 1 ? 'Dokument' : 'Dokumente'} aus ${source} zu „${r.courseName}" hinzugefügt`,
+    ]
+    if (r.topicsCreated > 0) parts.push(`, ${r.topicsCreated} neue${r.topicsCreated === 1 ? 's Thema' : ' Themen'}`)
+    parts.push('.')
+    if (r.skippedFormats) parts.push(` ${r.skippedFormats} Datei(en) mit nicht unterstütztem Format übersprungen.`)
+    if (r.failed.length > 0) parts.push(` Nicht gelesen: ${r.failed.slice(0, 5).join(', ')}${r.failed.length > 5 ? ', …' : ''}.`)
+    return parts.join('')
+  }
+
+  const runUpload = async (action: () => Promise<SvenUploadResult>, source: string) => {
+    if (uploadCourseId === null) {
+      setError('Wähl zuerst ein Fach aus, zu dem die Unterlagen gehören.')
+      return
+    }
+    setError(null)
+    setUploading(true)
+    try {
+      const result = await action()
+      if (result.added === 0 && result.failed.length === 0 && !result.skippedFormats) return // Nutzer hat abgebrochen
+      pushLocalNote(summariseUpload(result, source))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const hasCourses = courses.length > 0
+
   return (
     <section aria-label="Sven">
       <div className="chat-header">
@@ -176,6 +242,57 @@ export function AssistantChat({ onSend, onApplyAvailability, onApplyTopicWeights
         Plan für die Woche, wo du gerade hängst, oder sag ihm, wie viel Zeit du hast — Änderungen macht er nur als
         Vorschlag, den du bestätigst. Der Verlauf bleibt auf diesem Gerät erhalten.
       </p>
+
+      <div className="chat-upload" aria-label="Unterlagen hinzufügen">
+        <span className="chat-upload-title">Unterlagen hinzufügen</span>
+        {hasCourses ? (
+          <>
+            <label>
+              Zu welchem Fach?
+              <select
+                value={uploadCourseId ?? ''}
+                onChange={(e) => setUploadCourseId(e.target.value === '' ? null : Number(e.target.value))}
+              >
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Dateien wählen (PDF, Word, PowerPoint, Excel, Markdown)
+              <input
+                type="file"
+                multiple
+                disabled={uploading}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? [])
+                  e.target.value = ''
+                  if (files.length > 0 && uploadCourseId !== null) {
+                    void runUpload(() => onUploadDocuments(uploadCourseId, files), `${files.length} Datei(en)`)
+                  } else if (files.length > 0) {
+                    setError('Wähl zuerst ein Fach aus, zu dem die Unterlagen gehören.')
+                  }
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={uploading || uploadCourseId === null}
+              onClick={() => void runUpload(() => onUploadFolder(uploadCourseId!), 'einem Ordner')}
+            >
+              {uploading ? 'lädt …' : 'Oder ganzen Ordner wählen'}
+            </button>
+            <p className="empty-state-inline">
+              Unterordner werden 1:1 als verschachtelte Themen übernommen. Sven legt alles direkt beim gewählten Fach
+              ab und meldet unten, was angekommen ist.
+            </p>
+          </>
+        ) : (
+          <p className="empty-state-inline">Leg zuerst unter „Fächer &amp; Themen" ein Fach an.</p>
+        )}
+      </div>
 
       {turns.length > 0 && (
         <div className="chat-log" ref={logRef}>

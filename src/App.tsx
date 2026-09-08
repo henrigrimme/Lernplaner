@@ -1185,14 +1185,14 @@ export function App() {
   // ist pdf.js-spezifisch — bei Word/Markdown übernimmt deren eigene
   // Überschriftenerkennung (`importRegularDocument`) dieselbe Aufgabe
   // bereits deterministisch, siehe `importDocuments` unten.
-  const importSummaryPdf = async (fileName: string, data: Uint8Array, parentTopicId: number | null) => {
+  const importSummaryPdf = async (courseId: number, fileName: string, data: Uint8Array, parentTopicId: number | null) => {
     const provider = await getConfiguredAIProvider(logAiUsage)
     if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
 
     const { readPages } = await import('./ingest/pdf')
     const pages = await readPages(data)
     const pagedText = pages.map((p) => ({ pageNumber: p.number, text: p.lines.map((l) => l.text).join(' ') }))
-    const courseInstructions = courses.find((c) => c.id === selectedCourseId)?.instructions ?? ''
+    const courseInstructions = courses.find((c) => c.id === courseId)?.instructions ?? ''
     const suggestions = await provider.detectTopicsFromText(pagedText, courseInstructions)
     if (suggestions.length === 0) throw new Error('Es konnten keine Themen erkannt werden.')
 
@@ -1208,7 +1208,7 @@ export function App() {
 
     return persistAiDetectedDocument(
       db,
-      selectedCourseId!,
+      courseId,
       fileName,
       { storedPath, sha256, docType: 'zusammenfassung', docTypeLabel: null },
       pages.length,
@@ -1226,14 +1226,20 @@ export function App() {
    * jeweils eigene, deterministische Kapitelerkennung
    * (`ingest/docx.ts`/`pptx.ts`/`xlsx.ts`/`markdown.ts`).
    */
-  const importRegularDocument = async (fileName: string, data: Uint8Array, docType: DocumentType, parentTopicId: number | null) => {
+  const importRegularDocument = async (
+    courseId: number,
+    fileName: string,
+    data: Uint8Array,
+    docType: DocumentType,
+    parentTopicId: number | null,
+  ) => {
     const db = await getDb()
     const extracted = await extractAnyDocument(data, fileName)
     const sha256 = await computeSha256(data)
     const storedPath = await saveDocumentFile(sha256, data)
     return persistExtractedDocument(
       db,
-      selectedCourseId!,
+      courseId,
       extracted,
       { storedPath, sha256, docType, docTypeLabel: docType === 'sonstiges' ? importDocTypeLabel.trim() || null : null },
       new Date().toISOString(),
@@ -1241,13 +1247,30 @@ export function App() {
     )
   }
 
-  const importDocuments = async (files: FileList, docType: DocumentType) => {
-    if (selectedCourseId === null) return
+  /**
+   * Importiert mehrere Einzeldateien in ein bestimmtes Fach. `docType`
+   * `null` = je Datei aus dem Namen ableiten (`inferDocType`) — so nutzt
+   * es der „Sven"-Upload, der keinen Dokumenttyp abfragt. Gibt eine kurze
+   * Bilanz zurück (importiert / fehlgeschlagen mit Namen / neue Themen),
+   * damit der Sven-Chat melden kann, was passiert ist; das feldnahe
+   * `importError`/`importInfo` bleibt für den Material-Reiter erhalten.
+   */
+  const importDocuments = async (
+    courseId: number | null,
+    files: FileList | File[],
+    docType: DocumentType | null,
+  ): Promise<{ added: number; failed: string[]; topicsCreated: number }> => {
+    if (courseId === null) return { added: 0, failed: [], topicsCreated: 0 }
     setImportError(null)
     setImportInfo(null)
 
+    let added = 0
+    let topicsCreated = 0
+    const failed: string[] = []
+
     for (const file of Array.from(files)) {
       const data = new Uint8Array(await file.arrayBuffer())
+      const effectiveType = docType ?? inferDocType(file.name)
       try {
         // Der KI-gestützte Volltext-Weg (`importSummaryPdf`) ist
         // PDF-exklusiv (siehe Kommentar dort) — eine als „Zusammenfassung"
@@ -1255,19 +1278,24 @@ export function App() {
         // Überschriftenerkennung, die für unstrukturierte Notizen ohnehin
         // schon auf den Dateinamen zurückfällt statt abzustürzen.
         const result =
-          docType === 'zusammenfassung' && file.name.toLowerCase().endsWith('.pdf')
-            ? await importSummaryPdf(file.name, data, null)
-            : await importRegularDocument(file.name, data, docType, null)
+          effectiveType === 'zusammenfassung' && file.name.toLowerCase().endsWith('.pdf')
+            ? await importSummaryPdf(courseId, file.name, data, null)
+            : await importRegularDocument(courseId, file.name, data, effectiveType, null)
         setTopics((prev) => [...prev, ...result.topics])
         setTopicSections((prev) => [...prev, ...result.topicSections])
         setDocuments((prev) => [...prev, result.document])
         setDocumentBytes((prev) => ({ ...prev, [result.document.id]: data }))
+        added += 1
+        topicsCreated += result.topics.length
       } catch (error) {
         console.error('Dokument-Import konnte nicht gespeichert werden', error)
         const message = error instanceof Error ? error.message : String(error)
         setImportError(`„${file.name}" konnte nicht importiert werden: ${message}`)
+        failed.push(file.name)
       }
     }
+
+    return { added, failed, topicsCreated }
   }
 
   // Ordner-Import: der Nutzer wählt statt einzelner Dateien einen ganzen
@@ -1282,8 +1310,11 @@ export function App() {
   // Dateien direkt im gewählten Ordner (kein Zwischenordner) verhalten
   // sich wie beim normalen Mehrfach-Import (`importDocuments`): ihre
   // Kapitel-Themen bekommen `parent_id = null`.
-  const importFolder = async () => {
-    if (selectedCourseId === null) return
+  const importFolder = async (
+    courseId: number | null,
+  ): Promise<{ added: number; failed: string[]; skippedFormats: number; topicsCreated: number }> => {
+    const empty = { added: 0, failed: [], skippedFormats: 0, topicsCreated: 0 }
+    if (courseId === null) return empty
     setImportError(null)
     setImportInfo(null)
 
@@ -1292,7 +1323,7 @@ export function App() {
     let skipped: string[]
     try {
       const folder = await pickFolder()
-      if (folder === null) return // Nutzer hat abgebrochen
+      if (folder === null) return empty // Nutzer hat abgebrochen
       db = await getDb()
       const result = await readDocumentFilesRecursively(folder)
       pickedFiles = result.files
@@ -1300,7 +1331,7 @@ export function App() {
     } catch (error) {
       console.error('Ordner-Import fehlgeschlagen', error)
       setImportError(`Ordner konnte nicht importiert werden: ${error instanceof Error ? error.message : String(error)}`)
-      return
+      return empty
     }
 
     if (pickedFiles.length === 0) {
@@ -1309,7 +1340,7 @@ export function App() {
           ? `Der gewählte Ordner enthält keine unterstützten Dokumente — nur andere Formate (${skipped.length}), die der Import (noch) nicht liest: ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ', …' : ''}.`
           : 'Der gewählte Ordner enthält keine unterstützten Dokumente.',
       )
-      return
+      return { ...empty, skippedFormats: skipped.length }
     }
 
     if (skipped.length > 0) {
@@ -1325,6 +1356,9 @@ export function App() {
     if (docType !== importDocType) setImportDocType(docType)
 
     let knownTopics = topics
+    let added = 0
+    let topicsCreated = 0
+    const failed: string[] = []
 
     for (const file of pickedFiles) {
       const segments = file.relativePath.split('/').filter(Boolean)
@@ -1333,19 +1367,22 @@ export function App() {
       try {
         let parentTopicId: number | null = null
         if (folderNames.length > 0) {
-          const resolved = await ensureFolderTopicPath(db, selectedCourseId, knownTopics, folderNames)
+          const resolved = await ensureFolderTopicPath(db, courseId, knownTopics, folderNames)
           parentTopicId = resolved.topicId
           if (resolved.createdTopics.length > 0) {
             knownTopics = [...knownTopics, ...resolved.createdTopics]
+            topicsCreated += resolved.createdTopics.length
             setTopics((prev) => [...prev, ...resolved.createdTopics])
           }
         }
 
         const result =
           docType === 'zusammenfassung' && file.name.toLowerCase().endsWith('.pdf')
-            ? await importSummaryPdf(file.name, file.data, parentTopicId)
-            : await importRegularDocument(file.name, file.data, docType, parentTopicId)
+            ? await importSummaryPdf(courseId, file.name, file.data, parentTopicId)
+            : await importRegularDocument(courseId, file.name, file.data, docType, parentTopicId)
         knownTopics = [...knownTopics, ...result.topics]
+        topicsCreated += result.topics.length
+        added += 1
         setTopics((prev) => [...prev, ...result.topics])
         setTopicSections((prev) => [...prev, ...result.topicSections])
         setDocuments((prev) => [...prev, result.document])
@@ -1354,8 +1391,11 @@ export function App() {
         console.error(`Dokument-Import konnte nicht gespeichert werden (${file.relativePath})`, error)
         const message = error instanceof Error ? error.message : String(error)
         setImportError(`„${file.relativePath}" konnte nicht importiert werden: ${message}`)
+        failed.push(file.relativePath)
       }
     }
+
+    return { added, failed, skippedFormats: skipped.length, topicsCreated }
   }
 
   // Anki-Deck-Import (Nutzerwunsch 2026-09-08): `.apkg`/`.colpkg` einlesen
@@ -1391,6 +1431,23 @@ export function App() {
       const message = error instanceof Error ? error.message : String(error)
       setImportError(`„${file.name}" konnte nicht importiert werden: ${message}`)
     }
+  }
+
+  // „Sven"-Upload (Nutzerwunsch 2026-09-08): Dokumente/Ordner direkt im
+  // Chat hochladen und einem Fach zuordnen. Nutzt exakt die bestehende
+  // Import-Pipeline (`importDocuments`/`importFolder`), nur mit explizit
+  // gewähltem `courseId` statt `selectedCourseId`, und reicht eine
+  // Bilanz für die Sven-Meldung zurück.
+  const courseNameById = (courseId: number) => courses.find((c) => c.id === courseId)?.name ?? `Fach ${courseId}`
+
+  const handleSvenUploadDocuments = async (courseId: number, files: File[]) => {
+    const r = await importDocuments(courseId, files, null)
+    return { ...r, courseName: courseNameById(courseId) }
+  }
+
+  const handleSvenUploadFolder = async (courseId: number) => {
+    const r = await importFolder(courseId)
+    return { added: r.added, failed: r.failed, topicsCreated: r.topicsCreated, skippedFormats: r.skippedFormats, courseName: courseNameById(courseId) }
   }
 
   const mainInsetPx = sidebarCollapsed ? 0 : sidebarWidth
@@ -1600,12 +1657,12 @@ export function App() {
                             if (resolvedType !== importDocType) setImportDocType(resolvedType)
                             const dataTransfer = new DataTransfer()
                             accepted.forEach((f) => dataTransfer.items.add(f))
-                            importDocuments(dataTransfer.files, resolvedType)
+                            importDocuments(selectedCourseId, dataTransfer.files, resolvedType)
                             e.target.value = ''
                           }}
                         />
                       </label>
-                      <button type="button" onClick={() => importFolder()}>
+                      <button type="button" onClick={() => importFolder(selectedCourseId)}>
                         Oder ganzen Ordner importieren
                       </button>
                       <p>
@@ -1842,6 +1899,9 @@ export function App() {
               onApplyAvailability={applyAvailabilityProposal}
               onApplyTopicWeights={applyTopicWeightChanges}
               topicName={(id) => topics.find((t) => t.id === id)?.name ?? `Thema ${id}`}
+              courses={courses.filter((c) => c.archived === 0).map((c) => ({ id: c.id, name: c.name }))}
+              onUploadDocuments={handleSvenUploadDocuments}
+              onUploadFolder={handleSvenUploadFolder}
             />
           ) : (
             <section aria-label="Sven">
