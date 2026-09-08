@@ -1,28 +1,40 @@
 import { useState } from 'react'
 import type { NewCourseInput } from '../data/courses'
-import type { Course, CourseLanguage } from '../data/schema'
+import type { Course, CourseGroup, CourseLanguage } from '../data/schema'
 import { ConfirmDialog } from './ConfirmDialog'
 
 /**
- * Fach-Setup: Fächer anlegen, bearbeiten, archivieren, löschen. Voraus-
- * setzung für `estimation.ts`/`capacity.ts`.
+ * Fach-Setup: Fächer anlegen, bearbeiten, archivieren, löschen, einem
+ * Ordner zuweisen. Voraussetzung für `estimation.ts`/`capacity.ts`.
  *
  * Reine Präsentationskomponente wie `TopicTree` — kennt weder `data/
  * courses.ts` noch `data/coursesRepo.ts` direkt (anders als vor der
  * Persistenz-Härtung): jede Aktion geht über einen eigenen Callback
- * (`onAdd`/`onUpdate`/`onArchive`/`onRemove`) nach außen, weil der
- * Aufrufer (`App.tsx`) jetzt sowohl die echte Datenbank-Operation als auch
- * die lokale Zustandsänderung ausführen muss — ein einzelnes `onChange`
- * mit dem fertigen Array (wie zuvor) ließe offen, *welche* Änderung
- * passiert ist, und damit auch nicht, welche SQL-Operation dazu gehört.
+ * (`onAdd`/`onUpdate`/`onArchive`/`onRemove`/`onAssignCourse`) nach außen,
+ * weil der Aufrufer (`App.tsx`) jetzt sowohl die echte
+ * Datenbank-Operation als auch die lokale Zustandsänderung ausführen muss
+ * — ein einzelnes `onChange` mit dem fertigen Array (wie zuvor) ließe
+ * offen, *welche* Änderung passiert ist, und damit auch nicht, welche
+ * SQL-Operation dazu gehört.
+ *
+ * **Ordner-Zuweisung direkt in der Fach-Zeile** (Nutzerwunsch 2026-09-08,
+ * „Fächer in Ordner packen einfacher machen"): früher lief das über eine
+ * zweite Liste („Fächer ohne Ordner") in `ui/CourseGroups.tsx` — man
+ * musste das Fach dort erneut suchen. Jetzt sitzt die Zuweisung am Objekt
+ * selbst, ein `<select>` je Zeile. `CourseGroups` verwaltet nur noch die
+ * Ordner selbst (Name, Verschachtelung, Löschen).
  */
 
 export interface CourseSetupProps {
   courses: Course[]
+  /** Für die Ordner-Zuweisung je Fach-Zeile — leer/weggelassen blendet die Auswahl aus (keine Ordner angelegt). */
+  courseGroups?: CourseGroup[]
   onAdd: (input: NewCourseInput) => void
   onUpdate: (id: number, changes: Partial<NewCourseInput>) => void
   onArchive: (id: number, archived: boolean) => void
   onRemove: (id: number) => void
+  /** Weist ein Fach einem Ordner zu (`null` = kein Ordner). Optional, damit ältere Aufrufer/Tests ohne Ordner nichts übergeben müssen. */
+  onAssignCourse?: (courseId: number, groupId: number | null) => void
 }
 
 interface DraftCourse {
@@ -51,7 +63,15 @@ export const COURSE_COLORS: { name: string; hex: string }[] = [
 
 const EMPTY_DRAFT: DraftCourse = { name: '', semester: '', color: '#c9754f', priority: 3, difficulty: 3, language: 'de' }
 
-export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: CourseSetupProps) {
+export function CourseSetup({
+  courses,
+  courseGroups = [],
+  onAdd,
+  onUpdate,
+  onArchive,
+  onRemove,
+  onAssignCourse,
+}: CourseSetupProps) {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [draft, setDraft] = useState<DraftCourse>(EMPTY_DRAFT)
   const [showArchived, setShowArchived] = useState(false)
@@ -111,6 +131,23 @@ export function CourseSetup({ courses, onAdd, onUpdate, onArchive, onRemove }: C
               <button type="button" aria-label={`${course.name} löschen`} onClick={() => setPendingDelete(course)}>
                 Löschen
               </button>
+              {course.archived === 0 && courseGroups.length > 0 && onAssignCourse && (
+                <label className="course-row-folder">
+                  Ordner
+                  <select
+                    value={course.group_id ?? ''}
+                    aria-label={`Ordner für ${course.name}`}
+                    onChange={(e) => onAssignCourse(course.id, e.target.value === '' ? null : Number(e.target.value))}
+                  >
+                    <option value="">— kein Ordner —</option>
+                    {courseGroups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </li>
           ))}
         </ul>
