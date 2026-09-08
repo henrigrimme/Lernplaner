@@ -1401,3 +1401,46 @@ button:disabled {
   color: var(--color-muted);
   max-width: 60ch;
 }
+
+/* ---------- Karteikarten-Inhalt (ui/CardContent.tsx) ---------- */
+
+/* Selbst erstellte Karten sind reiner Text — Zeilenumbrüche aus der
+   PDF-Markierung bleiben erhalten. Importierte Anki-Karten können HTML
+   (Fett/Kursiv/Listen/Bilder) tragen; das Tag-Set ist eng
+   (`ingest/htmlSanitize.ts`). */
+.card-content {
+  margin: var(--space-xs) 0;
+  line-height: 1.5;
+}
+
+.card-content-plain {
+  white-space: pre-wrap;
+}
+
+.card-content-front {
+  font-size: var(--text-body);
+}
+
+.card-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  display: block;
+  margin: var(--space-xs) 0;
+}
+
+.card-content ul,
+.card-content ol {
+  margin: var(--space-2xs) 0;
+  padding-left: 1.4em;
+}
+
+.card-content table {
+  border-collapse: collapse;
+}
+
+.card-content td,
+.card-content th {
+  border: 1px solid var(--color-border);
+  padding: 2px var(--space-2xs);
+}

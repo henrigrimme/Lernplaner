@@ -1,3 +1,5 @@
+import { sanitizeCardHtml } from './htmlSanitize'
+
 /**
  * Anki-`.apkg`/`.colpkg`-Import (Nutzerwunsch 2026-09-08: „genau die Anki-
  * Funktion im Lernplaner, Anki-Dateien direkt importieren"). Ergänzt die
@@ -9,23 +11,29 @@
  * **Format.** Eine `.apkg` ist ein ZIP mit einer SQLite-Datenbank
  * (`collection.anki2` = Legacy/unkomprimiert, `collection.anki21` =
  * neuere Variante, `collection.anki21b` = Zstd-komprimiert seit Anki
- * 2.1.50) plus `media` (JSON-Map Nummer→Dateiname) und den nummerierten
- * Mediendateien. Gelesen wird die erste vorhandene in der Reihenfolge
- * b → 21 → 2. Zstd via `fzstd` (nur Dekompression), SQLite via `sql.js`
- * (WASM). Beide werden **dynamisch** importiert — sie zählen nicht zum
- * Haupt-Bundle, das die tägliche Nutzung trägt (analog zu
+ * 2.1.50) plus `media` (JSON-Map Nummer→Dateiname, altes Format) und den
+ * nummerierten Mediendateien. Gelesen wird die erste vorhandene in der
+ * Reihenfolge b → 21 → 2. Zstd via `fzstd` (nur Dekompression), SQLite via
+ * `sql.js` (WASM). Beide werden **dynamisch** importiert — sie zählen
+ * nicht zum Haupt-Bundle, das die tägliche Nutzung trägt (analog zu
  * `documentImport.ts`).
  *
- * **Bewusst kein vollständiger Anki-Template-Renderer.** Anki-Karten
- * entstehen aus Notiztyp-Vorlagen (`{{FrontSide}}`, `{{#Feld}}`,
- * `{{hint:}}` …) — das originalgetreu nachzubauen wäre ein eigenes
- * Projekt. Stattdessen eine Heuristik, die praktisch alle geteilten Decks
- * abdeckt: Basis-Notizen → Feld 1 = Vorderseite, Rest = Rückseite
- * (bei „…and reversed" wird für die zweite Karte getauscht);
- * Lückentext-Notizen (`{{c1::…}}`) werden je Kartenordinal aufgelöst.
- * HTML wird zu lesbarem Text reduziert, Bilder werden als
- * `[Bild: name]` markiert (echtes Medien-Rendering ist ein Folgeschritt,
- * siehe CONTEXT.md).
+ * **Karten-Rendering.**
+ * - Hat der Notiztyp (Schema 11, `col.models`) Vorlagen mit `qfmt`/`afmt`,
+ *   wird ein **minimaler** Mustache-Renderer angewandt: `{{Feld}}`,
+ *   `{{FrontSide}}`, `{{#Feld}}…{{/Feld}}` / `{{^Feld}}…{{/Feld}}`,
+ *   `{{hint:Feld}}` u. ä. Das deckt „Basic (and reversed)", optionale
+ *   Felder und die meisten Community-Notiztypen ab.
+ * - Lückentext-Notizen (`{{c1::…}}`, Hinweis-Syntax `::hint`) werden je
+ *   Kartenordinal aufgelöst — dedizierte Logik statt Vorlagen.
+ * - Ohne `qfmt` (neueres Schema ≥ 18, Vorlagen liegen als Protobuf vor):
+ *   Heuristik — Feld 1 = Vorderseite, restliche nicht-leere Felder =
+ *   Rückseite (bei zwei Feldern für Ordinal 1 getauscht).
+ *
+ * Ergebnis ist **sanitisiertes HTML** (`htmlSanitize.ts`, enges Tag-Set);
+ * Bilder werden aus dem `media`-Archiv als `data:`-URIs eingebettet
+ * (Größenobergrenzen, siehe `inlineImages`) oder sonst als
+ * `[Bild: name]` markiert.
  *
  * **FSRS-Startzustand.** Anki speichert SM-2-Zustand (`ivl` Tage,
  * `factor` Ease) — nicht direkt FSRS-Parameter. „Wo möglich" wird daraus
@@ -37,9 +45,9 @@
 export interface AnkiImportedCard {
   /** Anki-Deckname, `::` trennt Unterdecks (wird beim Persistieren zu verschachtelten Themen). */
   deckName: string
-  /** Vorderseite, bereits zu reinem Text reduziert. */
+  /** Vorderseite als sanitisiertes HTML. */
   front: string
-  /** Rückseite, bereits zu reinem Text reduziert. */
+  /** Rückseite als sanitisiertes HTML. */
   back: string
   tags: string[]
   /**
@@ -53,8 +61,10 @@ export interface AnkiDeck {
   cards: AnkiImportedCard[]
   /** Anzahl Karten, die nicht sinnvoll gerendert werden konnten (leere Vorderseite o. Ä.). */
   skipped: number
-  /** Anzahl im Archiv gefundener Mediendateien (aktuell nur informativ). */
+  /** Anzahl im Archiv gefundener Mediendateien. */
   mediaCount: number
+  /** Anzahl tatsächlich in Karten eingebetteter Bilder. */
+  imagesEmbedded: number
 }
 
 export interface ExtractApkgOptions {
@@ -62,49 +72,12 @@ export interface ExtractApkgOptions {
   locateFile?: (file: string) => string
 }
 
+/** Anki trennt die Felder einer Notiz mit dem ASCII-Unit-Separator (0x1f). */
 const FIELD_SEP = '\x1f'
 const CLOZE_RE = /\{\{c(\d+)::([\s\S]*?)(?:::([\s\S]*?))?\}\}/g
 
-// ----------------------------- HTML → Text -----------------------------
-
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', hellip: '…',
-  mdash: '—', ndash: '–', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”', deg: '°', times: '×',
-}
-
-function safeCodePoint(cp: number): string {
-  try {
-    return cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : ''
-  } catch {
-    return ''
-  }
-}
-
-function decodeEntities(input: string): string {
-  return input
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => safeCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => safeCodePoint(parseInt(dec, 10)))
-    .replace(/&([a-z0-9]+);/gi, (match, name) => NAMED_ENTITIES[String(name).toLowerCase()] ?? match)
-}
-
-/** Reduziert Anki-Feld-HTML auf lesbaren Text (kein DOM — läuft auch im Node-Testlauf). */
-export function htmlToText(html: string): string {
-  let s = html
-  s = s.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '')
-  s = s.replace(/\[sound:[^\]]*\]/gi, '')
-  s = s.replace(/<img\b[^>]*?\bsrc\s*=\s*["']([^"']*)["'][^>]*>/gi, (_, src) => {
-    const name = decodeURIComponent(String(src).split(/[\\/]/).pop() || 'Bild')
-    return ` [Bild: ${name}] `
-  })
-  s = s.replace(/<img\b[^>]*>/gi, ' [Bild] ')
-  s = s.replace(/<\s*br\s*\/?\s*>/gi, '\n')
-  s = s.replace(/<\/\s*(p|div|li|tr|h[1-6]|blockquote)\s*>/gi, '\n')
-  s = s.replace(/<[^>]+>/g, '')
-  s = decodeEntities(s)
-  s = s.replace(/\u00a0/g, ' ')
-  s = s.replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/\n{3,}/g, '\n\n')
-  return s.trim()
-}
+const MAX_IMAGE_BYTES = 1_500_000
+const MAX_TOTAL_IMAGE_BYTES = 6_000_000
 
 // ----------------------------- Cloze -----------------------------
 
@@ -117,13 +90,78 @@ export function renderClozeFront(text: string, n: number): string {
 
 /** Rückseite: alle Lücken aufgedeckt, die Ziel-Lücke `n` in eckigen Klammern hervorgehoben. */
 export function renderClozeBack(text: string, n: number): string {
-  return text.replace(CLOZE_RE, (_, num, answer) => (Number(num) === n ? `[${String(answer)}]` : String(answer)))
+  return text.replace(CLOZE_RE, (_, num, answer) => (Number(num) === n ? `<b>[${String(answer)}]</b>` : String(answer)))
 }
 
 function clozeNumbersIn(text: string): number[] {
   const nums = new Set<number>()
   for (const match of text.matchAll(CLOZE_RE)) nums.add(Number(match[1]))
   return [...nums].sort((a, b) => a - b)
+}
+
+// ----------------------------- Vorlagen-Renderer -----------------------------
+
+/**
+ * Minimaler Mustache-Renderer für Anki-`qfmt`/`afmt`. Kein voller Nachbau
+ * (keine Custom-Filter, kein `{{tts:}}`), deckt aber Feldeinsetzung,
+ * `{{FrontSide}}` und optionale Abschnitte `{{#F}}`/`{{^F}}` ab.
+ */
+export function renderTemplate(fmt: string, fields: Record<string, string>, frontSide = ''): string {
+  let s = fmt.replace(/<!--[\s\S]*?-->/g, '')
+
+  const sectionRe = /\{\{([#^])([^}]+?)\}\}([\s\S]*?)\{\{\/\s*\2\s*\}\}/g
+  let previous: string
+  do {
+    previous = s
+    s = s.replace(sectionRe, (_, kind: string, name: string, body: string) => {
+      const nonEmpty = (fields[name.trim()] ?? '').trim().length > 0
+      return (kind === '#') === nonEmpty ? body : ''
+    })
+  } while (s !== previous)
+
+  s = s.replace(/\{\{FrontSide\}\}/g, frontSide)
+  s = s.replace(/\{\{(?:hint|type|text|edit|furigana|kana|kanji|cloze):([^}]+)\}\}/g, (_, name) => fields[name.trim()] ?? '')
+  s = s.replace(/\{\{([^}#^/][^}]*)\}\}/g, (_, name) => fields[name.trim()] ?? '')
+  s = s.replace(/\{\{[^}]*\}\}/g, '')
+  return s
+}
+
+// ----------------------------- Bilder einbetten -----------------------------
+
+const IMAGE_MIME: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml',
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
+
+/** Ersetzt `<img src="datei.png">` durch eingebettete `data:`-URIs aus dem Medienarchiv. */
+function inlineImages(html: string, media: Map<string, Uint8Array>, budget: { used: number; embedded: number }): string {
+  return html.replace(
+    /<img\b[^>]*?\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>/gi,
+    (_whole, _group, dq: string, sq: string, uq: string) => {
+      const raw = dq ?? sq ?? uq ?? ''
+      const name = decodeURIComponent(raw.split(/[\\/]/).pop() || '')
+      const bytes = media.get(name) ?? media.get(raw)
+      const label = name || 'Bild'
+      if (!bytes) return ` [Bild: ${label}] `
+      const ext = (name.split('.').pop() || '').toLowerCase()
+      const mime = IMAGE_MIME[ext]
+      if (!mime || bytes.length > MAX_IMAGE_BYTES || budget.used + bytes.length > MAX_TOTAL_IMAGE_BYTES) {
+        return ` [Bild: ${label}] `
+      }
+      budget.used += bytes.length
+      budget.embedded += 1
+      return `<img src="data:${mime};base64,${bytesToBase64(bytes)}" alt="${label.replace(/"/g, '')}">`
+    },
+  )
 }
 
 // ----------------------------- SQLite (sql.js) -----------------------------
@@ -134,13 +172,15 @@ interface MiniDb {
 }
 
 async function createSqlDatabase(bytes: Uint8Array, opts?: ExtractApkgOptions): Promise<MiniDb> {
-  const mod = (await import('sql.js')) as unknown as { default: (config?: unknown) => Promise<{ Database: new (d: Uint8Array) => MiniDb }> }
+  const mod = (await import('sql.js')) as unknown as {
+    default: (config?: unknown) => Promise<{ Database: new (d: Uint8Array) => MiniDb }>
+  }
   const initSqlJs = mod.default
   let config: unknown
   if (opts?.locateFile) {
     config = { locateFile: opts.locateFile }
   } else if (typeof window !== 'undefined') {
-    const base = ((import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL) || '/'
+    const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL || '/'
     config = { locateFile: (file: string) => `${base}${file}` }
   }
   const SQL = await initSqlJs(config)
@@ -161,20 +201,24 @@ function rows(db: MiniDb, sql: string): Record<string, unknown>[] {
 
 // ----------------------------- Schema-Lesen -----------------------------
 
+interface AnkiTemplate {
+  qfmt: string
+  afmt: string
+}
+
 interface AnkiModel {
   fields: string[]
   isCloze: boolean
+  templates: AnkiTemplate[]
 }
 
 function readDecks(db: MiniDb): Map<string, string> {
   const map = new Map<string, string>()
-  // Schema ≥ 18: echte `decks`-Tabelle.
   const tableRows = rows(db, 'SELECT id, name FROM decks')
   if (tableRows.length > 0) {
     for (const r of tableRows) map.set(String(r.id), String(r.name))
     return map
   }
-  // Schema 11: `col.decks` als JSON.
   const colRows = rows(db, 'SELECT decks FROM col LIMIT 1')
   const json = colRows[0]?.decks
   if (typeof json === 'string' && json.length > 2) {
@@ -190,16 +234,22 @@ function readDecks(db: MiniDb): Map<string, string> {
 
 function readModels(db: MiniDb): Map<string, AnkiModel> {
   const map = new Map<string, AnkiModel>()
-  // Schema 11: `col.models` als JSON.
   const colRows = rows(db, 'SELECT models FROM col LIMIT 1')
   const json = colRows[0]?.models
   if (typeof json === 'string' && json.length > 2) {
     try {
-      const parsed = JSON.parse(json) as Record<string, { flds?: { name: string; ord: number }[]; type?: number }>
+      const parsed = JSON.parse(json) as Record<
+        string,
+        { flds?: { name: string; ord: number }[]; tmpls?: { qfmt?: string; afmt?: string; ord: number }[]; type?: number }
+      >
       for (const [id, model] of Object.entries(parsed)) {
         map.set(String(id), {
           fields: (model.flds ?? []).slice().sort((a, b) => a.ord - b.ord).map((f) => f.name),
           isCloze: model.type === 1,
+          templates: (model.tmpls ?? [])
+            .slice()
+            .sort((a, b) => a.ord - b.ord)
+            .map((t) => ({ qfmt: t.qfmt ?? '', afmt: t.afmt ?? '' })),
         })
       }
       if (map.size > 0) return map
@@ -207,7 +257,6 @@ function readModels(db: MiniDb): Map<string, AnkiModel> {
       /* fällt auf die Tabellen-Variante zurück */
     }
   }
-  // Schema ≥ 18: `fields`-Tabelle (Cloze wird ohnehin pro Notiz erkannt).
   const fieldRows = rows(db, 'SELECT ntid, ord, name FROM fields ORDER BY ntid, ord')
   const byNt = new Map<string, string[]>()
   for (const r of fieldRows) {
@@ -215,7 +264,7 @@ function readModels(db: MiniDb): Map<string, AnkiModel> {
     if (!byNt.has(key)) byNt.set(key, [])
     byNt.get(key)!.push(String(r.name))
   }
-  for (const [ntid, fields] of byNt) map.set(ntid, { fields, isCloze: false })
+  for (const [ntid, fields] of byNt) map.set(ntid, { fields, isCloze: false, templates: [] })
   return map
 }
 
@@ -223,6 +272,25 @@ function readCreatedSeconds(db: MiniDb): number {
   const colRows = rows(db, 'SELECT crt FROM col LIMIT 1')
   const crt = Number(colRows[0]?.crt)
   return Number.isFinite(crt) && crt > 0 ? crt : 0
+}
+
+async function readMedia(zip: import('jszip')): Promise<Map<string, Uint8Array>> {
+  const map = new Map<string, Uint8Array>()
+  const mediaFile = zip.file('media')
+  if (!mediaFile) return map
+  let manifest: Record<string, string>
+  try {
+    manifest = JSON.parse(await mediaFile.async('string')) as Record<string, string>
+  } catch {
+    // Neues Protobuf-Medienmanifest (Anki ≥ 2.1.50) — Bildimport daraus
+    // nicht unterstützt, Karten importieren trotzdem.
+    return map
+  }
+  for (const [key, name] of Object.entries(manifest)) {
+    const entry = zip.file(key)
+    if (entry) map.set(name, await entry.async('uint8array'))
+  }
+  return map
 }
 
 // ----------------------------- FSRS-Startzustand -----------------------------
@@ -250,6 +318,17 @@ function seedSchedule(
 
 // ----------------------------- Hauptfunktion -----------------------------
 
+/** Grobe „hat die Seite überhaupt sichtbaren Inhalt"-Prüfung (Tags/Whitespace weg, Bild zählt als Inhalt). */
+function hasVisibleContent(html: string): boolean {
+  return (
+    html
+      .replace(/<img\b[^>]*>/gi, 'x')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, '')
+      .trim().length > 0
+  )
+}
+
 export async function extractApkg(data: Uint8Array, opts?: ExtractApkgOptions): Promise<AnkiDeck> {
   const JSZip = (await import('jszip')).default
   const zip = await JSZip.loadAsync(data)
@@ -265,16 +344,7 @@ export async function extractApkg(data: Uint8Array, opts?: ExtractApkgOptions): 
     sqliteBytes = fzstd.decompress(sqliteBytes)
   }
 
-  let mediaCount = 0
-  const mediaFile = zip.file('media')
-  if (mediaFile) {
-    try {
-      const parsed = JSON.parse(await mediaFile.async('string')) as Record<string, string>
-      mediaCount = Object.keys(parsed).length
-    } catch {
-      /* neues Protobuf-Medienformat — für den reinen Text-Import ohne Belang */
-    }
-  }
+  const media = await readMedia(zip)
 
   const db = await createSqlDatabase(sqliteBytes, opts)
   try {
@@ -282,6 +352,7 @@ export async function extractApkg(data: Uint8Array, opts?: ExtractApkgOptions): 
     const models = readModels(db)
     const createdSeconds = readCreatedSeconds(db)
     const nowMs = Date.now()
+    const imageBudget = { used: 0, embedded: 0 }
 
     const cardRows = rows(
       db,
@@ -296,37 +367,49 @@ export async function extractApkg(data: Uint8Array, opts?: ExtractApkgOptions): 
     for (const r of cardRows) {
       const ord = Number(r.ord) || 0
       const flds = String(r.flds ?? '')
-      const fields = flds.split(FIELD_SEP)
+      const fieldValues = flds.split(FIELD_SEP)
       const model = models.get(String(r.mid))
       const tags = String(r.tags ?? '').trim().split(/\s+/).filter(Boolean)
       const deckName = decks.get(String(r.did)) ?? 'Anki-Import'
+
+      const fieldNames = model?.fields ?? fieldValues.map((_, i) => `Field ${i + 1}`)
+      const fieldMap: Record<string, string> = {}
+      fieldNames.forEach((name, i) => {
+        fieldMap[name] = fieldValues[i] ?? ''
+      })
 
       let frontRaw: string
       let backRaw: string
 
       const isCloze = (model?.isCloze ?? false) || /\{\{c\d+::/.test(flds)
       if (isCloze) {
-        const textFieldIndex = fields.findIndex((f) => /\{\{c\d+::/.test(f))
-        const text = fields[textFieldIndex] ?? fields[0] ?? ''
-        const extra = fields.filter((_, i) => i !== textFieldIndex).filter((f) => f && f.trim()).join('\n\n')
+        const textFieldIndex = fieldValues.findIndex((f) => /\{\{c\d+::/.test(f))
+        const text = fieldValues[textFieldIndex] ?? fieldValues[0] ?? ''
+        const extra = fieldValues.filter((_, i) => i !== textFieldIndex).filter((f) => f && f.trim()).join('<br>')
         const numbers = clozeNumbersIn(text)
         const clozeNumber = numbers.includes(ord + 1) ? ord + 1 : numbers[0] ?? 1
         frontRaw = renderClozeFront(text, clozeNumber)
-        backRaw = renderClozeBack(text, clozeNumber) + (extra ? `\n\n${extra}` : '')
+        backRaw = renderClozeBack(text, clozeNumber) + (extra ? `<hr>${extra}` : '')
       } else {
-        const nonEmptyRest = fields.slice(1).filter((f) => f && f.trim())
-        if (ord === 1 && fields.length === 2) {
-          frontRaw = fields[1] ?? ''
-          backRaw = fields[0] ?? ''
+        const template = model?.templates[ord]
+        if (template && (template.qfmt || template.afmt)) {
+          frontRaw = renderTemplate(template.qfmt, fieldMap)
+          backRaw = renderTemplate(template.afmt, fieldMap, frontRaw)
         } else {
-          frontRaw = fields[0] ?? ''
-          backRaw = nonEmptyRest.join('\n\n')
+          const nonEmptyRest = fieldValues.slice(1).filter((f) => f && f.trim())
+          if (ord === 1 && fieldValues.length === 2) {
+            frontRaw = fieldValues[1] ?? ''
+            backRaw = fieldValues[0] ?? ''
+          } else {
+            frontRaw = fieldValues[0] ?? ''
+            backRaw = nonEmptyRest.join('<br>')
+          }
         }
       }
 
-      const front = htmlToText(frontRaw)
-      const back = htmlToText(backRaw)
-      if (front.length === 0) {
+      const front = sanitizeCardHtml(inlineImages(frontRaw, media, imageBudget))
+      const back = sanitizeCardHtml(inlineImages(backRaw, media, imageBudget))
+      if (!hasVisibleContent(front)) {
         skipped += 1
         continue
       }
@@ -350,7 +433,7 @@ export async function extractApkg(data: Uint8Array, opts?: ExtractApkgOptions): 
       })
     }
 
-    return { cards, skipped, mediaCount }
+    return { cards, skipped, mediaCount: media.size, imagesEmbedded: imageBudget.embedded }
   } finally {
     db.close()
   }

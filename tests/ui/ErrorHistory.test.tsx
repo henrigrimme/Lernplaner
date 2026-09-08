@@ -63,9 +63,9 @@ describe('ErrorHistory', () => {
     const reviews = [review({ id: 1, card_id: 1, rating: Rating.Again })]
     render(<ErrorHistory cards={cards} reviews={reviews} topics={[]} onReview={vi.fn()} />)
 
-    expect(screen.queryByText('Meine Frage', { selector: 'p' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Meine Frage', { selector: '.card-content' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Gezielt üben' }))
-    expect(screen.getByText('Meine Frage', { selector: 'p' })).toBeInTheDocument()
+    expect(screen.getByText('Meine Frage', { selector: '.card-content' })).toBeInTheDocument()
   })
 
   it('ruft onReview mit Karten-id und Bewertung auf und blendet die Übung danach aus', async () => {
