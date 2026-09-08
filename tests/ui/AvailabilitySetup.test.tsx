@@ -67,45 +67,66 @@ describe('AvailabilitySetup', () => {
     expect(onAddException).toHaveBeenCalledWith('2026-08-03', 30, 'Zahnarzt')
   })
 
-  it('fügt eine Ausnahme für mehrere zur Auswahl hinzugefügte Tage gleichzeitig hinzu', async () => {
+  it('fügt im Zeitraum-Modus für jeden Tag von–bis eine Ausnahme hinzu (ganzes Wochenende)', async () => {
     const user = userEvent.setup()
     const onAddException = vi.fn()
     render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddException={onAddException} />)
 
     await openTab(user, 'Abweichende Tage')
-    await user.type(screen.getByLabelText('Datum'), '2026-08-03')
-    await user.click(screen.getByRole('button', { name: 'Tag zur Auswahl hinzufügen' }))
-    await user.type(screen.getByLabelText('Datum'), '2026-08-05')
-    await user.click(screen.getByRole('button', { name: 'Tag zur Auswahl hinzufügen' }))
-
-    expect(screen.getByText('2026-08-03')).toBeInTheDocument()
-    expect(screen.getByText('2026-08-05')).toBeInTheDocument()
-
-    await user.type(screen.getByLabelText('Minuten'), '45')
-    await user.type(screen.getByLabelText('Notiz'), 'Ferien')
+    await user.click(screen.getByRole('radio', { name: 'Zeitraum' }))
+    await user.type(screen.getByLabelText('Von (erster Tag)'), '2026-08-01')
+    await user.type(screen.getByLabelText('Bis (letzter Tag)'), '2026-08-03')
+    await user.type(screen.getByLabelText('Minuten'), '0')
+    await user.type(screen.getByLabelText('Notiz'), 'Wochenende')
     await user.click(screen.getByRole('button', { name: 'Ausnahme hinzufügen' }))
 
-    expect(onAddException).toHaveBeenCalledTimes(2)
-    expect(onAddException).toHaveBeenCalledWith('2026-08-03', 45, 'Ferien')
-    expect(onAddException).toHaveBeenCalledWith('2026-08-05', 45, 'Ferien')
+    expect(onAddException).toHaveBeenCalledTimes(3)
+    expect(onAddException).toHaveBeenCalledWith('2026-08-01', 0, 'Wochenende')
+    expect(onAddException).toHaveBeenCalledWith('2026-08-02', 0, 'Wochenende')
+    expect(onAddException).toHaveBeenCalledWith('2026-08-03', 0, 'Wochenende')
   })
 
-  it('entfernt einen Tag wieder aus der Auswahl, bevor gespeichert wird', async () => {
+  it('lehnt einen Zeitraum ab, dessen Ende vor dem Anfang liegt', async () => {
     const user = userEvent.setup()
     const onAddException = vi.fn()
     render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onAddException={onAddException} />)
 
     await openTab(user, 'Abweichende Tage')
-    await user.type(screen.getByLabelText('Datum'), '2026-08-03')
-    await user.click(screen.getByRole('button', { name: 'Tag zur Auswahl hinzufügen' }))
-    await user.type(screen.getByLabelText('Datum'), '2026-08-05')
-    await user.click(screen.getByRole('button', { name: 'Tag zur Auswahl hinzufügen' }))
-
-    await user.click(screen.getByRole('button', { name: '2026-08-03 aus Auswahl entfernen' }))
+    await user.click(screen.getByRole('radio', { name: 'Zeitraum' }))
+    await user.type(screen.getByLabelText('Von (erster Tag)'), '2026-08-10')
+    await user.type(screen.getByLabelText('Bis (letzter Tag)'), '2026-08-03')
     await user.click(screen.getByRole('button', { name: 'Ausnahme hinzufügen' }))
 
-    expect(onAddException).toHaveBeenCalledTimes(1)
-    expect(onAddException).toHaveBeenCalledWith('2026-08-05', 0, null)
+    expect(onAddException).not.toHaveBeenCalled()
+    expect(screen.getByText('„Bis" muss auf oder nach „Von" liegen.')).toBeInTheDocument()
+  })
+
+  it('setzt per Regel alle Wochentage von–bis auf denselben Minutenwert', async () => {
+    const user = userEvent.setup()
+    const onSetPatternMinutes = vi.fn()
+    render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onSetPatternMinutes={onSetPatternMinutes} />)
+
+    // Standard ist bereits Montag–Freitag.
+    await user.type(screen.getByLabelText('Regel Minuten'), '120')
+    await user.click(screen.getByRole('button', { name: 'Anwenden' }))
+
+    expect(onSetPatternMinutes).toHaveBeenCalledTimes(5)
+    for (const weekday of [1, 2, 3, 4, 5]) {
+      expect(onSetPatternMinutes).toHaveBeenCalledWith(weekday, 120)
+    }
+  })
+
+  it('deaktiviert die Regel, wenn „bis" vor „von" liegt', async () => {
+    const user = userEvent.setup()
+    const onSetPatternMinutes = vi.fn()
+    render(<AvailabilitySetup pattern={[]} exceptions={[]} {...noop()} onSetPatternMinutes={onSetPatternMinutes} />)
+
+    await user.selectOptions(screen.getByLabelText('Regel von Wochentag'), 'Freitag')
+    await user.selectOptions(screen.getByLabelText('Regel bis Wochentag'), 'Montag')
+
+    expect(screen.getByRole('button', { name: 'Anwenden' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Anwenden' }))
+    expect(onSetPatternMinutes).not.toHaveBeenCalled()
   })
 
   it('entfernt eine Ausnahme', async () => {

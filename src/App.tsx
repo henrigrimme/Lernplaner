@@ -273,7 +273,7 @@ export function App() {
   // ADR-007) und der Dokument-Import (hat mit `importError` bereits ein
   // eigenes, feldnahes Fehler-Feedback).
   const reportDbError = (message: string, error: unknown) => {
-    reportDbError(message, error)
+    console.error(message, error)
     setDbError(message)
   }
 

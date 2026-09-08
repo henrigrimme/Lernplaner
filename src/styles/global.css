@@ -906,6 +906,28 @@ section[aria-label] ul.document-list > li.document-list-item {
   text-align: right;
 }
 
+/* Regel-Zeile über dem Wochenmuster (`ui/AvailabilitySetup.tsx`) — „von
+   [Wochentag] bis [Wochentag] [n] Minuten [Anwenden]" in einer Zeile,
+   umbrechend auf schmalen Fenstern. Optisch eine ruhige, leicht abgesetzte
+   Fläche wie ein macOS-Einstellungsblock, damit die Schnell-Regel klar von
+   den sieben Einzelfeldern darunter getrennt ist. */
+.availability-rule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-ui);
+}
+
+.availability-rule input[type='number'] {
+  width: 88px;
+  text-align: right;
+}
+
 /* ---------- Leerer Zustand ---------- */
 /* Bisher ein einzelner, linksbündiger Absatz direkt unter dem Panel/der
    Toolbar (z. B. "Für heute ist nichts geplant." — ausgerechnet die
