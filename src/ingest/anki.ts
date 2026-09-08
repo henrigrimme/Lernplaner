@@ -1,4 +1,5 @@
 import { sanitizeCardHtml } from './htmlSanitize'
+import { isZstd, parseAnkiMediaManifest } from './ankiMediaManifest'
 
 /**
  * Anki-`.apkg`/`.colpkg`-Import (Nutzerwunsch 2026-09-08: „genau die Anki-
@@ -11,12 +12,15 @@ import { sanitizeCardHtml } from './htmlSanitize'
  * **Format.** Eine `.apkg` ist ein ZIP mit einer SQLite-Datenbank
  * (`collection.anki2` = Legacy/unkomprimiert, `collection.anki21` =
  * neuere Variante, `collection.anki21b` = Zstd-komprimiert seit Anki
- * 2.1.50) plus `media` (JSON-Map Nummer→Dateiname, altes Format) und den
- * nummerierten Mediendateien. Gelesen wird die erste vorhandene in der
- * Reihenfolge b → 21 → 2. Zstd via `fzstd` (nur Dekompression), SQLite via
- * `sql.js` (WASM). Beide werden **dynamisch** importiert — sie zählen
- * nicht zum Haupt-Bundle, das die tägliche Nutzung trägt (analog zu
- * `documentImport.ts`).
+ * 2.1.50) plus `media` und den nummerierten Mediendateien. Gelesen wird
+ * die erste vorhandene Sammlung in der Reihenfolge b → 21 → 2. `media` ist
+ * je nach Alter eine JSON-Map (`{ "0": "bild.png" }`) oder ein Protobuf
+ * `MediaEntries` (neues Format, evtl. Zstd-komprimiert — siehe
+ * `ankiMediaManifest.ts`); die nummerierten Mediendateien sind im neuen
+ * Format ebenfalls Zstd-komprimiert (`isZstd`-Prüfung). Zstd via `fzstd`
+ * (nur Dekompression), SQLite via `sql.js` (WASM). Beide werden
+ * **dynamisch** importiert — sie zählen nicht zum Haupt-Bundle, das die
+ * tägliche Nutzung trägt (analog zu `documentImport.ts`).
  *
  * **Karten-Rendering.**
  * - Hat der Notiztyp (Schema 11, `col.models`) Vorlagen mit `qfmt`/`afmt`,
@@ -274,21 +278,54 @@ function readCreatedSeconds(db: MiniDb): number {
   return Number.isFinite(crt) && crt > 0 ? crt : 0
 }
 
+interface ZipEntry {
+  async(type: 'uint8array'): Promise<Uint8Array>
+}
+
+/** Eine (evtl. Zstd-komprimierte) Archivdatei als Bytes. */
+async function mediaFileBytes(entry: ZipEntry): Promise<Uint8Array> {
+  const bytes = await entry.async('uint8array')
+  if (!isZstd(bytes)) return bytes
+  const fzstd = (await import('fzstd')) as unknown as { decompress: (b: Uint8Array) => Uint8Array }
+  return fzstd.decompress(bytes)
+}
+
 async function readMedia(zip: import('jszip')): Promise<Map<string, Uint8Array>> {
   const map = new Map<string, Uint8Array>()
   const mediaFile = zip.file('media')
   if (!mediaFile) return map
-  let manifest: Record<string, string>
+
+  const rawManifest = await mediaFile.async('uint8array')
+
+  // Altes Format: JSON-Map { "0": "bild.png", … }.
   try {
-    manifest = JSON.parse(await mediaFile.async('string')) as Record<string, string>
+    const manifest = JSON.parse(new TextDecoder('utf-8').decode(rawManifest)) as Record<string, string>
+    for (const [key, name] of Object.entries(manifest)) {
+      const entry = zip.file(key)
+      if (entry) map.set(name, await mediaFileBytes(entry))
+    }
+    return map
   } catch {
-    // Neues Protobuf-Medienmanifest (Anki ≥ 2.1.50) — Bildimport daraus
-    // nicht unterstützt, Karten importieren trotzdem.
+    /* kein JSON → neues Format */
+  }
+
+  // Neues Format (Anki ≥ 2.1.50): `media` ist ein (evtl. Zstd-
+  // komprimiertes) Protobuf `MediaEntries`. Reihenfolge = Archiv-Index.
+  let manifestBytes = rawManifest
+  if (isZstd(manifestBytes)) {
+    const fzstd = (await import('fzstd')) as unknown as { decompress: (b: Uint8Array) => Uint8Array }
+    manifestBytes = fzstd.decompress(manifestBytes)
+  }
+  let names: string[]
+  try {
+    names = parseAnkiMediaManifest(manifestBytes)
+  } catch {
     return map
   }
-  for (const [key, name] of Object.entries(manifest)) {
-    const entry = zip.file(key)
-    if (entry) map.set(name, await entry.async('uint8array'))
+  for (let i = 0; i < names.length; i += 1) {
+    if (names[i]!.length === 0) continue
+    const entry = zip.file(String(i))
+    if (entry) map.set(names[i]!, await mediaFileBytes(entry))
   }
   return map
 }
