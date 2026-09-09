@@ -70,6 +70,14 @@ jobs:
           # "no identity found" fehl (siehe Lauf vom 23.07.2026). "-" signiert
           # ad-hoc statt mit einer benannten Identität — passt zum bereits in
           # der Release-Beschreibung dokumentierten "nicht signiert"-Hinweis.
+          #
+          # Die Überschreibung kommt aus einer eigenen Datei
+          # (src-tauri/tauri.ci.conf.json), NICHT als inline-JSON: `tauri-action`
+          # zerlegt `args` selbst an Leerzeichen, ohne echte Shell-Auswertung.
+          # Inline-JSON mit Leerzeichen zwischen den Schlüsseln wird dadurch
+          # zerrissen ("Expected ',' or '}' after property value in JSON",
+          # seit v0.38.0 / geändertes `tauri-action@v0`-Tag). Ein Dateipfad ohne
+          # Leerzeichen ist davon unabhängig robust.
           args: >-
             --target universal-apple-darwin --bundles dmg
-            --config '{"bundle": {"macOS": {"signingIdentity": "-"}}}'
+            --config src-tauri/tauri.ci.conf.json

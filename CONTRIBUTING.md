@@ -127,14 +127,27 @@ der einzige, den der Auto-Updater der laufenden App tatsächlich prüft.
   Auto-Updater-Releases baut, nicht auf GitHubs Runnern. Ein erster
   Testlauf schlug deshalb mit `no identity found` fehl (23.07.2026). Der
   Workflow überschreibt die Identität deshalb gezielt für diesen einen Job
-  per `--config '{"bundle": {"macOS": {"signingIdentity": "-"}}}'`
-  (`-` = ad-hoc) — `tauri.conf.json` selbst bleibt unverändert, weil sie
-  für den echten signierten Weg die lokale Identität braucht.
+  per `--config src-tauri/tauri.ci.conf.json` (eine Teil-Config, die nur
+  `bundle.macOS.signingIdentity: "-"` setzt; `-` = ad-hoc). Tauri
+  deep-merged diese Datei über `tauri.conf.json` — nur für diesen CI-Job.
+  `tauri.conf.json` selbst und der manuelle signierte Weg bleiben
+  unberührt (die Datei heißt bewusst nicht `tauri.macos.conf.json`, sonst
+  würde Tauri sie automatisch auch beim lokalen Build mitziehen).
 - **Wichtig bei künftigen Anpassungen:** `tauri-action`s `args`-Eingabe
-  zerlegt Argumente ohne echte Shell-Auswertung — escapte `\"` für JSON
-  scheitert dort mit "Couldn't parse --config flag as inline JSON"
-  (gesehen im Testlauf 30042376558). Einfache Anführungszeichen um das
-  JSON verwenden, wie oben.
+  zerlegt Argumente selbst an Leerzeichen, ohne echte Shell-Auswertung.
+  Inline-JSON im `--config`-Flag ist deshalb fragil:
+  - escapte `\"` scheitert mit "Couldn't parse --config flag as inline
+    JSON" (Testlauf 30042376558);
+  - JSON in einfachen Anführungszeichen **mit** Leerzeichen zwischen den
+    Schlüsseln (`'{"bundle": {"macOS": …}}'`) wird an den Leerzeichen
+    zerrissen — "Expected ',' or '}' after property value in JSON at
+    position 121". Lief bis v0.37.0 (08.09.2026) noch, brach ab v0.38.0:
+    `tauri-action@v0` ist ein bewegliches Tag und hatte sich geändert.
+
+  Deshalb jetzt eine Datei statt inline-JSON: ein Pfad ohne Leerzeichen
+  übersteht das Arg-Splitting unverändert. Alternativ ginge inline-JSON
+  **ohne** Leerzeichen (`--config '{"bundle":{"macOS":{"signingIdentity":"-"}}}'`),
+  aber die Datei ist gegen weitere Parser-Änderungen robuster.
 - Läuft nur bei Tag-Push oder manuellem Dispatch, nicht bei jedem Commit —
   macOS-Runner-Minuten zählen bei privaten Repos mit erhöhtem Faktor.
 
