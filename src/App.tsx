@@ -19,6 +19,7 @@ import { type UpdateInfo } from './ui/UpdateChecker'
 import { UpdateBanner } from './ui/UpdateBanner'
 import { PALETTE_OPTIONS, type PalettePreference, type ThemePreference } from './ui/AppearanceSetting'
 import { SettingsView } from './ui/SettingsView'
+import { Logo } from './ui/Logo'
 import { QuizSetup, type GenerateQuizInput } from './ui/QuizSetup'
 import { QuizSession } from './ui/QuizSession'
 import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
@@ -1611,7 +1612,7 @@ export function App() {
     <div className="app-shell">
       <AppSidebar width={sidebarWidth} collapsed={sidebarCollapsed} onResize={setSidebarWidth}>
         <div className="app-brand">
-          <span className="app-brand-mark" aria-hidden="true" />
+          <Logo className="app-brand-mark" />
           <span className="app-brand-label">Lernplaner</span>
         </div>
 
