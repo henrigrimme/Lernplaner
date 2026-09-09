@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { matchSolutions, splitExercises, type ExercisePage, type ParsedExercise } from '../../src/ingest/exerciseSplit'
+import {
+  matchSolutions,
+  splitExercises,
+  stripRepeatedPrompt,
+  type ExercisePage,
+  type ParsedExercise,
+} from '../../src/ingest/exerciseSplit'
 
 /**
  * Die Zeilenformen stammen aus echtem Material (`Beispiel pdfs/Money
@@ -161,5 +167,36 @@ describe('matchSolutions', () => {
   it('ohne Musterlösung bleibt jede Zuordnung null', () => {
     const paired = matchSolutions([ex('1', 'a')], [])
     expect(paired).toEqual([{ exercise: ex('1', 'a'), solution: null }])
+  })
+})
+
+describe('stripRepeatedPrompt', () => {
+  it('schneidet die wörtlich wiederholte Aufgabenstellung samt „Solution:"-Marke ab', () => {
+    const prompt = 'Janet and Mike purchase identical houses for $400,000. Who is more highly leveraged?'
+    const solution = `${prompt}\nSolution: Mike is more highly leveraged because he financed a larger share with debt.`
+    expect(stripRepeatedPrompt(prompt, solution)).toBe(
+      'Mike is more highly leveraged because he financed a larger share with debt.',
+    )
+  })
+
+  it('greift auch bei kleineren Abweichungen (Zeilenumbrüche, Zeichensetzung) über die 70-%-Schwelle', () => {
+    const prompt = 'Compute the expected value of a $1,000 investment over the coming year.'
+    const solution = 'Compute the expected value of a $1,000 investment over the\ncoming year.  a. Expected Value = $1,129.'
+    expect(stripRepeatedPrompt(prompt, solution)).toBe('a. Expected Value = $1,129.')
+  })
+
+  it('lässt die Lösung unverändert, wenn sie nicht mit der Aufgabe beginnt', () => {
+    expect(stripRepeatedPrompt('Was ist die Duration?', 'Die Duration misst die Zinssensitivität.')).toBe(
+      'Die Duration misst die Zinssensitivität.',
+    )
+  })
+
+  it('gibt bei einer sehr kurzen Aufgabe die Lösung unverändert zurück', () => {
+    expect(stripRepeatedPrompt('Warum?', 'Warum? Weil es so ist.')).toBe('Warum? Weil es so ist.')
+  })
+
+  it('fällt auf den vollen Lösungstext zurück, wenn nach dem Schnitt nichts übrig bliebe', () => {
+    const prompt = 'Erklär den Zusammenhang.'
+    expect(stripRepeatedPrompt(prompt, prompt)).toBe(prompt)
   })
 })

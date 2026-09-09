@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Course, Document, Topic } from '../data/schema'
 import type { NewCardInput } from '../data/cardsRepo'
-import { matchSolutions, type ExerciseSplitResult, type MatchedExercise } from '../ingest/exerciseSplit'
+import { matchSolutions, stripRepeatedPrompt, type ExerciseSplitResult, type MatchedExercise } from '../ingest/exerciseSplit'
 
 /**
  * Übungsblatt-Zerlegung (ROADMAP.md „Später/offen", Nutzerwunsch
@@ -112,7 +112,9 @@ export function ExerciseSplitPanel({ course, topics, documents, documentBytes, o
         document_id: resultDocId,
         page: exercise.pageStart,
         front: (exercise.label ? `Aufgabe ${exercise.number} — ${exercise.label}` : `Aufgabe ${exercise.number}`) + `\n\n${exercise.text}`,
-        back: solution ? solution.text : '',
+        // Musterlösungen wiederholen oft zuerst die Aufgabe — die steht
+        // schon auf der Vorderseite, also abschneiden (`stripRepeatedPrompt`).
+        back: solution ? stripRepeatedPrompt(exercise.text, solution.text) : '',
         source_quote: exercise.text,
       }))
     if (inputs.length === 0) return

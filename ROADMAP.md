@@ -4,12 +4,13 @@
 Prüfungen im Oktober.
 
 **Aktueller Stand (09.09.2026):** Phasen 1–3 abgeschlossen, seit 01.09 im
-Echtbetrieb. Version v0.42.0. Phase 4 läuft (additive Verbesserungen aus der
-echten Nutzung). Zuletzt: Übungsblatt-Zerlegung (v0.38.0), Chat mit den
-Unterlagen (v0.39.0), Übungsblatt+Musterlösung koppeln (v0.40.0),
-DE↔EN-Fachglossar fürs Doc-Chat-Retrieval (v0.41.0), Impeccable-Politur
-Karteikarten/Übungsblatt-Zerlegung (v0.42.0). Laufende autonome Serie —
-Details und exakter nächster Schritt in [CONTEXT.md](CONTEXT.md) Abschnitt 8.
+Echtbetrieb. Version v0.43.0. Phase 4 läuft (additive Verbesserungen aus der
+echten Nutzung). Zuletzt eine autonome Serie: Übungsblatt-Zerlegung
+(v0.38.0), Chat mit den Unterlagen (v0.39.0), Übungsblatt+Musterlösung
+koppeln (v0.40.0), DE↔EN-Fachglossar fürs Doc-Chat-Retrieval (v0.41.0),
+Impeccable-Politur Karteikarten/Übungsblatt-Zerlegung (v0.42.0),
+Musterlösungs-Rückseite ohne wiederholte Aufgabe (v0.43.0). Nichts
+angefangen — Details in [CONTEXT.md](CONTEXT.md) Abschnitt 8.
 
 ---
 
