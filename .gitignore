@@ -37,6 +37,11 @@ secrets.json
 /materialien/
 /slides/
 /altklausuren/
+# Lokale Beispiel-/Testmaterialien und ausgelieferte App-Builds — komplett
+# lokal, nie ins Repo (die *.pdf-Regel oben deckt die PDFs ab, nicht aber
+# begleitende .html/.csv/.zip-Dateien).
+/Beispiel pdfs/
+/App/
 # Ausnahme: bewusst freigegebene Testdaten ohne fremde Inhalte
 !/tests/fixtures/**/*.pdf
 
