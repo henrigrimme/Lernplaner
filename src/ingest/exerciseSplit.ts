@@ -203,3 +203,42 @@ export function matchSolutions(exercises: ParsedExercise[], solutions: ParsedExe
   for (const s of solutions) if (!solutionByNumber.has(s.number)) solutionByNumber.set(s.number, s)
   return exercises.map((exercise) => ({ exercise, solution: solutionByNumber.get(exercise.number) ?? null }))
 }
+
+/**
+ * Musterlösungs-Dateien (an WHU-Material bestätigt) wiederholen zuerst
+ * wörtlich die Aufgabenstellung und hängen dann die Lösung an. Für die
+ * Kartenrückseite ist die doppelte Frage nur Ballast — steht ja schon auf
+ * der Vorderseite. Diese Funktion schneidet einen wiederholten
+ * Aufgaben-Vorspann ab, wenn die Lösung erkennbar damit beginnt, und
+ * entfernt eine unmittelbar folgende „Lösung:"/„Solution:"-Markierung.
+ *
+ * Rein und konservativ: greift nur, wenn **mindestens 70 %** der
+ * Aufgaben-Wörter als führende Folge in der Lösung wiederkehren — sonst
+ * bleibt der Lösungstext unverändert (lieber die Frage doppelt als eine
+ * abgeschnittene Antwort). Vergleich normalisiert (klein, nur
+ * Buchstaben/Ziffern), geschnitten wird am echten Zeichen-Offset.
+ */
+export function stripRepeatedPrompt(promptText: string, solutionText: string): string {
+  const norm = (s: string) => s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
+  const promptWords = norm(promptText)
+  if (promptWords.length < 4) return solutionText.trim()
+
+  // Wort-Tokens der Lösung mit ihrem Ende-Offset im Originalstring.
+  const wordRe = /[\p{L}\p{N}]+/gu
+  const solTokens: { word: string; end: number }[] = []
+  for (let m = wordRe.exec(solutionText); m; m = wordRe.exec(solutionText)) {
+    solTokens.push({ word: m[0].toLowerCase(), end: m.index + m[0].length })
+  }
+
+  let matched = 0
+  while (matched < promptWords.length && matched < solTokens.length && promptWords[matched] === solTokens[matched]!.word) {
+    matched++
+  }
+  if (matched < promptWords.length * 0.7) return solutionText.trim()
+
+  let rest = solutionText.slice(solTokens[matched - 1]!.end)
+  // führende Satzzeichen + optionale „Lösung:/Solution:/Answer:"-Markierung
+  rest = rest.replace(/^[\s.:;,)\]?!–—-]+/u, '')
+  rest = rest.replace(/^(lösung|loesung|solution|answer|antwort)\b[\s.:–—-]*/iu, '')
+  return rest.trim() || solutionText.trim()
+}

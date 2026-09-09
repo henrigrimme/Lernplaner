@@ -24,17 +24,24 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.42.0.**
-**Arbeitsstand:** autonome Verbesserungs-Serie (Nutzerwunsch „mach alles
-nacheinander"): **A** Übungsblatt+Musterlösung koppeln (v0.40.0) ✓ · **B**
-Doc-Chat-Sprachlücke via DE↔EN-Fachglossar (v0.41.0) ✓ · **C**
-Impeccable-Politur Karteikarten/Übungsblatt-Zerlegung (v0.42.0) ✓ · **D**
-ein selbst identifiziertes Alltags-Nachschärfen. Je Punkt Feature-Branch →
-PR → Squash → Release. Ablauf in [CONTRIBUTING.md](CONTRIBUTING.md)
-(„Releases"): bei sichtbarer Änderung Version in 4 Dateien hochziehen +
-signierten Release; reine Doku braucht keinen Release.
+**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.43.0.**
+**Arbeitsstand: nichts offen.** Die autonome Verbesserungs-Serie
+(Nutzerwunsch „mach alles nacheinander") ist abgeschlossen: **A**
+Übungsblatt+Musterlösung koppeln (v0.40.0) · **B** Doc-Chat-Sprachlücke via
+DE↔EN-Fachglossar (v0.41.0) · **C** Impeccable-Politur
+Karteikarten/Übungsblatt-Zerlegung (v0.42.0) · **D** Musterlösungs-Rückseite
+ohne wiederholte Aufgabe (v0.43.0). Working Tree sauber auf `main`, 677
+Tests grün, `tsc` + `vite build` + `cargo check` grün. Ablauf in
+[CONTRIBUTING.md](CONTRIBUTING.md) („Releases").
 
 Jüngster Stand ganz am Ende von Abschnitt 8:
+- **D — Musterlösungs-Rückseite ohne wiederholte Aufgabe** (v0.43.0):
+  `stripRepeatedPrompt` in `ingest/exerciseSplit.ts` (rein) schneidet den
+  wörtlich wiederholten Aufgaben-Vorspann (+ „Solution:"/„Lösung:"-Marke)
+  aus dem Musterlösungstext — die Frage steht schon auf der Kartenvorder-
+  seite. Konservativ: nur wenn ≥ 70 % der Aufgaben-Wörter als führende
+  Folge wiederkehren. An echtem Material: jede Rückseite ist danach die
+  reine Antwort (–100 … –660 Zeichen je Karte).
 - **C — Impeccable-Politur** (v0.42.0): der `impeccable`-Skill über den
   Karteikarten-Bereich + den neuen „Übungsblatt zerlegen"-Block. Echter
   Layout-Bug behoben: `.exercise-split-list label` erbte
@@ -4042,8 +4049,39 @@ App-Icon (`src-tauri/icons/*`, `app-icon.svg`) und als In-App-Logo
 (`src/ui/Logo.tsx`, in der Sidebar). Beide ohne eigenen Release; die
 neuen Icons gehen mit dem nächsten Release (v0.42.0) mit raus.
 
-**Als Nächstes in der Serie:** D — ein selbst identifiziertes
-Alltags-Nachschärfen.
+---
+
+### D — Musterlösungs-Rückseite ohne wiederholte Aufgabe (v0.43.0, 09.09.2026)
+
+Vierter und letzter Punkt der Serie. Selbst identifiziertes
+Alltags-Nachschärfen: beim Koppeln von Übungsblatt + Musterlösung (Punkt A,
+v0.40.0) enthielt die Kartenrückseite die komplette Musterlösung — und die
+wiederholt bei WHU-Material zuerst wörtlich die Aufgabenstellung, die schon
+auf der Vorderseite steht. Im Plausi-Check von A ausdrücklich als „bewusst
+so gelassen" vermerkt, jetzt behoben.
+
+- **`stripRepeatedPrompt(promptText, solutionText)` in
+  `ingest/exerciseSplit.ts`** (rein): normalisiert beide Texte auf
+  Wort-Tokens (klein, nur Buchstaben/Ziffern), zählt die führenden
+  übereinstimmenden Wörter; ab **70 % Deckung** der Aufgaben-Wörter wird
+  am echten Zeichen-Offset geschnitten und eine unmittelbar folgende
+  „Lösung:/Solution:/Answer:"-Marke plus führende Satzzeichen entfernt.
+  Bleibt danach nichts übrig oder liegt die Deckung darunter, kommt der
+  Lösungstext unverändert zurück (lieber Frage doppelt als abgeschnittene
+  Antwort).
+- **`ui/ExerciseSplitPanel.tsx`**: `back` einer solution-gekoppelten Karte
+  läuft jetzt durch `stripRepeatedPrompt`. Keine weitere Änderung.
+- **Tests:** 5 für `stripRepeatedPrompt` in `exerciseSplit.test.ts`.
+  **677 gesamt**, `tsc` + `vite build` grün.
+- **Plausibilitätscheck:** „Problem Set 1" + „Online Questions 1" mit ihren
+  `_Solutions`-Dateien — jede Rückseite ist danach die reine Antwort
+  („Leverage is defined as borrowing …", „a. Expected Value = 0.2($1,000)…",
+  „Since the 5% worst outcomes …"), −100 bis −660 Zeichen je Karte.
+
+**Damit ist die autonome Serie A–D abgeschlossen** (v0.40.0 – v0.43.0). Ab
+hier ist nichts angefangen. Der nächste Chat wählt eine neue Aufgabe (z. B.
+weiteres „Nachschärfen aus dem Alltag", ROADMAP.md Phase 4) und arbeitet
+sie nach CONTRIBUTING.md „Releases" ab.
 
 ---
 

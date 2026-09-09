@@ -13,7 +13,7 @@ Prüfungstermine, verfügbare Zeit und den tatsächlichen Fortschritt anpasst.
 | | |
 |---|---|
 | Phase | 4 von 4 — Echtbetrieb, additive Verbesserungen aus dem Alltag |
-| Version | **v0.42.0** (signierte Releases, Auto-Update) |
+| Version | **v0.43.0** (signierte Releases, Auto-Update) |
 | Im Einsatz seit | 1. September 2026 |
 | Prüfungsphase | Oktober 2026 |
 
