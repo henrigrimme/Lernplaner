@@ -70,6 +70,11 @@ export function buildChatSystemPrompt(context: string): string {
     '   Dateien gehören, frag nach statt zu raten.',
     'Nutze die Blöcke nur, wenn der Nutzer erkennbar eine solche Änderung will. Sonst normal antworten.',
     '',
+    'Der Kontext unten kann einen Abschnitt „AUSZÜGE AUS DEN UNTERLAGEN" enthalten — wörtliche',
+    'Ausschnitte aus den importierten Dokumenten des Nutzers, passend zur letzten Frage. Stützt du',
+    'dich darauf, zitiere die Quelle als (Dateiname, S. X). Reichen die Auszüge nicht, sag das offen,',
+    'statt zu raten. Ohne solchen Abschnitt antwortest du wie bisher aus dem allgemeinen Kontext.',
+    '',
     'Kontext zur aktuellen Lage des Nutzers:',
     context.trim() || '(noch keine Daten)',
   ].join('\n')

@@ -84,6 +84,17 @@ export interface Document {
   imported_at: string
 }
 
+/**
+ * Persistenter Volltext-Index je Dokumentseite (Migration 0008) — Grundlage
+ * für „Chat mit den Unterlagen" (`domain/documentChat.ts`). `page` ist bei
+ * Formaten ohne echte Seiten der 1-basierte Abschnitts-/Folienindex.
+ */
+export interface DocumentPage {
+  document_id: number
+  page: number
+  text: string
+}
+
 export type TopicStatus = 'offen' | 'in_arbeit' | 'sicher' | 'uebersprungen'
 
 export interface Topic {
