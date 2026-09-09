@@ -24,17 +24,27 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.41.0.**
+**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.42.0.**
 **Arbeitsstand:** autonome Verbesserungs-Serie (Nutzerwunsch „mach alles
 nacheinander"): **A** Übungsblatt+Musterlösung koppeln (v0.40.0) ✓ · **B**
 Doc-Chat-Sprachlücke via DE↔EN-Fachglossar (v0.41.0) ✓ · **C**
-Impeccable-Politur einer Ansicht · **D** ein selbst identifiziertes
-Alltags-Nachschärfen. Je Punkt Feature-Branch → PR → Squash → Release.
-Ablauf in [CONTRIBUTING.md](CONTRIBUTING.md) („Releases"): bei sichtbarer
-Änderung Version in 4 Dateien hochziehen + signierten Release; reine Doku
-braucht keinen Release.
+Impeccable-Politur Karteikarten/Übungsblatt-Zerlegung (v0.42.0) ✓ · **D**
+ein selbst identifiziertes Alltags-Nachschärfen. Je Punkt Feature-Branch →
+PR → Squash → Release. Ablauf in [CONTRIBUTING.md](CONTRIBUTING.md)
+(„Releases"): bei sichtbarer Änderung Version in 4 Dateien hochziehen +
+signierten Release; reine Doku braucht keinen Release.
 
 Jüngster Stand ganz am Ende von Abschnitt 8:
+- **C — Impeccable-Politur** (v0.42.0): der `impeccable`-Skill über den
+  Karteikarten-Bereich + den neuen „Übungsblatt zerlegen"-Block. Echter
+  Layout-Bug behoben: `.exercise-split-list label` erbte
+  `flex-direction: column` von der app-weiten `label`-Regel, die
+  Aufgabenzeilen stapelten sich senkrecht — jetzt `row`/`wrap`. Dazu
+  Hairline-/Token-Konsistenz (`--color-border` statt `--color-surface-2`,
+  `--text-caption`/`--text-label` statt `em`, `--radius-pill` statt rohem
+  `999px` an vier Stellen), Zeilen-Hover wie in den anderen gruppierten
+  Listen, eigener `.chat-use-documents`-Stil für den „Unterlagen
+  einbeziehen"-Schalter. Detector: keine neuen Befunde.
 - **B — Doc-Chat-Sprachlücke** (v0.41.0): `expandQueryTokens` in
   `domain/documentChat.ts` erweitert die Frage-Token um ihre DE↔EN-
   Fachbegriffe aus einem handgepflegten Glossar (~55 Einträge Money &
@@ -3990,8 +4000,50 @@ Folienmaterial.
   Selektion" → direkt die Asymmetric-Information-Folien. §9-Eintrag
   entsprechend präzisiert.
 
-**Als Nächstes in der Serie:** C — Impeccable-Politur einer Ansicht,
-D — ein selbst identifiziertes Alltags-Nachschärfen.
+---
+
+### C — Impeccable-Politur: Karteikarten / Übungsblatt-Zerlegung (v0.42.0, 09.09.2026)
+
+Dritter Punkt der Serie. `impeccable`-Skill (`polish`) über den
+Karteikarten-Bereich (Reiter Üben/Neu/Alle) und den in v0.38.0/v0.40.0
+neu dazugekommenen „Übungsblatt zerlegen"-Block. **Politur, kein
+Redesign** — warme Terrakotta-/Native-macOS-Identität unverändert.
+
+- **Echter Layout-Bug behoben:** `.exercise-split-list label` setzte nur
+  `display: flex`, erbte aber `flex-direction: column` von der app-weiten
+  `label {}`-Regel (Formular-Label über Feld) — die Aufgabenzeilen
+  stapelten Checkbox / Nummer / Text / Badge / Seitenzahl senkrecht statt
+  waagerecht. Jetzt explizit `flex-direction: row; flex-wrap: wrap`,
+  Ausrichtung wie `.card-list-topic li`. Im Browser mit
+  `getComputedStyle` + Screenshot bestätigt.
+- **Token-/Hairline-Konsistenz:** `--color-surface-2`-Zeilentrenner →
+  `--color-border` (jede gruppierte Liste in der App nutzt die
+  1px-Hairline); `em`-Schriftgrößen → `--text-caption`/`--text-label`;
+  rohes `999px` → `--radius-pill` an vier in-scope Stellen
+  (`.exercise-split-solution`, `.chat-chip`, `.chat-spinner`,
+  `.card-list-count`); toter `var(--color-border, …)`-Fallback entfernt.
+- **`.exercise-split-list > li:hover`** — dezelbe Ink-6%-Tönung wie
+  Sidebar-/Reiter-/Listen-Hover (die Zeilen sind anklickbare Checkboxen,
+  waren aber statisch). Neuer `.exercise-split-result`-Container mit
+  `--space-sm`-Rhythmus. `.chat-use-documents` (der „Unterlagen
+  einbeziehen"-Schalter aus v0.39.0) hatte gar kein CSS — jetzt oben
+  ausgerichtet (langer Erklärtext neben der Checkbox), gedämpft, dezent
+  abgesetzt.
+- **Detector** (`impeccable/scripts/detect.mjs`) über die geänderten
+  Dateien: **keine neuen Befunde**, die 13 Advisories liegen alle auf
+  vorbestehenden Zeilen (Glas-Highlight, Dialog-Backdrop, 2–3px
+  Icon-Radien). `tsc` + `vite build` + 30 betroffene UI-Tests grün.
+
+**Parallel dazu gemergt** (eigene Sitzung, aus dem Task-Chip dieser
+Session): **#106** `fix(ci)` — `release.yml` baut die universelle `.dmg`
+jetzt über eine committete Override-Config (`src-tauri/tauri.ci.conf.json`)
+statt fragilem inline-`--config`-JSON; **#110** `ui` — neue Bildmarke als
+App-Icon (`src-tauri/icons/*`, `app-icon.svg`) und als In-App-Logo
+(`src/ui/Logo.tsx`, in der Sidebar). Beide ohne eigenen Release; die
+neuen Icons gehen mit dem nächsten Release (v0.42.0) mit raus.
+
+**Als Nächstes in der Serie:** D — ein selbst identifiziertes
+Alltags-Nachschärfen.
 
 ---
 

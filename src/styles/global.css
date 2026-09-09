@@ -790,32 +790,58 @@ section[aria-label] ul.document-list > li.document-list-item {
   max-width: 160px;
 }
 
-/* Aufgabenliste der Übungsblatt-Zerlegung (`ui/ExerciseSplitPanel.tsx`) —
-   kann lang werden, deshalb in der Höhe begrenzt und scrollbar. */
+/* Ergebnisblock der Übungsblatt-Zerlegung (`ui/ExerciseSplitPanel.tsx`):
+   der Container ist ein direktes Kind von `section[aria-label]` und
+   bekommt dort seinen Abstand nach oben; innen tragen die Teile (Hinweis,
+   Liste, Zielthema-Auswahl, Button) denselben `--space-sm`-Rhythmus wie
+   ein Formular. */
+.exercise-split-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Aufgabenliste — kann lang werden, deshalb in der Höhe begrenzt und
+   scrollbar. Rahmen/Trennlinien als 1px-Hairline wie jede gruppierte
+   Liste in der App (`section[aria-label] ul`). */
 .exercise-split-list {
   list-style: none;
   padding: 0;
-  margin: 0.5rem 0;
+  margin: 0;
   max-height: 22rem;
   overflow-y: auto;
-  border: 1px solid var(--color-border, var(--color-muted));
-  border-radius: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
 }
 
 .exercise-split-list > li {
-  padding: 0.35rem 0.6rem;
-  border-bottom: 1px solid var(--color-surface-2);
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  transition: background var(--duration-fast) var(--ease-out-quart);
+}
+
+.exercise-split-list > li:hover {
+  background: oklch(from var(--color-ink) l c h / 0.06);
 }
 
 .exercise-split-list > li:last-child {
   border-bottom: none;
 }
 
+/* `label` ist app-weit `flex-direction: column` (Formular-Label über
+   Feld) — hier ist die Zeile aber eine waagerechte Auswahlzeile, deshalb
+   explizit `row` mit Umbruch, gleiche Ausrichtung wie `.card-list-topic li`. */
 .exercise-split-list label {
   display: flex;
-  gap: 0.4rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-2xs) var(--space-xs);
   align-items: baseline;
   cursor: pointer;
+  font-size: var(--text-ui);
+  font-weight: 400;
+  color: var(--color-ink);
 }
 
 .exercise-split-page {
@@ -823,16 +849,36 @@ section[aria-label] ul.document-list > li.document-list-item {
   flex-shrink: 0;
   color: var(--color-muted);
   font-variant-numeric: tabular-nums;
-  font-size: 0.85em;
+  font-size: var(--text-label);
 }
 
 .exercise-split-solution {
   flex-shrink: 0;
-  font-size: 0.8em;
-  padding: 0.05rem 0.35rem;
-  border-radius: 999px;
-  border: 1px solid var(--color-border, var(--color-muted));
+  font-size: var(--text-caption);
+  font-weight: 550;
+  padding: 2px var(--space-2xs);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
   color: var(--color-muted);
+}
+
+/* „Unterlagen einbeziehen"-Schalter im Sven-Composer
+   (`ui/AssistantChat.tsx`) — eine ganze Zeile Erklärtext neben der
+   Checkbox, deshalb oben ausgerichtet statt zentriert (die generische
+   `label:has(> input[type=checkbox])`-Regel zentriert). Dezent abgesetzt
+   über der Nachricht. */
+.chat-use-documents {
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-2xs);
+  color: var(--color-muted);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.chat-use-documents input {
+  margin-top: 1px;
+  flex-shrink: 0;
 }
 
 /* Einfaches Dokument-Symbol (Seite mit umgeknickter Ecke), rein aus CSS
@@ -1581,7 +1627,7 @@ button:disabled {
   padding: 2px var(--space-xs);
   font-size: var(--text-label);
   background: oklch(from var(--color-ink) l c h / 0.06);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .chat-chip button {
@@ -1726,7 +1772,7 @@ button:disabled {
   flex-shrink: 0;
   border: 2px solid oklch(from var(--color-ink) l c h / 0.2);
   border-top-color: var(--color-primary);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   animation: chat-spin 0.7s linear infinite;
 }
 
@@ -1782,7 +1828,7 @@ button:disabled {
   text-align: center;
   color: var(--color-muted);
   background: oklch(from var(--color-ink) l c h / 0.06);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .card-list-topic ul {

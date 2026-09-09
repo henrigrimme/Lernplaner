@@ -187,7 +187,7 @@ export function ExerciseSplitPanel({ course, topics, documents, documentBytes, o
       </button>
 
       {matched && (
-        <div>
+        <div className="exercise-split-result">
           {matched.length === 0 ? (
             <p>Keine nummerierten Aufgaben erkannt. Erkannt werden Aufgaben, die mit „1.", „2." oder „1)", „2)" beginnen.</p>
           ) : (
