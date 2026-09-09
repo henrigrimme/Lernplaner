@@ -83,3 +83,6 @@ npm-debug.log*
 
 # sql.js WASM — bei jedem Build aus node_modules nach public/ kopiert (vite.config.ts)
 public/sql-wasm.wasm
+
+# Lokale Logo-/Icon-Entwürfe — nur ins Repo, wenn bewusst per `git add -f`
+/Logo/
