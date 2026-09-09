@@ -791,6 +791,42 @@ section[aria-label] ul.document-list > li.document-list-item {
   max-width: 160px;
 }
 
+/* Aufgabenliste der Übungsblatt-Zerlegung (`ui/ExerciseSplitPanel.tsx`) —
+   kann lang werden, deshalb in der Höhe begrenzt und scrollbar. */
+.exercise-split-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  max-height: 22rem;
+  overflow-y: auto;
+  border: 1px solid var(--color-border, var(--color-muted));
+  border-radius: 6px;
+}
+
+.exercise-split-list > li {
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--color-surface-2);
+}
+
+.exercise-split-list > li:last-child {
+  border-bottom: none;
+}
+
+.exercise-split-list label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+  cursor: pointer;
+}
+
+.exercise-split-page {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+}
+
 /* Einfaches Dokument-Symbol (Seite mit umgeknickter Ecke), rein aus CSS
    wie `.app-sidebar-toggle-icon` — kein Icon-Set im Projekt. */
 .document-list-icon {
