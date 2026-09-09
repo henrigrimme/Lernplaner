@@ -4,10 +4,11 @@
 Prüfungen im Oktober.
 
 **Aktueller Stand (09.09.2026):** Phasen 1–3 abgeschlossen, seit 01.09 im
-Echtbetrieb. Version v0.39.0. Phase 4 läuft (additive Verbesserungen aus der
-echten Nutzung). Zuletzt: Übungsblatt-Zerlegung (v0.38.0) + Chat mit den
-Unterlagen (v0.39.0). Nichts angefangen — Details und exakter nächster
-Schritt in [CONTEXT.md](CONTEXT.md) Abschnitt 8.
+Echtbetrieb. Version v0.40.0. Phase 4 läuft (additive Verbesserungen aus der
+echten Nutzung). Zuletzt: Übungsblatt-Zerlegung (v0.38.0), Chat mit den
+Unterlagen (v0.39.0), Übungsblatt+Musterlösung koppeln (v0.40.0). Laufende
+autonome Serie — Details und exakter nächster Schritt in
+[CONTEXT.md](CONTEXT.md) Abschnitt 8.
 
 ---
 

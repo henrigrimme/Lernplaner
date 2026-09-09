@@ -110,6 +110,48 @@ describe('ExerciseSplitPanel', () => {
     expect(await screen.findByText(/sieht eher nach einer Folien-\/Agenda-Liste aus/)).toBeInTheDocument()
   })
 
+  it('koppelt eine Musterlösung und füllt damit die Rückseiten', async () => {
+    const user = userEvent.setup()
+    const exerciseResult: ExerciseSplitResult = {
+      preamble: [],
+      looksLikeExerciseSheet: true,
+      exercises: [
+        { number: '1', label: '', text: 'Berechne die Rendite.', pageStart: 1, pageEnd: 1 },
+        { number: '2', label: '', text: 'Erkläre die Duration.', pageStart: 2, pageEnd: 2 },
+      ],
+    }
+    const solutionResult: ExerciseSplitResult = {
+      preamble: [],
+      looksLikeExerciseSheet: true,
+      exercises: [{ number: '1', label: '', text: 'Die Rendite beträgt 6 %.', pageStart: 1, pageEnd: 1 }],
+    }
+    const onSplit = vi.fn().mockImplementation((id: number) => Promise.resolve(id === 5 ? exerciseResult : solutionResult))
+    const onCreateCards = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ExerciseSplitPanel
+        course={COURSE}
+        topics={TOPICS}
+        documents={[doc({ id: 5, filename: 'Problem Set 1.pdf' }), doc({ id: 6, filename: 'Problem Set 1_Solutions.pdf', doc_type: 'musterloesung' })]}
+        documentBytes={{ 5: new Uint8Array([1]), 6: new Uint8Array([2]) }}
+        onSplit={onSplit}
+        onCreateCards={onCreateCards}
+      />,
+    )
+
+    await user.selectOptions(screen.getByLabelText(/Musterlösung \(optional\)/), '6')
+    await user.click(screen.getByRole('button', { name: 'In Einzelaufgaben zerlegen' }))
+
+    expect(onSplit).toHaveBeenCalledWith(5)
+    expect(onSplit).toHaveBeenCalledWith(6)
+    expect(await screen.findByText('2 Aufgaben erkannt — 1 mit Musterlösung zugeordnet:')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Als Karteikarten übernehmen (2)' }))
+    const created = onCreateCards.mock.calls[0]![0]
+    expect(created[0].back).toBe('Die Rendite beträgt 6 %.')
+    expect(created[1].back).toBe('')
+    expect(await screen.findByText(/1 davon mit Musterlösung auf der Rückseite/)).toBeInTheDocument()
+  })
+
   it('bietet keine Karteikarten-Übernahme ohne Thema an', async () => {
     const user = userEvent.setup()
     render(
