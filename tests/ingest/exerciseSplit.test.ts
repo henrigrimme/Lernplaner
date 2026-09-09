@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { splitExercises, type ExercisePage } from '../../src/ingest/exerciseSplit'
+import { matchSolutions, splitExercises, type ExercisePage, type ParsedExercise } from '../../src/ingest/exerciseSplit'
 
 /**
  * Die Zeilenformen stammen aus echtem Material (`Beispiel pdfs/Money
@@ -134,5 +134,32 @@ describe('splitExercises', () => {
 
   it('kommt mit einem leeren Dokument klar', () => {
     expect(splitExercises([])).toEqual({ exercises: [], preamble: [], looksLikeExerciseSheet: false })
+  })
+})
+
+describe('matchSolutions', () => {
+  const ex = (number: string, text: string): ParsedExercise => ({ number, label: '', text, pageStart: 1, pageEnd: 1 })
+
+  it('ordnet Lösungen über die Aufgabennummer zu, Reihenfolge folgt dem Blatt', () => {
+    const exercises = [ex('1', 'Frage eins'), ex('2', 'Frage zwei'), ex('3', 'Frage drei')]
+    const solutions = [ex('2', 'Lösung zwei'), ex('1', 'Lösung eins'), ex('3', 'Lösung drei')]
+    const paired = matchSolutions(exercises, solutions)
+    expect(paired.map((p) => [p.exercise.number, p.solution?.text])).toEqual([
+      ['1', 'Lösung eins'],
+      ['2', 'Lösung zwei'],
+      ['3', 'Lösung drei'],
+    ])
+  })
+
+  it('lässt die Lösung null, wenn keine passende Nummer existiert, und ignoriert überzählige Lösungen', () => {
+    const paired = matchSolutions([ex('1', 'a'), ex('2', 'b')], [ex('1', 'Lösung a'), ex('5', 'übrig')])
+    expect(paired[0]!.solution?.text).toBe('Lösung a')
+    expect(paired[1]!.solution).toBeNull()
+    expect(paired).toHaveLength(2)
+  })
+
+  it('ohne Musterlösung bleibt jede Zuordnung null', () => {
+    const paired = matchSolutions([ex('1', 'a')], [])
+    expect(paired).toEqual([{ exercise: ex('1', 'a'), solution: null }])
   })
 })

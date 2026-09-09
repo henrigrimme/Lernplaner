@@ -24,16 +24,23 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.39.0.**
-**Arbeitsstand: nichts offen.** Working Tree sauber auf `main`, 664 Tests
-grün, `tsc --noEmit` + `vite build` + `cargo check --locked` grün. Der
-Doppel-Wunsch dieser Session („Übungsblatt-Zerlegung" + „Chat mit den
-Unterlagen") ist abgearbeitet und in zwei Releases veröffentlicht.
-Ablauf in [CONTRIBUTING.md](CONTRIBUTING.md) („Releases"): Feature-Branch →
-PR → Squash-Merge → bei sichtbarer Änderung Version in 4 Dateien hochziehen
-+ signierten Release bauen; reine Doku/Interna brauchen keinen Release.
+**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.40.0.**
+**Arbeitsstand:** autonome Verbesserungs-Serie (Nutzerwunsch „mach alles
+nacheinander"): **A** Übungsblatt+Musterlösung koppeln (v0.40.0) ✓ · **B**
+Doc-Chat-Sprachlücke entschärfen · **C** Impeccable-Politur einer Ansicht ·
+**D** ein selbst identifiziertes Alltags-Nachschärfen. Je Punkt
+Feature-Branch → PR → Squash → Release. Ablauf in
+[CONTRIBUTING.md](CONTRIBUTING.md) („Releases"): bei sichtbarer Änderung
+Version in 4 Dateien hochziehen + signierten Release; reine Doku braucht
+keinen Release.
 
 Jüngster Stand ganz am Ende von Abschnitt 8:
+- **A — Übungsblatt + Musterlösung koppeln** (v0.40.0): `matchSolutions`
+  in `ingest/exerciseSplit.ts` (rein) ordnet Aufgaben ihrer Musterlösung
+  über die Aufgabennummer zu; im `ExerciseSplitPanel` optionales
+  zweites Dropdown „Musterlösung" — die zugeordnete Lösung füllt dann die
+  **Rückseite** der Karte statt leer. An echtem Material 16/16, 4/4, 10/10
+  zugeordnet.
 - „Chat mit den Unterlagen" (v0.39.0, Nutzerwunsch 09.09.2026):
   persistenter Volltext-Index je Dokumentseite (Migration 0008,
   `document_pages`), einmalig aus den geladenen Bytes befüllt (auch
@@ -3920,10 +3927,38 @@ Retrieval).
   §9). Dev-Server-Smoke: App startet ohne neue Konsolenfehler; der Index
   selbst braucht die Tauri-SQLite-Laufzeit.
 
-**Handoff:** Der Doppel-Wunsch dieser Session ist fertig und in v0.38.0 +
-v0.39.0 veröffentlicht. Ab hier ist nichts angefangen. Der nächste Chat
-wählt eine neue Aufgabe (z. B. weiteres „Nachschärfen aus dem Alltag",
-ROADMAP.md Phase 4) und arbeitet sie nach CONTRIBUTING.md „Releases" ab.
+---
+
+### A — Übungsblatt + Musterlösung koppeln (v0.40.0, 09.09.2026)
+
+Erster Punkt der autonomen Verbesserungs-Serie (Nutzerwunsch „mach alles
+nacheinander … autonom"). Baut direkt auf der Übungsblatt-Zerlegung
+(v0.38.0) auf.
+
+- **`matchSolutions(exercises, solutions)` in `ingest/exerciseSplit.ts`**
+  (rein): ordnet jede Aufgabe ihrer Musterlösung über die
+  **Aufgabennummer** zu (`Map<number, ParsedExercise>`), Reihenfolge folgt
+  dem Blatt, überzählige Lösungs-Nummern werden ignoriert, keine Zuordnung
+  → `solution: null`.
+- **`ui/ExerciseSplitPanel.tsx`**: optionales zweites Dropdown
+  „Musterlösung (optional)" (dieselbe Dokumentliste minus das gewählte
+  Blatt). Ist eins gewählt, ruft das Panel `onSplit` **zweimal** und paart
+  clientseitig; die zugeordnete Lösung füllt die **Rückseite** der Karte
+  (`back`), sonst bleibt sie leer. Kein neuer `App.tsx`-Handler nötig —
+  `handleSplitExercises` liefert weiterhin je Dokument ein
+  `ExerciseSplitResult`. Zähler „N mit Musterlösung zugeordnet" + Badge je
+  Zeile.
+- **Tests:** 3 für `matchSolutions` in `exerciseSplit.test.ts`, 1 Panel-Test
+  für den Kopplungs-Fluss. **668 gesamt**, `tsc` + `vite build` grün.
+- **Plausibilitätscheck:** „Problem Set 1/2", „Online Questions 1" jeweils
+  mit ihrer `_Solutions`-Datei — 16/16, 4/4, 10/10 über die Nummer
+  zugeordnet. (Die WHU-Lösungsdateien wiederholen die Frage vor der
+  Antwort; die Rückseite enthält dadurch Frage + Lösung — bewusst so
+  gelassen, das ist die vollständige Musterlösung.)
+
+**Als Nächstes in der Serie:** B — Doc-Chat-Sprachlücke (leeres Retrieval
+zusätzlich gegen Themennamen matchen), C — Impeccable-Politur, D — ein
+selbst identifiziertes Alltags-Nachschärfen.
 
 ---
 

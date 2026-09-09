@@ -183,3 +183,23 @@ function isExerciseSheet(exercises: ParsedExercise[]): boolean {
   const median = lengths.length % 2 === 0 ? (lengths[mid - 1]! + lengths[mid]!) / 2 : lengths[mid]!
   return median >= MIN_MEDIAN_TEXT_LENGTH
 }
+
+export interface MatchedExercise {
+  exercise: ParsedExercise
+  /** Passende Lösung aus der Musterlösung, über die Aufgabennummer zugeordnet — `null`, wenn keine gefunden. */
+  solution: ParsedExercise | null
+}
+
+/**
+ * Ordnet die Aufgaben eines Übungsblatts den Aufgaben seiner Musterlösung
+ * über die **Aufgabennummer** zu (an echtem Material bestätigt: „Problem
+ * Set 1.pdf" und „Problem Set 1_Solutions.pdf" tragen beide 1…16). Rein,
+ * keine Nebenwirkung. Reihenfolge und Länge folgen `exercises` — jede
+ * Aufgabe kommt genau einmal vor, überzählige Lösungs-Einträge (Nummern,
+ * die es im Blatt nicht gibt) werden ignoriert.
+ */
+export function matchSolutions(exercises: ParsedExercise[], solutions: ParsedExercise[]): MatchedExercise[] {
+  const solutionByNumber = new Map<string, ParsedExercise>()
+  for (const s of solutions) if (!solutionByNumber.has(s.number)) solutionByNumber.set(s.number, s)
+  return exercises.map((exercise) => ({ exercise, solution: solutionByNumber.get(exercise.number) ?? null }))
+}

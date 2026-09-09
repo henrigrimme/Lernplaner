@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Course, Document, Topic } from '../data/schema'
 import type { NewCardInput } from '../data/cardsRepo'
-import type { ExerciseSplitResult } from '../ingest/exerciseSplit'
+import { matchSolutions, type ExerciseSplitResult, type MatchedExercise } from '../ingest/exerciseSplit'
 
 /**
  * Übungsblatt-Zerlegung (ROADMAP.md „Später/offen", Nutzerwunsch
@@ -10,7 +10,12 @@ import type { ExerciseSplitResult } from '../ingest/exerciseSplit'
  * Rückseite leer zum Selberlösen, Quelle verlinkt). Die Erkennung
  * (`ingest/exerciseSplit.ts`) ist rein deterministisch, kein KI-Aufruf.
  *
- * Reine Präsentation (ARCHITECTURE.md „ui/"): `onSplit` liest das Dokument
+ * **Optional eine Musterlösung koppeln** (Nutzerwunsch 09.09.2026, zweiter
+ * Durchgang): ist zusätzlich ein Lösungsdokument gewählt, füllt die über
+ * die Aufgabennummer zugeordnete Lösung die **Rückseite** der Karte
+ * (`matchSolutions`) — sonst bleibt sie leer.
+ *
+ * Reine Präsentation (ARCHITECTURE.md „ui/"): `onSplit` liest ein Dokument
  * und liefert das Ergebnis, `onCreateCards` schreibt die Karten — nach
  * ausdrücklichem Klick, nie automatisch. Angeboten nur für Dokumente vom
  * Typ „Übungsblatt"/„Musterlösung" mit geladenen Bytes, dieselbe
@@ -36,7 +41,9 @@ export function ExerciseSplitPanel({ course, topics, documents, documentBytes, o
   const courseTopics = topics.filter((t) => t.course_id === course.id)
 
   const [docId, setDocId] = useState<number | null>(null)
-  const [result, setResult] = useState<ExerciseSplitResult | null>(null)
+  const [solutionDocId, setSolutionDocId] = useState<number | null>(null)
+  const [matched, setMatched] = useState<MatchedExercise[] | null>(null)
+  const [looksLikeSheet, setLooksLikeSheet] = useState(true)
   const [resultDocId, setResultDocId] = useState<number | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [targetTopicId, setTargetTopicId] = useState<number | null>(courseTopics[0]?.id ?? null)
@@ -57,6 +64,13 @@ export function ExerciseSplitPanel({ course, topics, documents, documentBytes, o
   }
 
   const effectiveDocId = docId ?? availableDocs[0]!.id
+  const solutionDocs = availableDocs.filter((d) => d.id !== effectiveDocId)
+
+  const resetResult = () => {
+    setMatched(null)
+    setResultDocId(null)
+    setStatus(null)
+  }
 
   const split = async () => {
     setBusy(true)
@@ -64,9 +78,13 @@ export function ExerciseSplitPanel({ course, topics, documents, documentBytes, o
     setStatus(null)
     try {
       const res = await onSplit(effectiveDocId)
-      setResult(res)
+      const solutionRes =
+        solutionDocId !== null && solutionDocs.some((d) => d.id === solutionDocId) ? await onSplit(solutionDocId) : null
+      const pairs = matchSolutions(res.exercises, solutionRes?.exercises ?? [])
+      setMatched(pairs)
+      setLooksLikeSheet(res.looksLikeExerciseSheet)
       setResultDocId(effectiveDocId)
-      setSelected(new Set(res.exercises.map((_, i) => i)))
+      setSelected(new Set(pairs.map((_, i) => i)))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Das Übungsblatt konnte nicht zerlegt werden.')
     } finally {
@@ -83,17 +101,19 @@ export function ExerciseSplitPanel({ course, topics, documents, documentBytes, o
     })
   }
 
+  const matchedCount = matched?.filter((m) => m.solution !== null).length ?? 0
+
   const createCards = async () => {
-    if (!result || resultDocId === null || targetTopicId === null) return
-    const inputs: NewCardInput[] = result.exercises
+    if (!matched || resultDocId === null || targetTopicId === null) return
+    const inputs: NewCardInput[] = matched
       .filter((_, i) => selected.has(i))
-      .map((ex) => ({
+      .map(({ exercise, solution }) => ({
         topic_id: targetTopicId,
         document_id: resultDocId,
-        page: ex.pageStart,
-        front: (ex.label ? `Aufgabe ${ex.number} — ${ex.label}` : `Aufgabe ${ex.number}`) + `\n\n${ex.text}`,
-        back: '',
-        source_quote: ex.text,
+        page: exercise.pageStart,
+        front: (exercise.label ? `Aufgabe ${exercise.number} — ${exercise.label}` : `Aufgabe ${exercise.number}`) + `\n\n${exercise.text}`,
+        back: solution ? solution.text : '',
+        source_quote: exercise.text,
       }))
     if (inputs.length === 0) return
     setBusy(true)
@@ -101,10 +121,17 @@ export function ExerciseSplitPanel({ course, topics, documents, documentBytes, o
     setStatus(null)
     try {
       await onCreateCards(inputs)
-      setStatus(`${inputs.length} Karteikarte${inputs.length === 1 ? '' : 'n'} angelegt — Rückseite jeweils leer zum Selberlösen.`)
-      setResult(null)
+      const withSolution = inputs.filter((c) => c.back.length > 0).length
+      const suffix =
+        withSolution > 0
+          ? ` ${withSolution} davon mit Musterlösung auf der Rückseite, der Rest leer zum Selberlösen.`
+          : ' Rückseite jeweils leer zum Selberlösen.'
+      // Ergebnisliste einklappen, aber die Erfolgsmeldung stehen lassen
+      // (`resetResult` würde sie mit wegräumen).
+      setMatched(null)
       setResultDocId(null)
       setSelected(new Set())
+      setStatus(`${inputs.length} Karteikarte${inputs.length === 1 ? '' : 'n'} angelegt.${suffix}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Die Karteikarten konnten nicht angelegt werden.')
     } finally {
@@ -117,14 +144,14 @@ export function ExerciseSplitPanel({ course, topics, documents, documentBytes, o
       <h3>Übungsblatt in Einzelaufgaben zerlegen</h3>
 
       <label>
-        Dokument
+        Übungsblatt
         <select
           value={effectiveDocId}
           onChange={(e) => {
-            setDocId(Number(e.target.value))
-            setResult(null)
-            setResultDocId(null)
-            setStatus(null)
+            const next = Number(e.target.value)
+            setDocId(next)
+            if (solutionDocId === next) setSolutionDocId(null)
+            resetResult()
           }}
         >
           {availableDocs.map((doc) => (
@@ -135,39 +162,67 @@ export function ExerciseSplitPanel({ course, topics, documents, documentBytes, o
         </select>
       </label>
 
+      {solutionDocs.length > 0 && (
+        <label>
+          Musterlösung (optional) — füllt die Rückseite der Karten
+          <select
+            value={solutionDocId ?? ''}
+            onChange={(e) => {
+              setSolutionDocId(e.target.value === '' ? null : Number(e.target.value))
+              resetResult()
+            }}
+          >
+            <option value="">— keine —</option>
+            {solutionDocs.map((doc) => (
+              <option key={doc.id} value={doc.id}>
+                {doc.filename}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <button type="button" onClick={split} disabled={busy}>
-        {busy && !result ? 'Wird zerlegt…' : 'In Einzelaufgaben zerlegen'}
+        {busy && !matched ? 'Wird zerlegt…' : 'In Einzelaufgaben zerlegen'}
       </button>
 
-      {result && (
+      {matched && (
         <div>
-          {result.exercises.length === 0 ? (
+          {matched.length === 0 ? (
             <p>Keine nummerierten Aufgaben erkannt. Erkannt werden Aufgaben, die mit „1.", „2." oder „1)", „2)" beginnen.</p>
           ) : (
             <>
-              {!result.looksLikeExerciseSheet && (
+              {!looksLikeSheet && (
                 <p role="status">
                   Hinweis: Das sieht eher nach einer Folien-/Agenda-Liste aus als nach einem Übungsblatt. Prüfe die
                   erkannten Aufgaben unten, bevor du sie übernimmst.
                 </p>
               )}
-              <p>{result.exercises.length} Aufgaben erkannt:</p>
+              <p>
+                {matched.length} Aufgaben erkannt
+                {solutionDocId !== null ? ` — ${matchedCount} mit Musterlösung zugeordnet` : ''}:
+              </p>
               <ul className="exercise-split-list">
-                {result.exercises.map((ex, i) => (
+                {matched.map(({ exercise, solution }, i) => (
                   <li key={i}>
                     <label>
                       <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} />
                       <strong>
-                        {ex.number}
-                        {ex.label ? ` — ${ex.label}` : ''}
+                        {exercise.number}
+                        {exercise.label ? ` — ${exercise.label}` : ''}
                       </strong>{' '}
-                      <span title={ex.text}>
-                        {ex.text.replace(/\s+/g, ' ').slice(0, 140)}
-                        {ex.text.length > 140 ? '…' : ''}
+                      <span title={exercise.text}>
+                        {exercise.text.replace(/\s+/g, ' ').slice(0, 140)}
+                        {exercise.text.length > 140 ? '…' : ''}
                       </span>{' '}
+                      {solutionDocId !== null && (
+                        <span className="exercise-split-solution" title={solution ? solution.text : 'keine Lösung zugeordnet'}>
+                          {solution ? '＋ Lösung' : 'ohne Lösung'}
+                        </span>
+                      )}
                       <span className="exercise-split-page">
-                        S.&nbsp;{ex.pageStart}
-                        {ex.pageEnd !== ex.pageStart ? `–${ex.pageEnd}` : ''}
+                        S.&nbsp;{exercise.pageStart}
+                        {exercise.pageEnd !== exercise.pageStart ? `–${exercise.pageEnd}` : ''}
                       </span>
                     </label>
                   </li>
