@@ -261,12 +261,11 @@ p {
   min-width: 0;
 }
 
+/* Bildmarke neben „Lernplaner" — dieselbe wie das Programm-Icon
+   (`src/ui/Logo.tsx`). Bringt eigene Farben mit, daher hier nur Größe. */
 .app-brand-mark {
   width: 20px;
   height: 20px;
-  border-radius: 6px;
-  background: linear-gradient(160deg, var(--color-primary), var(--color-primary-hover));
-  box-shadow: var(--shadow-sm);
   flex-shrink: 0;
 }
 
