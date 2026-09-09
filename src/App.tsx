@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
 import { AppSidebar, DEFAULT_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from './ui/AppSidebar'
 import { TopicTree } from './ui/TopicTree'
 import { CourseSetup } from './ui/CourseSetup'
 import { AssessmentSetup } from './ui/AssessmentSetup'
 import { PaperSteps } from './ui/PaperSteps'
 import { AvailabilitySetup } from './ui/AvailabilitySetup'
+import { AvailabilityAssistant } from './ui/AvailabilityAssistant'
+import { AssistantChat } from './ui/AssistantChat'
+import { buildAssistantContext } from './domain/assistantContext'
 import { PlanView } from './ui/PlanView'
 import { TodayView } from './ui/TodayView'
 import { ReplanView } from './ui/ReplanView'
@@ -40,15 +42,10 @@ import {
   updateCourseGroupRow,
   type NewCourseGroupInput,
 } from './data/courseGroupsRepo'
-import {
-  buildCourseGroupTree,
-  deleteCourseGroup,
-  moveCourseGroup,
-  renameCourseGroup,
-  ungroupedCourses,
-  type CourseGroupTreeNode,
-} from './data/courseGroups'
+import { deleteCourseGroup, moveCourseGroup, renameCourseGroup } from './data/courseGroups'
 import { CourseGroups } from './ui/CourseGroups'
+import { SidebarCourseTree } from './ui/SidebarCourseTree'
+import { TabbedPanel } from './ui/TabbedPanel'
 import { CourseWorkspace } from './ui/CourseWorkspace'
 import { CourseInstructions } from './ui/CourseInstructions'
 import { QuickSearch } from './ui/QuickSearch'
@@ -71,11 +68,13 @@ import { loadTopics, syncTopics } from './data/topicsRepo'
 import { loadTopicSections } from './data/topicSectionsRepo'
 import { loadStudyBlocks, syncStudyBlocks } from './data/studyBlocksRepo'
 import { insertPlanVersion, loadPlanVersions } from './data/planVersionsRepo'
-import { deleteCardRow, insertCard, loadCards, type NewCardInput } from './data/cardsRepo'
+import { deleteCardRow, insertCard, loadCards, updateCardRow, type NewCardInput } from './data/cardsRepo'
 import { insertReview, loadReviews } from './data/reviewsRepo'
 import { scheduleReview, type Grade } from './domain/spacedRepetition'
 import { ReviewSession } from './ui/ReviewSession'
 import { ErrorHistory } from './ui/ErrorHistory'
+import { ManualCardForm } from './ui/ManualCardForm'
+import { CardList } from './ui/CardList'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { buildSchedule } from './domain/planBuilder'
 import { computeDueNotifications, type NotificationContent, type NotificationKind } from './domain/notifications'
@@ -85,7 +84,13 @@ import { completeQuiz, insertQuiz, loadQuizzes } from './data/quizzesRepo'
 import { insertQuestion, loadQuestions } from './data/questionsRepo'
 import { insertAnswer, loadAnswers } from './data/answersRepo'
 import { insertAiUsage } from './data/aiUsageRepo'
-import { getActiveProvider, getConfiguredAIProvider, type AIUsage } from './ai'
+import {
+  getActiveProvider,
+  getConfiguredAIProvider,
+  type AIUsage,
+  type AvailabilityProposal,
+  type ChatMessage,
+} from './ai'
 import { computeQuizScore } from './domain/quiz'
 import { suggestWeightAdjustments, type WeightSuggestion } from './domain/examWeighting'
 import type {
@@ -142,7 +147,16 @@ import type {
  * Fächer-/Prüfungs-Bausteinen, hier nur der Vollständigkeit halber erneut
  * festgehalten, da sie jetzt auch Themen und Lernblöcke betrifft.
  */
-type NavSection = 'faecher' | 'verfuegbarkeit' | 'plan' | 'heute' | 'wiederholen' | 'quiz' | 'fortschritt' | 'einstellungen'
+type NavSection =
+  | 'faecher'
+  | 'verfuegbarkeit'
+  | 'plan'
+  | 'heute'
+  | 'karteikarten'
+  | 'quiz'
+  | 'fortschritt'
+  | 'sven'
+  | 'einstellungen'
 
 // Reine UI-Präferenz (Breite/Ein-Ausgeklappt-Status der Seitenleiste), kein
 // Lerninhalt — bewusst in `localStorage` statt SQLite: unterscheidet sich
@@ -171,53 +185,15 @@ function readStoredPalette(): PalettePreference {
   return PALETTE_OPTIONS.some((opt) => opt.value === stored) ? (stored as PalettePreference) : 'terrakotta'
 }
 
-/**
- * Rendert den Fach-Ordner-Baum (Migration 0005) in der Seitenleiste —
- * Ordner als reine, nicht klickbare Zwischenüberschriften (`app-nav-label`,
- * eingerückt je Tiefe), Fächer darunter wie bisher als `app-nav-item`.
- * Modulweite Funktion statt Komponenteninterna, weil sie keinen eigenen
- * Zustand braucht — nur `selectedCourseId`/`onSelectCourse` von `App()`
- * durchreicht. `onSelectCourse` (statt nur `setSelectedCourseId`) fasst
- * bewusst auch den Wechsel von `activeSection` mit ein (siehe `App()`,
- * Fehlerbericht: ein Klick auf ein Fach landete sonst "unsichtbar" unter
- * dem zuvor aktiven Seitenleisten-Bereich, weil nur die Auswahl, nicht
- * aber der sichtbare Bereich wechselte).
- */
-function renderSidebarCourseTree(
-  nodes: CourseGroupTreeNode[],
-  activeCourseId: number | null,
-  onSelectCourse: (id: number) => void,
-  depth = 0,
-): ReactNode[] {
-  return nodes.flatMap((node) => [
-    <div key={`group-${node.id}`} className="app-nav-label" style={{ paddingLeft: 12 + depth * 12 }}>
-      {node.name}
-    </div>,
-    ...node.courses.map((c) => (
-      <button
-        key={`course-${c.id}`}
-        type="button"
-        className="app-nav-item"
-        style={{ paddingLeft: 12 + (depth + 1) * 12 }}
-        aria-current={activeCourseId === c.id ? 'page' : undefined}
-        onClick={() => onSelectCourse(c.id)}
-        title={c.name}
-      >
-        <span className="app-nav-item-label">{c.name}</span>
-      </button>
-    )),
-    ...renderSidebarCourseTree(node.children, activeCourseId, onSelectCourse, depth + 1),
-  ])
-}
-
 const NAV_ITEMS: { key: NavSection; label: string }[] = [
   { key: 'faecher', label: 'Fächer & Themen' },
   { key: 'verfuegbarkeit', label: 'Verfügbarkeit' },
   { key: 'plan', label: 'Planung' },
   { key: 'heute', label: 'Heute' },
-  { key: 'wiederholen', label: 'Wiederholen' },
+  { key: 'karteikarten', label: 'Karteikarten' },
   { key: 'quiz', label: 'Quiz' },
   { key: 'fortschritt', label: 'Fortschritt' },
+  { key: 'sven', label: 'Sven' },
   { key: 'einstellungen', label: 'Einstellungen' },
 ]
 
@@ -260,6 +236,23 @@ export function App() {
   const [theme, setTheme] = useState<ThemePreference>(readStoredTheme)
   const [palette, setPalette] = useState<PalettePreference>(readStoredPalette)
   const [dbError, setDbError] = useState<string | null>(null)
+  // Ob überhaupt ein KI-Anbieter konfiguriert ist — steuert nur, ob der
+  // „Sven"-Verfügbarkeits-Assistent angeboten wird (der eigentliche
+  // Aufruf prüft ohnehin erneut). Einmalig beim Start.
+  const [aiAvailable, setAiAvailable] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    getConfiguredAIProvider()
+      .then((provider) => {
+        if (!cancelled) setAiAvailable(provider !== null)
+      })
+      .catch(() => {
+        /* kein Tauri-Fenster o. Ä. — Assistent bleibt aus */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null
 
@@ -273,7 +266,7 @@ export function App() {
   // ADR-007) und der Dokument-Import (hat mit `importError` bereits ein
   // eigenes, feldnahes Fehler-Feedback).
   const reportDbError = (message: string, error: unknown) => {
-    reportDbError(message, error)
+    console.error(message, error)
     setDbError(message)
   }
 
@@ -289,6 +282,8 @@ export function App() {
   }
 
   const [searchOpen, setSearchOpen] = useState(false)
+  // Fach-Filter im Karteikarten-„Üben"-Reiter — `null` = alle Fächer.
+  const [practiceCourseId, setPracticeCourseId] = useState<number | null>(null)
   const [confirmReplan, setConfirmReplan] = useState(false)
 
   // ⌘K/Strg+K öffnet die Schnellsuche von überall in der App (Nutzerwunsch
@@ -640,6 +635,16 @@ export function App() {
       setCards((prev) => [...prev, card])
     } catch (error) {
       reportDbError('Karteikarte konnte nicht gespeichert werden', error)
+    }
+  }
+
+  const handleUpdateCard = async (id: number, changes: Partial<NewCardInput>) => {
+    try {
+      const db = await getDb()
+      await updateCardRow(db, id, changes)
+      setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...changes } : c)))
+    } catch (error) {
+      reportDbError('Karteikarte konnte nicht geändert werden', error)
     }
   }
 
@@ -1096,6 +1101,50 @@ export function App() {
   // Vorschau (`domain/examWeighting.ts`), angewendet wird sie erst über
   // `handleApplyWeightSuggestions` nach ausdrücklicher Bestätigung in
   // `ui/AltklausurAnalysis.tsx`.
+  // „Sven"-Verfügbarkeits-Assistent (Nutzerwunsch 2026-09-08): Freitext →
+  // strukturierter Vorschlag → Bestätigung → schreiben. Der KI-Aufruf
+  // liefert bereits einen bereinigten Vorschlag
+  // (`normalizeAvailabilityProposal`); `applyAvailabilityProposal` geht
+  // dann über exakt dieselben Callbacks wie die manuelle Eingabe.
+  const parseAvailabilityText = async (text: string): Promise<AvailabilityProposal> => {
+    const provider = await getConfiguredAIProvider(logAiUsage)
+    if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
+    return provider.parseAvailability(text, today)
+  }
+
+  const applyAvailabilityProposal = (proposal: AvailabilityProposal) => {
+    for (const { weekday, minutes } of proposal.weekdayMinutes) handleSetPatternMinutes(weekday, minutes)
+    for (const ex of proposal.exceptions) handleAddException(ex.date, ex.minutes, ex.note)
+    for (const b of proposal.recurringBlockers) {
+      handleAddRecurringBlocker({ weekday: b.weekday, starts_at: b.startsAt, ends_at: b.endsAt, label: b.label })
+    }
+  }
+
+  // „Sven"-Chat (Nutzerwunsch 2026-09-08, Teil 2): freies Gespräch mit
+  // Kontext zur aktuellen Lage. Svens Vorschläge werden erst per Klick
+  // angewandt — Verfügbarkeit über `applyAvailabilityProposal` (oben),
+  // Themen-Gewichte über den bestehenden `handleChangeTopics`-Weg.
+  const handleSvenChat = async (history: ChatMessage[]) => {
+    const provider = await getConfiguredAIProvider(logAiUsage)
+    if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
+    const context = buildAssistantContext({
+      courses,
+      topics,
+      assessments,
+      studyBlocks,
+      pattern,
+      exceptions,
+      recurringBlockers,
+      today,
+    })
+    return provider.chat(history, context)
+  }
+
+  const applyTopicWeightChanges = (changes: { topicId: number; weight: 1 | 2 | 3 | 4 | 5 }[]) => {
+    const byId = new Map(changes.map((c) => [c.topicId, c.weight]))
+    void handleChangeTopics(topics.map((t) => (byId.has(t.id) ? { ...t, weight: byId.get(t.id)! } : t)))
+  }
+
   const handleAnalyzeAltklausur = async (documentIds: number[]): Promise<WeightSuggestion[]> => {
     const provider = await getConfiguredAIProvider(logAiUsage)
     if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
@@ -1151,14 +1200,14 @@ export function App() {
   // ist pdf.js-spezifisch — bei Word/Markdown übernimmt deren eigene
   // Überschriftenerkennung (`importRegularDocument`) dieselbe Aufgabe
   // bereits deterministisch, siehe `importDocuments` unten.
-  const importSummaryPdf = async (fileName: string, data: Uint8Array, parentTopicId: number | null) => {
+  const importSummaryPdf = async (courseId: number, fileName: string, data: Uint8Array, parentTopicId: number | null) => {
     const provider = await getConfiguredAIProvider(logAiUsage)
     if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
 
     const { readPages } = await import('./ingest/pdf')
     const pages = await readPages(data)
     const pagedText = pages.map((p) => ({ pageNumber: p.number, text: p.lines.map((l) => l.text).join(' ') }))
-    const courseInstructions = courses.find((c) => c.id === selectedCourseId)?.instructions ?? ''
+    const courseInstructions = courses.find((c) => c.id === courseId)?.instructions ?? ''
     const suggestions = await provider.detectTopicsFromText(pagedText, courseInstructions)
     if (suggestions.length === 0) throw new Error('Es konnten keine Themen erkannt werden.')
 
@@ -1174,7 +1223,7 @@ export function App() {
 
     return persistAiDetectedDocument(
       db,
-      selectedCourseId!,
+      courseId,
       fileName,
       { storedPath, sha256, docType: 'zusammenfassung', docTypeLabel: null },
       pages.length,
@@ -1192,14 +1241,20 @@ export function App() {
    * jeweils eigene, deterministische Kapitelerkennung
    * (`ingest/docx.ts`/`pptx.ts`/`xlsx.ts`/`markdown.ts`).
    */
-  const importRegularDocument = async (fileName: string, data: Uint8Array, docType: DocumentType, parentTopicId: number | null) => {
+  const importRegularDocument = async (
+    courseId: number,
+    fileName: string,
+    data: Uint8Array,
+    docType: DocumentType,
+    parentTopicId: number | null,
+  ) => {
     const db = await getDb()
     const extracted = await extractAnyDocument(data, fileName)
     const sha256 = await computeSha256(data)
     const storedPath = await saveDocumentFile(sha256, data)
     return persistExtractedDocument(
       db,
-      selectedCourseId!,
+      courseId,
       extracted,
       { storedPath, sha256, docType, docTypeLabel: docType === 'sonstiges' ? importDocTypeLabel.trim() || null : null },
       new Date().toISOString(),
@@ -1207,13 +1262,30 @@ export function App() {
     )
   }
 
-  const importDocuments = async (files: FileList, docType: DocumentType) => {
-    if (selectedCourseId === null) return
+  /**
+   * Importiert mehrere Einzeldateien in ein bestimmtes Fach. `docType`
+   * `null` = je Datei aus dem Namen ableiten (`inferDocType`) — so nutzt
+   * es der „Sven"-Upload, der keinen Dokumenttyp abfragt. Gibt eine kurze
+   * Bilanz zurück (importiert / fehlgeschlagen mit Namen / neue Themen),
+   * damit der Sven-Chat melden kann, was passiert ist; das feldnahe
+   * `importError`/`importInfo` bleibt für den Material-Reiter erhalten.
+   */
+  const importDocuments = async (
+    courseId: number | null,
+    files: FileList | File[],
+    docType: DocumentType | null,
+  ): Promise<{ added: number; failed: string[]; topicsCreated: number }> => {
+    if (courseId === null) return { added: 0, failed: [], topicsCreated: 0 }
     setImportError(null)
     setImportInfo(null)
 
+    let added = 0
+    let topicsCreated = 0
+    const failed: string[] = []
+
     for (const file of Array.from(files)) {
       const data = new Uint8Array(await file.arrayBuffer())
+      const effectiveType = docType ?? inferDocType(file.name)
       try {
         // Der KI-gestützte Volltext-Weg (`importSummaryPdf`) ist
         // PDF-exklusiv (siehe Kommentar dort) — eine als „Zusammenfassung"
@@ -1221,19 +1293,24 @@ export function App() {
         // Überschriftenerkennung, die für unstrukturierte Notizen ohnehin
         // schon auf den Dateinamen zurückfällt statt abzustürzen.
         const result =
-          docType === 'zusammenfassung' && file.name.toLowerCase().endsWith('.pdf')
-            ? await importSummaryPdf(file.name, data, null)
-            : await importRegularDocument(file.name, data, docType, null)
+          effectiveType === 'zusammenfassung' && file.name.toLowerCase().endsWith('.pdf')
+            ? await importSummaryPdf(courseId, file.name, data, null)
+            : await importRegularDocument(courseId, file.name, data, effectiveType, null)
         setTopics((prev) => [...prev, ...result.topics])
         setTopicSections((prev) => [...prev, ...result.topicSections])
         setDocuments((prev) => [...prev, result.document])
         setDocumentBytes((prev) => ({ ...prev, [result.document.id]: data }))
+        added += 1
+        topicsCreated += result.topics.length
       } catch (error) {
         console.error('Dokument-Import konnte nicht gespeichert werden', error)
         const message = error instanceof Error ? error.message : String(error)
         setImportError(`„${file.name}" konnte nicht importiert werden: ${message}`)
+        failed.push(file.name)
       }
     }
+
+    return { added, failed, topicsCreated }
   }
 
   // Ordner-Import: der Nutzer wählt statt einzelner Dateien einen ganzen
@@ -1248,8 +1325,11 @@ export function App() {
   // Dateien direkt im gewählten Ordner (kein Zwischenordner) verhalten
   // sich wie beim normalen Mehrfach-Import (`importDocuments`): ihre
   // Kapitel-Themen bekommen `parent_id = null`.
-  const importFolder = async () => {
-    if (selectedCourseId === null) return
+  const importFolder = async (
+    courseId: number | null,
+  ): Promise<{ added: number; failed: string[]; skippedFormats: number; topicsCreated: number }> => {
+    const empty = { added: 0, failed: [], skippedFormats: 0, topicsCreated: 0 }
+    if (courseId === null) return empty
     setImportError(null)
     setImportInfo(null)
 
@@ -1258,7 +1338,7 @@ export function App() {
     let skipped: string[]
     try {
       const folder = await pickFolder()
-      if (folder === null) return // Nutzer hat abgebrochen
+      if (folder === null) return empty // Nutzer hat abgebrochen
       db = await getDb()
       const result = await readDocumentFilesRecursively(folder)
       pickedFiles = result.files
@@ -1266,7 +1346,7 @@ export function App() {
     } catch (error) {
       console.error('Ordner-Import fehlgeschlagen', error)
       setImportError(`Ordner konnte nicht importiert werden: ${error instanceof Error ? error.message : String(error)}`)
-      return
+      return empty
     }
 
     if (pickedFiles.length === 0) {
@@ -1275,7 +1355,7 @@ export function App() {
           ? `Der gewählte Ordner enthält keine unterstützten Dokumente — nur andere Formate (${skipped.length}), die der Import (noch) nicht liest: ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ', …' : ''}.`
           : 'Der gewählte Ordner enthält keine unterstützten Dokumente.',
       )
-      return
+      return { ...empty, skippedFormats: skipped.length }
     }
 
     if (skipped.length > 0) {
@@ -1291,6 +1371,9 @@ export function App() {
     if (docType !== importDocType) setImportDocType(docType)
 
     let knownTopics = topics
+    let added = 0
+    let topicsCreated = 0
+    const failed: string[] = []
 
     for (const file of pickedFiles) {
       const segments = file.relativePath.split('/').filter(Boolean)
@@ -1299,19 +1382,22 @@ export function App() {
       try {
         let parentTopicId: number | null = null
         if (folderNames.length > 0) {
-          const resolved = await ensureFolderTopicPath(db, selectedCourseId, knownTopics, folderNames)
+          const resolved = await ensureFolderTopicPath(db, courseId, knownTopics, folderNames)
           parentTopicId = resolved.topicId
           if (resolved.createdTopics.length > 0) {
             knownTopics = [...knownTopics, ...resolved.createdTopics]
+            topicsCreated += resolved.createdTopics.length
             setTopics((prev) => [...prev, ...resolved.createdTopics])
           }
         }
 
         const result =
           docType === 'zusammenfassung' && file.name.toLowerCase().endsWith('.pdf')
-            ? await importSummaryPdf(file.name, file.data, parentTopicId)
-            : await importRegularDocument(file.name, file.data, docType, parentTopicId)
+            ? await importSummaryPdf(courseId, file.name, file.data, parentTopicId)
+            : await importRegularDocument(courseId, file.name, file.data, docType, parentTopicId)
         knownTopics = [...knownTopics, ...result.topics]
+        topicsCreated += result.topics.length
+        added += 1
         setTopics((prev) => [...prev, ...result.topics])
         setTopicSections((prev) => [...prev, ...result.topicSections])
         setDocuments((prev) => [...prev, result.document])
@@ -1320,8 +1406,68 @@ export function App() {
         console.error(`Dokument-Import konnte nicht gespeichert werden (${file.relativePath})`, error)
         const message = error instanceof Error ? error.message : String(error)
         setImportError(`„${file.relativePath}" konnte nicht importiert werden: ${message}`)
+        failed.push(file.relativePath)
       }
     }
+
+    return { added, failed, skippedFormats: skipped.length, topicsCreated }
+  }
+
+  // Anki-Deck-Import (Nutzerwunsch 2026-09-08): `.apkg`/`.colpkg` einlesen
+  // (`ingest/anki.ts`) und als Themen + Karteikarten unter dem gewählten
+  // Fach ablegen (`data/ankiImport.ts`). Feldnahes Fehler-Feedback über
+  // `importError`/`importInfo` wie beim Dokument-Import — beide
+  // Import-Bibliotheken (`sql.js`, `fzstd`) werden dabei erst per
+  // `import()` nachgeladen.
+  const importAnkiDeck = async (file: File) => {
+    if (selectedCourseId === null) return
+    setImportError(null)
+    setImportInfo(null)
+    try {
+      const data = new Uint8Array(await file.arrayBuffer())
+      const { extractApkg } = await import('./ingest/anki')
+      const deck = await extractApkg(data)
+      if (deck.cards.length === 0) {
+        setImportError(`„${file.name}" enthält keine lesbaren Karten.`)
+        return
+      }
+      const db = await getDb()
+      const { persistAnkiDeck } = await import('./data/ankiImport')
+      const result = await persistAnkiDeck(db, selectedCourseId, deck, topics, new Date().toISOString())
+      setTopics((prev) => [...prev, ...result.topics])
+      setCards((prev) => [...prev, ...result.cards])
+      setReviews((prev) => [...prev, ...result.reviews])
+      const skippedNote = deck.skipped > 0 ? `, ${deck.skipped} übersprungen` : ''
+      setImportInfo(
+        `${result.cards.length} Karteikarte(n) aus „${file.name}" importiert (${result.topics.length} neue(s) Thema/Themen)${skippedNote}.`,
+      )
+    } catch (error) {
+      console.error('Anki-Deck-Import fehlgeschlagen', error)
+      const message = error instanceof Error ? error.message : String(error)
+      setImportError(`„${file.name}" konnte nicht importiert werden: ${message}`)
+    }
+  }
+
+  // „Sven"-Upload (Nutzerwunsch 2026-09-08): Dateien im Chat anhängen und
+  // sagen, zu welchem Fach sie gehören. Sven schlägt den Import vor
+  // (`importDocuments`-Vorschlag), erst „Übernehmen" ruft hier die
+  // bestehende Import-Pipeline mit explizit gewähltem `courseId`.
+  const courseNameById = (courseId: number) => courses.find((c) => c.id === courseId)?.name ?? `Fach ${courseId}`
+
+  const handleSvenUploadDocuments = async (courseId: number, files: File[]) => {
+    const r = await importDocuments(courseId, files, null)
+    return { added: r.added, failed: r.failed, topicsCreated: r.topicsCreated, courseName: courseNameById(courseId) }
+  }
+
+  // Ordner-Dialog nur öffnen und die (unterstützten) Dateien als Bytes
+  // zurückgeben — `AssistantChat` hängt sie dann wie einzeln gewählte
+  // Dateien an. `readDocumentFilesRecursively` filtert bereits auf
+  // unterstützte Formate.
+  const handleSvenPickFolder = async (): Promise<{ name: string; data: Uint8Array }[] | null> => {
+    const folder = await pickFolder()
+    if (folder === null) return null
+    const { files } = await readDocumentFilesRecursively(folder)
+    return files.map((f) => ({ name: f.relativePath, data: f.data }))
   }
 
   const mainInsetPx = sidebarCollapsed ? 0 : sidebarWidth
@@ -1358,32 +1504,17 @@ export function App() {
         {courses.length > 0 && (
           <div>
             <div className="app-nav-label">Fach</div>
-            <div className="app-nav">
-              {renderSidebarCourseTree(
-                buildCourseGroupTree(courseGroups, courses.filter((c) => c.archived === 0)),
-                // Nur hervorheben, solange auch "Fächer & Themen" der sichtbare
-                // Bereich ist — sonst blieb das zuletzt gewählte Fach orange
-                // markiert, auch nachdem man z. B. zu "Verfügbarkeit" gewechselt
-                // hatte (`selectedCourseId` selbst bleibt bewusst über
-                // Bereichswechsel hinweg gesetzt, siehe `selectCourse`-Kommentar
-                // — nur die Sidebar-Hervorhebung muss den sichtbaren Bereich
-                // widerspiegeln, nicht nur die Auswahl).
-                activeSection === 'faecher' ? selectedCourseId : null,
-                selectCourse,
-              )}
-              {ungroupedCourses(courses.filter((c) => c.archived === 0)).map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="app-nav-item"
-                  aria-current={activeSection === 'faecher' && selectedCourseId === c.id ? 'page' : undefined}
-                  onClick={() => selectCourse(c.id)}
-                  title={c.name}
-                >
-                  <span className="app-nav-item-label">{c.name}</span>
-                </button>
-              ))}
-            </div>
+            {/* Fach nur hervorheben, solange auch "Fächer & Themen" der
+                sichtbare Bereich ist — sonst blieb das zuletzt gewählte Fach
+                orange markiert, auch nach einem Wechsel z. B. zu
+                "Verfügbarkeit" (`selectedCourseId` bleibt bewusst über
+                Bereichswechsel gesetzt, siehe `selectCourse`). */}
+            <SidebarCourseTree
+              courseGroups={courseGroups}
+              courses={courses}
+              activeCourseId={activeSection === 'faecher' ? selectedCourseId : null}
+              onSelectCourse={selectCourse}
+            />
           </div>
         )}
       </AppSidebar>
@@ -1441,10 +1572,12 @@ export function App() {
               <summary>Fächer &amp; Ordner verwalten</summary>
               <CourseSetup
                 courses={courses}
+                courseGroups={courseGroups}
                 onAdd={handleAddCourse}
                 onUpdate={handleUpdateCourse}
                 onArchive={handleArchiveCourse}
                 onRemove={handleRemoveCourse}
+                onAssignCourse={handleSetCourseGroup}
               />
 
               <CourseGroups
@@ -1454,7 +1587,6 @@ export function App() {
                 onRename={handleRenameCourseGroup}
                 onMove={handleMoveCourseGroup}
                 onRemove={handleRemoveCourseGroup}
-                onAssignCourse={handleSetCourseGroup}
               />
             </details>
 
@@ -1518,7 +1650,7 @@ export function App() {
                         </label>
                       )}
                       <label>
-                        Dokumente für {selectedCourse.name} importieren (PDF, Word, PowerPoint, Excel, Markdown)
+                        Dokumente für {selectedCourse.name} importieren (PDF, Word, PowerPoint, Excel, Markdown, Text, CSV)
                         <input
                           type="file"
                           accept={SUPPORTED_EXTENSIONS.join(',')}
@@ -1545,20 +1677,39 @@ export function App() {
                             if (resolvedType !== importDocType) setImportDocType(resolvedType)
                             const dataTransfer = new DataTransfer()
                             accepted.forEach((f) => dataTransfer.items.add(f))
-                            importDocuments(dataTransfer.files, resolvedType)
+                            importDocuments(selectedCourseId, dataTransfer.files, resolvedType)
                             e.target.value = ''
                           }}
                         />
                       </label>
-                      <button type="button" onClick={() => importFolder()}>
+                      <button type="button" onClick={() => importFolder(selectedCourseId)}>
                         Oder ganzen Ordner importieren
                       </button>
                       <p>
                         Unterordner des gewählten Ordners werden 1:1 als verschachtelte Themen übernommen —
                         praktisch, wenn Material schon nach Unterthemen sortiert in Ordnern liegt. Dokumente direkt
                         im gewählten Ordner (ohne Unterordner) verhalten sich wie beim normalen Import oben.
-                        Unterstützte Formate: PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), Markdown (.md).
+                        Unterstützte Formate: PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), Markdown (.md), Text (.txt), CSV.
                       </p>
+
+                      <label>
+                        Anki-Deck importieren (.apkg / .colpkg) — jede Karte wird eine Karteikarte, jedes Deck ein Thema
+                        <input
+                          type="file"
+                          accept=".apkg,.colpkg"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            e.target.value = ''
+                            if (file) importAnkiDeck(file)
+                          }}
+                        />
+                      </label>
+                      <p>
+                        Lückentext-Karten (<code>{'{{c1::…}}'}</code>) werden übernommen. Bilder erscheinen vorerst als
+                        Platzhalter „[Bild: …]". Ist eine Karte in Anki schon gelernt, wird ihr Fälligkeitsstand grob
+                        übernommen, damit sie nicht sofort wieder abgefragt wird.
+                      </p>
+
                       {importError && <p role="alert">{importError}</p>}
                       {importInfo && <p role="status">{importInfo}</p>}
                     </section>
@@ -1623,6 +1774,11 @@ export function App() {
             recurringBlockers={recurringBlockers}
             onAddRecurringBlocker={handleAddRecurringBlocker}
             onRemoveRecurringBlocker={handleRemoveRecurringBlocker}
+            assistant={
+              aiAvailable ? (
+                <AvailabilityAssistant onParse={parseAvailabilityText} onApply={applyAvailabilityProposal} />
+              ) : undefined
+            }
           />
         )}
 
@@ -1695,19 +1851,85 @@ export function App() {
           />
         )}
 
-        {activeSection === 'wiederholen' && (
-          <>
-            <ReviewSession
-              cards={cards}
-              reviews={reviews}
-              topics={topics}
-              now={() => new Date().toISOString()}
-              onReview={handleReview}
-            />
+        {activeSection === 'karteikarten' &&
+          (() => {
+            const topicIdsOfCourse = new Set(
+              topics.filter((t) => practiceCourseId === null || t.course_id === practiceCourseId).map((t) => t.id),
+            )
+            const practiceCards =
+              practiceCourseId === null ? cards : cards.filter((c) => topicIdsOfCourse.has(c.topic_id))
+            const activeCourses = courses.filter((c) => c.archived === 0)
 
-            <ErrorHistory cards={cards} reviews={reviews} topics={topics} onReview={handleReview} />
-          </>
-        )}
+            return (
+              <section aria-label="Karteikarten">
+                <h2>Karteikarten</h2>
+                <TabbedPanel
+                  tablistLabel="Karteikarten-Bereiche"
+                  tabs={[
+                    {
+                      key: 'ueben',
+                      label: 'Üben',
+                      content: (
+                        <>
+                          {activeCourses.length > 0 && cards.length > 0 && (
+                            <label className="field-inline">
+                              Fach
+                              <select
+                                value={practiceCourseId ?? ''}
+                                onChange={(e) => setPracticeCourseId(e.target.value === '' ? null : Number(e.target.value))}
+                              >
+                                <option value="">Alle Fächer</option>
+                                {activeCourses.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                          {cards.length === 0 ? (
+                            <p className="empty-state">
+                              Noch keine Karteikarten. Leg im Reiter „Neu" welche an, importiere ein Anki-Deck, oder
+                              markiere Text in einem Dokument (Fach → „Themen" → „Quellen").
+                            </p>
+                          ) : (
+                            <>
+                              <ReviewSession
+                                cards={practiceCards}
+                                reviews={reviews}
+                                topics={topics}
+                                now={() => new Date().toISOString()}
+                                onReview={handleReview}
+                              />
+                              <ErrorHistory cards={practiceCards} reviews={reviews} topics={topics} onReview={handleReview} />
+                            </>
+                          )}
+                        </>
+                      ),
+                    },
+                    {
+                      key: 'neu',
+                      label: 'Neu',
+                      content: <ManualCardForm courses={courses} topics={topics} onCreate={handleCreateCard} />,
+                    },
+                    {
+                      key: 'alle',
+                      label: `Alle Karten (${cards.length})`,
+                      content: (
+                        <CardList
+                          cards={cards}
+                          topics={topics}
+                          courses={courses}
+                          onUpdate={handleUpdateCard}
+                          onDelete={handleDeleteCard}
+                        />
+                      ),
+                    },
+                  ]}
+                />
+              </section>
+            )
+          })()}
 
         {activeSection === 'quiz' &&
           (activeQuiz ? (
@@ -1747,8 +1969,35 @@ export function App() {
           ))}
 
         {activeSection === 'fortschritt' && (
-          <ProgressView assessments={assessments} topics={topics} studyBlocks={studyBlocks} from={today} />
+          <ProgressView
+            assessments={assessments}
+            topics={topics}
+            studyBlocks={studyBlocks}
+            courses={courses.filter((c) => c.archived === 0)}
+            from={today}
+          />
         )}
+
+        {activeSection === 'sven' &&
+          (aiAvailable ? (
+            <AssistantChat
+              onSend={handleSvenChat}
+              onApplyAvailability={applyAvailabilityProposal}
+              onApplyTopicWeights={applyTopicWeightChanges}
+              topicName={(id) => topics.find((t) => t.id === id)?.name ?? `Thema ${id}`}
+              courses={courses.filter((c) => c.archived === 0).map((c) => ({ id: c.id, name: c.name }))}
+              onUploadDocuments={handleSvenUploadDocuments}
+              onPickFolder={handleSvenPickFolder}
+            />
+          ) : (
+            <section aria-label="Sven">
+              <h2>Sven</h2>
+              <p className="empty-state">
+                Sven braucht einen KI-Anbieter. Hinterlege in den Einstellungen unter „KI-Anbindung" einen
+                API-Schlüssel, dann kannst du hier mit ihm sprechen.
+              </p>
+            </section>
+          ))}
 
         {activeSection === 'einstellungen' && (
           <SettingsView

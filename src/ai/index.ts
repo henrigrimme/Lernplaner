@@ -3,7 +3,17 @@ import { AnthropicProvider } from './anthropicProvider'
 import { OpenAIProvider } from './openaiProvider'
 import type { AIProvider, AIProviderKind, AIUsageListener } from './types'
 
-export type { AIProvider, AIProviderKind, AIUsage, AIUsageListener, TopicSuggestion } from './types'
+export type {
+  AIProvider,
+  AIProviderKind,
+  AIUsage,
+  AIUsageListener,
+  AvailabilityProposal,
+  ChatMessage,
+  ChatProposal,
+  ChatReply,
+  TopicSuggestion,
+} from './types'
 
 /** Schlüsselnamen in der Keychain (SECURITY.md „Im Programm: in der macOS-Keychain"). */
 export const ANTHROPIC_API_KEY_ACCOUNT = 'anthropic_api_key'

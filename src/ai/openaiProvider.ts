@@ -5,6 +5,9 @@ import type {
   AIProvider,
   AIUsage,
   AIUsageListener,
+  AvailabilityProposal,
+  ChatMessage,
+  ChatReply,
   ExamTopicMatch,
   QuestionFocus,
   QuestionSuggestion,
@@ -12,6 +15,7 @@ import type {
   TextTopicSuggestion,
   TopicSuggestion,
 } from './types'
+import { buildAvailabilityPrompt, buildChatSystemPrompt, parseAvailabilityReply, parseChatReply } from './prompts'
 
 const LANGUAGE_INSTRUCTION: Record<CourseLanguage, string> = {
   de: 'Antworte auf Deutsch.',
@@ -234,5 +238,33 @@ export class OpenAIProvider implements AIProvider {
     const parsed = extractJson(text)
     if (!Array.isArray(parsed)) throw new Error('OpenAI-Antwort war kein JSON-Array')
     return parsed as TextTopicSuggestion[]
+  }
+
+  async parseAvailability(text: string, todayISO: string): Promise<AvailabilityProposal> {
+    const { text: reply, usage } = await callOpenAi(this.apiKey, buildAvailabilityPrompt(text, todayISO))
+    this.report('parse_availability', usage)
+    return parseAvailabilityReply(extractJson(reply))
+  }
+
+  async chat(history: ChatMessage[], context: string): Promise<ChatReply> {
+    const response = await fetch(OPENAI_API_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_completion_tokens: 2048,
+        messages: [
+          { role: 'system', content: buildChatSystemPrompt(context) },
+          ...history.map((m) => ({ role: m.role, content: m.content })),
+        ],
+      }),
+    })
+    if (!response.ok) throw new Error(`OpenAI-API-Fehler ${response.status}: ${await response.text()}`)
+    const data = (await response.json()) as OpenAIChatResponse
+    this.report('chat', data.usage)
+    return parseChatReply(data.choices[0]?.message.content ?? '')
   }
 }

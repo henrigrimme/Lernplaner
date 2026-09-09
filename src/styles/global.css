@@ -295,6 +295,84 @@ p {
   text-overflow: ellipsis;
 }
 
+/* Ordner im Fach-Baum der Seitenleiste (`renderSidebarCourseTree` in
+   App.tsx) — anders als die Versal-Zwischenüberschrift `.app-nav-label`
+   ("FACH") ein normal geschriebener Eintrag mit vorangestelltem
+   Ordner-Symbol, wie bei Claude-Projekten. Nicht klickbar, aber optisch
+   klar von den Fach-Einträgen (`.app-nav-item`) darunter unterscheidbar,
+   die vorher fast gleich aussahen (Nutzerwunsch 2026-09-08). */
+.app-nav-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  width: 100%;
+  min-width: 0;
+  padding: 6px var(--space-sm) var(--space-2xs);
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-ui);
+  font-weight: 600;
+  color: var(--color-muted);
+  text-align: left;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out-quart);
+}
+
+.app-nav-group:hover {
+  background: oklch(from var(--color-ink) l c h / 0.06);
+}
+
+/* Aufklapp-Dreieck vor dem Ordner — reines CSS (kein Icon-Set, wie die
+   übrigen `app-*`-Symbole). Zeigt nach unten (offen); eingeklappt um 90°
+   nach rechts gedreht. */
+.app-nav-group-caret {
+  flex-shrink: 0;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  transition: transform var(--duration-fast) var(--ease-out-quart);
+}
+
+.app-nav-group-caret.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.app-nav-group-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Ordner-Symbol rein aus CSS (kein Icon-Set im Projekt, wie
+   `.app-sidebar-toggle-icon`/`.document-list-icon`): ein abgerundetes
+   Rechteck (Ordnerkörper) mit einer kleinen Lasche oben links. */
+.app-nav-group-icon {
+  position: relative;
+  width: 14px;
+  height: 11px;
+  flex-shrink: 0;
+  margin-top: 3px;
+  border: 1.4px solid currentColor;
+  border-radius: 1px 2.5px 2.5px 2.5px;
+}
+
+.app-nav-group-icon::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -0.7px;
+  width: 6px;
+  height: 4px;
+  border: 1.4px solid currentColor;
+  border-bottom: none;
+  border-radius: 2px 2px 0 0;
+}
+
 /* Kurzer Übergangszustand zwischen App-Start und dem ersten `loadCourses`-
    Ergebnis (`getDb()` braucht in der echten Tauri-App spürbar länger als im
    Dev-Server) — verhindert, dass die Seitenleiste in diesem Moment wie ein
@@ -906,6 +984,87 @@ section[aria-label] ul.document-list > li.document-list-item {
   text-align: right;
 }
 
+/* Regel-Zeile über dem Wochenmuster (`ui/AvailabilitySetup.tsx`) — „von
+   [Wochentag] bis [Wochentag] [n] Minuten [Anwenden]" in einer Zeile,
+   umbrechend auf schmalen Fenstern. Optisch eine ruhige, leicht abgesetzte
+   Fläche wie ein macOS-Einstellungsblock, damit die Schnell-Regel klar von
+   den sieben Einzelfeldern darunter getrennt ist. */
+.availability-rule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-ui);
+}
+
+.availability-rule input[type='number'] {
+  width: 88px;
+  text-align: right;
+}
+
+/* Ordner-Auswahl direkt in der Fach-Zeile (`ui/CourseSetup.tsx`, seit
+   2026-09-08) — kompakt, damit die Zeile nicht umbricht. */
+.course-row-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-size: var(--text-label);
+  color: var(--color-muted);
+}
+
+/* Ordnername + (muted) Liste der enthaltenen Fächer in `ui/CourseGroups.tsx`. */
+.course-group-name {
+  font-weight: 600;
+}
+
+.course-group-contents {
+  color: var(--color-muted);
+  font-size: var(--text-label);
+}
+
+/* ---------- Fortschritt pro Fach (ui/ProgressView.tsx) ---------- */
+.course-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.course-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.course-progress-meta {
+  margin: var(--space-2xs) 0 0;
+  color: var(--color-muted);
+  font-size: var(--text-label);
+}
+
+/* Dünner Fortschrittsbalken. Füllung bewusst NICHT in der Akzentfarbe
+   (DESIGN.md „One Accent Rule" — Terrakotta nur auf Submit-Buttons/aktiver
+   Navigation), sondern ein ruhiger Tintenbasierter Ton auf der
+   Formularflächen-Spur. */
+.progress-bar {
+  margin-top: var(--space-xs);
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: oklch(from var(--color-ink) l c h / 0.45);
+  transition: width var(--duration-fast) var(--ease-out-quart);
+}
+
 /* ---------- Leerer Zustand ---------- */
 /* Bisher ein einzelner, linksbündiger Absatz direkt unter dem Panel/der
    Toolbar (z. B. "Für heute ist nichts geplant." — ausgerechnet die
@@ -1270,4 +1429,355 @@ button:disabled {
   font-size: var(--text-label);
   color: var(--color-muted);
   max-width: 60ch;
+}
+
+/* ---------- Karteikarten-Inhalt (ui/CardContent.tsx) ---------- */
+
+/* Selbst erstellte Karten sind reiner Text — Zeilenumbrüche aus der
+   PDF-Markierung bleiben erhalten. Importierte Anki-Karten können HTML
+   (Fett/Kursiv/Listen/Bilder) tragen; das Tag-Set ist eng
+   (`ingest/htmlSanitize.ts`). */
+.card-content {
+  margin: var(--space-xs) 0;
+  line-height: 1.5;
+}
+
+.card-content-plain {
+  white-space: pre-wrap;
+}
+
+.card-content-front {
+  font-size: var(--text-body);
+}
+
+.card-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  display: block;
+  margin: var(--space-xs) 0;
+}
+
+.card-content ul,
+.card-content ol {
+  margin: var(--space-2xs) 0;
+  padding-left: 1.4em;
+}
+
+.card-content table {
+  border-collapse: collapse;
+}
+
+.card-content td,
+.card-content th {
+  border: 1px solid var(--color-border);
+  padding: 2px var(--space-2xs);
+}
+
+/* ---------- KI-Assistent "Sven" (ui/AvailabilityAssistant.tsx u. a.) ---------- */
+
+/* Leicht abgesetzte Fläche über dem manuellen Verfügbarkeits-Formular —
+   der schnelle Weg ("einfacher als die ganzen Tage anzuklicken"), das
+   Formular darunter bleibt der genaue. */
+.assistant-box {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.assistant-box h3 {
+  margin-top: 0;
+}
+
+.assistant-box textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 3lh;
+}
+
+.assistant-proposal {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.assistant-proposal-actions {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+/* ---------- Sven-Chat (ui/AssistantChat.tsx) ---------- */
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.chat-header h2 {
+  margin: 0;
+}
+
+/* Angehängte Dateien — im Eingabefeld (mit ×) und in der gesendeten Blase. */
+.chat-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  margin-top: var(--space-2xs);
+}
+
+.chat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: 2px var(--space-xs);
+  font-size: var(--text-label);
+  background: oklch(from var(--color-ink) l c h / 0.06);
+  border-radius: 999px;
+}
+
+.chat-chip button {
+  border: none;
+  background: transparent;
+  padding: 0 2px;
+  cursor: pointer;
+  font-size: 1em;
+  line-height: 1;
+}
+
+.chat-input-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* „📎 Dateien anhängen" — ein `<label>` um einen versteckten File-Input,
+   optisch wie ein normaler Button. */
+.chat-attach-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-ui);
+}
+
+.chat-attach-button input {
+  display: none;
+}
+
+.chat-input-actions button[type='submit'] {
+  margin-left: auto;
+}
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-height: 52vh;
+  overflow-y: auto;
+  padding: var(--space-sm) 0;
+  margin-bottom: var(--space-sm);
+}
+
+.chat-turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  max-width: 80%;
+}
+
+.chat-turn-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.chat-turn-assistant {
+  align-self: flex-start;
+}
+
+.chat-bubble {
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.chat-turn-user .chat-bubble {
+  background: var(--color-primary);
+  color: var(--color-primary-ink);
+  border-bottom-right-radius: var(--radius-xs, 4px);
+}
+
+.chat-turn-assistant .chat-bubble {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-bottom-left-radius: var(--radius-xs, 4px);
+}
+
+/* Svens Antworten kommen als gerendertes Markdown (HTML) — kein
+   `pre-wrap`, dafür echte Block-Abstände. */
+.chat-bubble-md {
+  white-space: normal;
+}
+
+.chat-bubble-md > :first-child {
+  margin-top: 0;
+}
+
+.chat-bubble-md > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-bubble-md p {
+  margin: var(--space-2xs) 0;
+}
+
+.chat-bubble-md ul,
+.chat-bubble-md ol {
+  margin: var(--space-2xs) 0;
+  padding-left: 1.4em;
+}
+
+.chat-bubble-md code {
+  padding: 0 3px;
+  background: oklch(from var(--color-ink) l c h / 0.08);
+  border-radius: 3px;
+  font-size: 0.92em;
+}
+
+.chat-proposal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
+  font-size: var(--text-label);
+}
+
+.chat-proposal ul {
+  margin: var(--space-2xs) 0 var(--space-xs);
+  padding-left: 1.4em;
+}
+
+/* Warte-Anzeige, während Sven antwortet — Spinner + wechselnder Spruch. */
+.chat-thinking {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: var(--space-xs) 0;
+  color: var(--color-muted);
+  font-size: var(--text-label);
+}
+
+.chat-spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid oklch(from var(--color-ink) l c h / 0.2);
+  border-top-color: var(--color-primary);
+  border-radius: 999px;
+  animation: chat-spin 0.7s linear infinite;
+}
+
+@keyframes chat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chat-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.chat-input textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+/* ---------- Karteikarten-Bereich (ui/CardList.tsx, ManualCardForm.tsx) ---------- */
+
+.field-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.card-list h3 {
+  margin-bottom: var(--space-2xs);
+}
+
+.card-list h4 {
+  margin: var(--space-xs) 0 var(--space-2xs);
+  font-size: var(--text-ui);
+  color: var(--color-muted);
+}
+
+/* „Deck"-Kartenzahl hinter Fach-/Thema-Überschrift. */
+.card-list-count {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 var(--space-2xs);
+  font-size: var(--text-label);
+  font-weight: 550;
+  text-align: center;
+  color: var(--color-muted);
+  background: oklch(from var(--color-ink) l c h / 0.06);
+  border-radius: 999px;
+}
+
+.card-list-topic ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.card-list-topic li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.card-list-front {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-list-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  flex-shrink: 0;
+  font-size: var(--text-label);
+  color: var(--color-muted);
+}
+
+.card-list-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  width: 100%;
+}
+
+.card-list-edit textarea {
+  width: 100%;
+  resize: vertical;
 }

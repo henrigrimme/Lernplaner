@@ -25,7 +25,7 @@ function course(overrides: Partial<Course> & { id: number }): Course {
 }
 
 function noop() {
-  return { onAdd: vi.fn(), onRename: vi.fn(), onMove: vi.fn(), onRemove: vi.fn(), onAssignCourse: vi.fn() }
+  return { onAdd: vi.fn(), onRename: vi.fn(), onMove: vi.fn(), onRemove: vi.fn() }
 }
 
 describe('CourseGroups', () => {
@@ -69,7 +69,22 @@ describe('CourseGroups', () => {
     expect(onRename).not.toHaveBeenCalled()
   })
 
-  it('zeigt Fächer ohne Ordner mit einer Zuweisungs-Auswahl', () => {
+  it('zeigt die in einem Ordner enthaltenen Fächer als Text an', () => {
+    render(
+      <CourseGroups
+        courseGroups={[group({ id: 1, name: '3. Semester' })]}
+        courses={[
+          course({ id: 10, name: 'Microeconomics', group_id: 1 }),
+          course({ id: 11, name: 'Money & Banking', group_id: 1 }),
+        ]}
+        {...noop()}
+      />,
+    )
+
+    expect(screen.getByText('Microeconomics, Money & Banking')).toBeInTheDocument()
+  })
+
+  it('verschiebt die Ordner-Zuweisung eines Fachs nicht mehr hierher — kein Zuweisungs-Dropdown', () => {
     render(
       <CourseGroups
         courseGroups={[group({ id: 1, name: '3. Semester' })]}
@@ -78,7 +93,23 @@ describe('CourseGroups', () => {
       />,
     )
 
-    expect(screen.getByText('Microeconomics')).toBeInTheDocument()
-    expect(screen.getByLabelText('In Ordner verschieben')).toBeInTheDocument()
+    expect(screen.queryByLabelText('In Ordner verschieben')).not.toBeInTheDocument()
+    expect(screen.queryByText('Fächer ohne Ordner')).not.toBeInTheDocument()
+  })
+
+  it('blendet die Elternordner-Auswahl aus, solange es nur einen Ordner gibt', () => {
+    render(<CourseGroups courseGroups={[group({ id: 1, name: '3. Semester' })]} courses={[]} {...noop()} />)
+    expect(screen.queryByLabelText('Verschieben nach')).not.toBeInTheDocument()
+  })
+
+  it('zeigt die Elternordner-Auswahl, sobald es mehrere Ordner gibt', () => {
+    render(
+      <CourseGroups
+        courseGroups={[group({ id: 1, name: '3. Semester' }), group({ id: 2, name: 'Q1' })]}
+        courses={[]}
+        {...noop()}
+      />,
+    )
+    expect(screen.getAllByLabelText('Verschieben nach').length).toBe(2)
   })
 })

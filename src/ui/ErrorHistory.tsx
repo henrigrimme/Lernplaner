@@ -1,8 +1,15 @@
 import { useState } from 'react'
 import { rankTroubledCards } from '../domain/errorHistory'
 import { FlashcardReview } from './FlashcardReview'
+import { htmlToPlainText } from '../ingest/htmlSanitize'
 import type { Grade } from '../domain/spacedRepetition'
 import type { Card, Review, Topic } from '../data/schema'
+
+/** Kurzes, einzeiliges Label für die Übersichtsliste — HTML/Bilder aus Anki-Karten zu Text reduziert, hart gekürzt. */
+function cardLabel(front: string): string {
+  const text = htmlToPlainText(front).replace(/\s+/g, ' ').trim()
+  return text.length > 80 ? `${text.slice(0, 80)}…` : text
+}
 
 /**
  * Fehlerhistorie → gezielte Wiederholung (ROADMAP.md Phase 4). Listet
@@ -39,7 +46,7 @@ export function ErrorHistory({ cards, reviews, topics, onReview }: ErrorHistoryP
         <ul>
           {troubled.map(({ card, totalReviews, troubleReviews }) => (
             <li key={card.id}>
-              {card.front} — {topicById.get(card.topic_id)?.name ?? `Thema ${card.topic_id}`} —{' '}
+              {cardLabel(card.front)} — {topicById.get(card.topic_id)?.name ?? `Thema ${card.topic_id}`} —{' '}
               {troubleReviews}/{totalReviews} als schwierig bewertet
               <button type="button" onClick={() => setPracticingId(card.id)}>
                 Gezielt üben

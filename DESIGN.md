@@ -176,19 +176,17 @@ nach Ottosson und WCAG-Relativluminanz nachgerechnet):
 | Bordeaux | 8.80:1 |
 | NATO Olive | 6.56:1 |
 | Petrol | 5.63:1 |
-| **Terrakotta (Standard, Hell-Modus)** | **3.43:1 — unter dem 4.5:1-Minimum** |
+| **Terrakotta (Standard, Hell-Modus)** | **4.76:1** (nach Anpassung v0.32.0; vorher 3.43:1) |
 | Terrakotta (Standard, Dunkel-Modus) | 5.34:1 |
 
-Die vier Alternativpaletten bestehen den Test komfortabel. Die
-Standard-Akzentfarbe selbst (`oklch(0.64 0.13 45)`) unterschreitet im
-Hell-Modus das 4.5:1-Minimum für Text unter 18pt — betrifft jeden
-`type="submit"`-Button und den aktiven Sidebar-Eintrag im Standardzustand
-der App. Der Hover-Zustand (`oklch(0.58 0.14 45)`) liegt mit 4.40:1 knapp
-darunter. Da dies die dokumentierte Markenfarbe der App ist (an das
-Claude-Markenorange angelehnt, expliziter Nutzerwunsch), wurde der Wert
-hier bewusst nicht automatisch geändert — eine Anpassung auf etwa
-`oklch(0.57 0.13 45)` (≈ 4.57:1) ist möglich, verändert aber sichtbar den
-Terrakotta-Ton und sollte vor der Umsetzung bestätigt werden.
+Alle Paletten bestehen den Test. Die Standard-Akzentfarbe im Hell-Modus
+wurde in **v0.32.0** von `oklch(0.64 0.13 45)` auf `oklch(0.56 0.13 45)`
+abgedunkelt (Hover `oklch(0.58 0.14 45)` → `oklch(0.51 0.14 45)`, 5.9:1) —
+heller Button-/Nav-Text darauf erreicht damit WCAG AA für Text unter 18pt
+(betrifft jeden `type="submit"`-Button und den aktiven Sidebar-Eintrag).
+Der Ton bleibt erkennbar Terrakotta (an das Claude-Markenorange
+angelehnt), nur etwas satter/dunkler. Dunkel-Modus lag schon über AA und
+ist unverändert.
 
 ### Named Rules
 **The One Accent Rule.** Kraft Terracotta erscheint nur auf

@@ -4,9 +4,8 @@ import type { Card } from './schema'
 /**
  * Echte SQL-Operationen für `cards` über `SqlConnection` (siehe
  * `data/db.ts`) — ROADMAP.md Phase 4 „Markieren im Dokument →
- * Karteikarten". Nur Anlegen und Löschen, kein Update: eine falsch
- * angelegte Karte wird gelöscht und neu erstellt, nicht bearbeitet (kein
- * Bearbeitungsformular in diesem Baustein, siehe `ui/CardCreator.tsx`).
+ * Karteikarten". Anlegen, Bearbeiten (`updateCardRow` seit dem
+ * Karteikarten-Bereich v0.35.0, `ui/CardList.tsx`) und Löschen.
  */
 
 export async function loadCards(conn: SqlConnection): Promise<Card[]> {
@@ -23,6 +22,14 @@ export async function insertCard(conn: SqlConnection, input: NewCardInput, creat
   )
   if (result.lastInsertId === undefined) throw new Error('INSERT hat keine lastInsertId geliefert')
   return { id: result.lastInsertId, created_at: createdAt, ...input }
+}
+
+/** Bearbeitet Felder einer bestehenden Karte (Vorder-/Rückseite, Thema). */
+export async function updateCardRow(conn: SqlConnection, id: number, changes: Partial<NewCardInput>): Promise<void> {
+  const fields = Object.keys(changes) as (keyof NewCardInput)[]
+  if (fields.length === 0) return
+  const setClause = fields.map((field) => `${field} = ?`).join(', ')
+  await conn.execute(`UPDATE cards SET ${setClause} WHERE id = ?`, [...fields.map((field) => changes[field]), id])
 }
 
 export async function deleteCardRow(conn: SqlConnection, id: number): Promise<void> {

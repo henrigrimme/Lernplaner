@@ -66,6 +66,64 @@ export interface AIProvider {
    * Inhalte. `instructions` wie oben.
    */
   detectTopicsFromText(pages: { pageNumber: number; text: string }[], instructions: string): Promise<TextTopicSuggestion[]>
+
+  /**
+   * Wandelt eine natürlichsprachliche Verfügbarkeitsbeschreibung
+   * („Mo–Fr abends etwa 2 Stunden, am Wochenende nichts, am 20.10. frei")
+   * in einen strukturierten Vorschlag um (Nutzerwunsch 2026-09-08:
+   * „einfacher als die ganzen Tage anzuklicken"). `todayISO` gibt der KI
+   * einen Anker für relative Datumsangaben („nächsten Montag"). Nach
+   * ADR-005 nur ein **Vorschlag** — die App zeigt ihn zur Bestätigung,
+   * bevor `availability_pattern`/`availability_exception`/
+   * `recurring_blockers` tatsächlich geschrieben werden.
+   */
+  parseAvailability(text: string, todayISO: string): Promise<AvailabilityProposal>
+
+  /**
+   * Freies Lern-Gespräch (Nutzerwunsch 2026-09-08). `context` fasst die
+   * relevanten App-Daten zusammen (Fächer, Themen, Fortschritt,
+   * Verfügbarkeit — `domain/assistantContext.ts`); `history` ist der
+   * bisherige Gesprächsverlauf. Die Antwort kann optional strukturierte
+   * Vorschläge (`proposals`) enthalten, die die App zur Bestätigung
+   * anzeigt (ADR-005) — z. B. eine geänderte Verfügbarkeit oder
+   * Themen-Gewichtung.
+   */
+  chat(history: ChatMessage[], context: string): Promise<ChatReply>
+}
+
+/** 0 = Sonntag … 6 = Samstag (JS `Date#getUTCDay()`, wie `AvailabilityPattern.weekday`). */
+export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6
+
+/**
+ * Strukturierter Verfügbarkeits-Vorschlag der KI (`parseAvailability`).
+ * Enthält nur, was der Text tatsächlich nennt — nicht genannte Wochentage
+ * bleiben unangetastet.
+ */
+export interface AvailabilityProposal {
+  weekdayMinutes: { weekday: Weekday; minutes: number }[]
+  exceptions: { date: string; minutes: number; note: string | null }[]
+  recurringBlockers: { weekday: Weekday; startsAt: string; endsAt: string; label: string }[]
+  /** Ein-Satz-Zusammenfassung dessen, was die KI verstanden hat — für die Vorschau. */
+  summary: string
+}
+
+export type ChatRole = 'user' | 'assistant'
+
+export interface ChatMessage {
+  role: ChatRole
+  content: string
+}
+
+/** Ein von der KI im Chat gemachter, bestätigungspflichtiger Vorschlag (ADR-005). */
+export type ChatProposal =
+  | { kind: 'availability'; proposal: AvailabilityProposal }
+  | { kind: 'topicWeights'; changes: { topicId: number; weight: 1 | 2 | 3 | 4 | 5 }[]; summary: string }
+  | { kind: 'importDocuments'; courseId: number; fileNames: string[] }
+
+export interface ChatReply {
+  /** Sichtbarer Antworttext (ohne die herausgelösten Vorschlags-Blöcke). */
+  message: string
+  proposals: ChatProposal[]
 }
 
 /** Welche `AIProvider`-Implementierung gerade aktiv ist (siehe `ai/index.ts`). */

@@ -75,3 +75,6 @@ Thumbs.db
 .swarm/
 *.log
 npm-debug.log*
+
+# sql.js WASM — bei jedem Build aus node_modules nach public/ kopiert (vite.config.ts)
+public/sql-wasm.wasm

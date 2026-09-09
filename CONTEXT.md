@@ -24,10 +24,37 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 3. September 2026, **aktuelle Version: v0.30.0.**
+**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.37.0.**
 Jüngster Stand ganz am Ende von Abschnitt 8:
-- „Apple-/HIG-Designdurchgang aus Parallel-Sitzung gemergt" (v0.30.0, PR
-  #79): Sidebar-Highlight-Fix, `ConfirmDialog` statt `window.confirm`,
+- „Anki: neues Medienformat (.anki21b) lesen" (v0.37.0, PR #97):
+  Protobuf-`MediaEntries` + Zstd-Mediendateien; Bilder aus neuen Anki-
+  Decks werden echt eingebettet. Damit ist die Folgeschritt-Liste leer.
+- davor „Sven-Chat rendert Markdown" (v0.36.0, PR #96): Svens Antworten
+  mit fett/kursiv/Listen/Code statt rohem Text.
+- davor „.txt/.csv-Import, Sven-Anhänge, Karteikarten-Bereich" (v0.35.0,
+  PRs #91/#93/#94): `.txt`/`.csv` importierbar; Dateien im
+  Sven-Eingabefeld anhängen (wie Claude) → Sven ordnet sie einem Fach
+  zu; „Wiederholen" → „Karteikarten" mit Reitern Üben/Neu/Alle Karten.
+- davor „‚Sven' — Chat-Feinschliff + Upload" (v0.34.0, PRs #89–90):
+  Chatverlauf über Sitzungen (localStorage), Enter zum Senden,
+  Warte-Spinner mit Sprüchen.
+- davor „‚Sven' — KI-Assistent" (v0.33.0, PRs #87–88): Verfügbarkeit per
+  Freitext beschreiben statt Tage klicken; Lern-Chat mit Kontext zu
+  Fächern/Fortschritt/Verfügbarkeit; Sven schlägt Änderungen vor, Nutzer
+  bestätigt (ADR-005). Neuer Sidebar-Bereich „Sven". Dazu
+  `vitest.config.ts` `pool: 'forks'` gegen die seltene Test-Flakiness.
+- davor „Anki-Rich-Karten, Ordner ein-/ausklappbar, WCAG-Kontrast"
+  (v0.32.0, PRs #84–86): Anki-Bilder als `data:`-URIs +
+  Vorlagen-Konditionale + Karten als sanitisiertes HTML, Sidebar-Ordner
+  ein-/ausklappbar, Terrakotta-Akzent auf WCAG AA,
+  `@xmldom/xmldom`-Advisory behoben.
+- davor „Sechs Alltags-Wünsche + Anki-Import" (v0.31.0, PRs #80–83):
+  Verfügbarkeits-Regel + Zeitraum-Ausnahmen (+ P0-Fix
+  `reportDbError`-Rekursion), Fächer-in-Ordner einfacher +
+  Ordner-Symbol in der Seitenleiste, Fortschritt pro Fach,
+  Anki-`.apkg`-Import (Text + Lückentext).
+- davor „Apple-/HIG-Designdurchgang aus Parallel-Sitzung gemergt" (v0.30.0,
+  PR #79): Sidebar-Highlight-Fix, `ConfirmDialog` statt `window.confirm`,
   Reiter/Segmented-Controls poliert, `apple-design`-Skill.
 - davor „Impeccable-Kritik v0.28.0 abgearbeitet" (v0.29.0, PRs #76–78):
   P0 zentrales Fehler-Banner, P1 Verfügbarkeit in drei Reiter, P2 +
@@ -3461,6 +3488,266 @@ Auf Rückfrage als **v0.30.0** gemergt + released.
 
 ---
 
+### Sechs Alltags-Wünsche + Anki-Import (v0.31.0, 08.09.2026)
+
+Nutzer hatte die App genutzt und sechs Punkte geschickt, dazu später den
+Wunsch nach Anki-Integration. Autonom in fünf PRs abgearbeitet, jeweils
+Branch → PR → Squash-Merge, `tsc`/Tests/`vite build`(/`cargo check`) grün
+vor jedem Merge, Browser-Plausi-Check wo ohne echtes Tauri-Fenster möglich
+(DOM-Injektion / dynamischer Modul-Import im Dev-Server).
+
+1. **PR #80 — Verfügbarkeit: Regel + Zeitraum.**
+   - Wochenmuster: neue Zeile „Regel: von [Wochentag] bis [Wochentag] [n]
+     Minuten [Anwenden]" — setzt alle Tage im Bereich auf denselben Wert
+     (ruft nur mehrfach `onSetPatternMinutes`, kein neues Datenmodell).
+   - Abweichende Tage: Umschalter „Einzelner Tag" / „Zeitraum"; im
+     Zeitraum-Modus zwei Datumsfelder (von–bis inklusive) → `onAddException`
+     je Tag. Ersetzt die frühere Chip-Mehrfachauswahl. Bereich > 92 Tage
+     wird abgelehnt.
+   - **Dabei P0-Bug gefunden und behoben:** `reportDbError` (zentraler
+     Fehler-Handler aus PR #76) rief **sich selbst** auf statt
+     `console.error` → Endlosrekursion (`RangeError: Maximum call stack`)
+     bei jedem echten DB-Schreibfehler. Das P0-„zentrales Fehler-Banner"
+     war seit v0.29.0 faktisch wirkungslos. Ein Zeichen Fix; im Browser
+     verifiziert, dass jetzt das Banner erscheint. In normaler
+     Tauri-Nutzung unauffällig (dort gelingt `getDb()`).
+2. **PR #81 — Fächer in Ordner + Sidebar-Symbol.**
+   - Ordner-Zuweisung sitzt jetzt am Fach: „Ordner"-Dropdown je Zeile in
+     `CourseSetup`. `CourseGroups` verwaltet nur noch die Ordner selbst
+     (die „Fächer ohne Ordner"-Zweitliste ist weg); Elternordner-Auswahl
+     nur bei > 1 Ordner.
+   - Seitenleiste: Ordner tragen ein vorangestelltes CSS-Ordnersymbol und
+     eine eigene Zeilenoptik (`.app-nav-group`) statt der
+     `FACH`-Versalüberschrift — klar von den Fach-Einträgen abgesetzt
+     (wie Claude-Projekte).
+3. **PR #82 — Fortschritt pro Fach.** `domain/progress.ts`
+   `computeCourseProgress` — Vorbereitungsgrad über **alle** Lernblöcke
+   des Fachs (nicht nach `assessment_id` gefiltert). Neuer
+   „Pro Fach"-Abschnitt in `ProgressView` mit Balken, „X von Y Themen
+   begonnen", nächstem Schritt; nicht begonnene Fächer explizit als solche
+   markiert. Balkenfüllung neutral (nicht Akzentfarbe, „One Accent Rule").
+4. **PR #83 — Anki-`.apkg`-Import.** Siehe Abschnitt 9 „Anki-Import" für
+   die Einschränkungen. `ingest/anki.ts` `extractApkg` (jszip + sql.js
+   WASM + fzstd, alle dynamisch geladen), `data/ankiImport.ts`
+   `persistAnkiDeck` (Deck → Thema, `::`-Unterdecks → verschachtelte
+   Themen, Karte → Karteikarte, grober FSRS-Startzustand aus `ivl`/`ease`).
+   „Anki-Deck importieren"-Feld im Material-Bereich. `vite.config.ts`
+   kopiert `sql-wasm.wasm` nach `public/` (gitignored). 8 neue Tests bauen
+   mit `better-sqlite3` echte Fixture-`.apkg`s. Im echten Browser
+   verifiziert (WASM aus `/sql-wasm.wasm`, Basis- + Cloze-Karten korrekt).
+   Neue Abhängigkeiten: `sql.js`, `fzstd`, `@types/sql.js`.
+5. **Word/PowerPoint/Excel/Markdown-Import** (Punkt 1 der Nutzerliste)
+   war bereits seit v0.21.0 gebaut — nur CONTEXT.md Abschnitt 9 stand
+   noch auf „nur PDF". Am echten Material aus `4. Semester Kopie/`
+   gegengeprüft (funktioniert), Doku korrigiert.
+
+**Version 0.30.0 → 0.31.0** (chore-Commit auf main), signierter Release.
+
+**Offen / Folgeschritte (Stand nach v0.31.0):**
+- `AvailabilitySetup.test.tsx`: die zwei alten „Chip-Mehrfachauswahl"-
+  Tests wurden durch Zeitraum-Tests ersetzt (nicht nur ergänzt).
+
+---
+
+### Anki-Rich-Karten, Ordner ein-/ausklappbar, WCAG-Kontrast (v0.32.0, 08.09.2026)
+
+Direkt anschließende Folgeschritte + zwei weitere Nutzerwünsche. Wieder
+Branch → PR → Squash-Merge, `tsc`/Tests/`vite build` grün vor jedem
+Merge, Browser-Plausi wo möglich.
+
+- **PR #84 — Anki: echte Bilder + Vorlagen-Konditionale + Karten als HTML.**
+  - `ingest/htmlSanitize.ts` (neu): DOM-freier Filter auf ein enges
+    Tag-Set, verwirft alle Attribute außer `src`/`alt` an `<img>`, lässt
+    `<img>` nur mit `data:image`-Quelle. `htmlToPlainText`,
+    `looksLikeHtml`.
+  - `ingest/anki.ts`: Bilder aus dem `media`-Archiv als `data:`-URI
+    eingebettet (Grenzen 1,5 MB/Bild, 6 MB gesamt). `renderTemplate` —
+    minimaler Mustache-Renderer für `qfmt`/`afmt` (`{{Feld}}`,
+    `{{FrontSide}}`, `{{#Feld}}`/`{{^Feld}}`, `{{hint:}}` …), genutzt
+    wenn der Notiztyp Vorlagen mitbringt; sonst weiter die
+    Feld-1/Rest-Heuristik. Ausgabe jetzt sanitisiertes HTML statt
+    reduziertem Text. Neu im Rückgabewert: `imagesEmbedded`.
+  - `ui/CardContent.tsx` (neu): Kartentext als `pre-wrap`, wenn kein HTML;
+    sonst sanitisiertes HTML (zweite Schicht vor `dangerouslySetInnerHTML`).
+    In `FlashcardReview` eingesetzt. `ErrorHistory`-Liste nutzt
+    `htmlToPlainText` fürs Kurz-Label. Selbst erstellte PDF-Karten bleiben
+    reiner Text.
+- **PR #85 — Ordner in der Seitenleiste ein-/ausklappbar** (Nutzerwunsch).
+  `ui/SidebarCourseTree.tsx` (neu) — der Fach-Baum aus `App.tsx`
+  (`renderSidebarCourseTree`) als testbare Komponente. Ordner sind Buttons
+  mit CSS-Aufklapp-Dreieck; Klick klappt samt Unterordnern ein/aus.
+  Zustand pro Gerät in `localStorage` (`lernplaner.collapsedGroups`).
+  App.tsx entsprechend entschlackt (ungenutzte Imports raus).
+- **PR #86 — chore.**
+  - **Terrakotta-Kontrast:** `--color-primary` Hell-Modus
+    `oklch(0.64 0.13 45)` → `oklch(0.56 0.13 45)`, Hover `0.58` → `0.51`.
+    Heller Text darauf jetzt **4,73:1 / 5,93:1** (Browser-gemessen), WCAG
+    AA — vorher 3,43:1. Ton bleibt Terrakotta (`#b1582b`). Dunkel-Modus
+    unverändert. DESIGN.md-Tabelle nachgeführt.
+  - **`npm audit fix`:** `@xmldom/xmldom` 0.8.13 → 0.8.15 (transitiv via
+    `mammoth`). **Prod-Audit jetzt 0 Advisories.** Verbleibende
+    Dev-Only-Advisories (vitest/vite-Kette) bräuchten einen Breaking-Bump
+    und bleiben für `npm run security:audit` offen.
+
+**Version 0.31.0 → 0.32.0**, signierter Release. 567 Tests, tsc, vite
+build grün.
+
+**Zur „flakigen Testrunde" aus v0.31.0:** in ~17 aufeinanderfolgenden
+vollen Läufen nicht mehr aufgetreten — als einmaliger transienter
+Worker-/IO-Effekt eingestuft, keine Änderung nötig.
+
+**Offen / Folgeschritte:**
+- Anki: `{{FrontSide}}` im afmt wiederholt die Vorderseite auf der
+  Rückseite (Anki-typisch, in unserer UI leicht redundant, da Vorderseite
+  ohnehin oben steht) — bei Bedarf später kürzen.
+- `.anki21b`-Protobuf-Medienmanifest weiterhin nicht gelesen (Karten
+  importieren, Bilder daraus nicht).
+
+---
+
+### „Sven" — KI-Assistent (Chat + Verfügbarkeit per Freitext) (v0.33.0, 08.09.2026)
+
+Nutzerwunsch: ein KI-Feld, in dem man die Verfügbarkeit frei beschreibt
+statt alles anzuklicken, und mit dem man über Problemfelder sprechen
+kann — über den schon vorhandenen API-Key. Der Assistent heißt **Sven**
+(Nutzerwunsch). Umfang „Assistent + Lern-Chat" gewählt. Zwei PRs.
+
+- **PR #87 — Verfügbarkeit per Freitext (Teil 1).**
+  - `ai/types.ts`: `AIProvider` um `parseAvailability(text, todayISO)`
+    und `chat(history, context)` erweitert (beide Anbieter). Neue Typen
+    `AvailabilityProposal`, `ChatMessage`/`ChatReply`/`ChatProposal`.
+    `chat` nutzt echte Mehr-Turn-`messages` + `system`-Prompt.
+  - `ai/prompts.ts` (neu): geteilte Prompt-Bausteine + `parseChatReply`
+    (löst ```` ```availability ````/```` ```topicWeights ````-Blöcke aus
+    der Antwort, verwirft kaputte still).
+  - `domain/availabilityProposal.ts` (neu): `normalizeAvailabilityProposal`
+    — defensiv gegen KI-Halluzination (Wochentag 0–6, Minuten ≥ 0
+    geklemmt, ISO-Datum/`HH:MM`-Prüfung, Dedup). Reine Funktion.
+  - `ui/AvailabilityAssistant.tsx` (neu): Freitext → Vorschau
+    (lesbare Zeilen + Svens Zusammenfassung) → „Übernehmen" (ADR-005).
+    Sitzt als optionaler `assistant`-Slot über den
+    Verfügbarkeits-Reitern; erscheint nur bei konfiguriertem KI-Anbieter
+    (`aiAvailable`, einmalig beim Start geprüft). „Übernehmen" geht über
+    exakt dieselben Callbacks wie die manuelle Eingabe.
+- **PR #88 — Lern-Chat (Teil 2).**
+  - `domain/assistantContext.ts` (neu): `buildAssistantContext` — kompakte
+    Zusammenfassung (Fächer + Vorbereitungsgrad, Themen mit **id** +
+    Gewicht, bevorstehende Prüfungen, Wochen-Verfügbarkeit, feste Blocker,
+    abweichende Tage), die Sven als Kontext bekommt.
+  - `ui/AssistantChat.tsx` (neu): Chatverlauf (nur Sitzung), Eingabe
+    (⌘/Strg+Enter sendet), Antwort. Strukturierte Vorschläge
+    (Verfügbarkeit / Themen-Gewichte) als Karte mit „Übernehmen" — erst
+    per Klick angewandt (ADR-005).
+  - `App.tsx`: neuer Sidebar-Bereich **„Sven"** (`NavSection`).
+    `handleSvenChat` baut den Kontext + ruft `provider.chat`;
+    Themen-Gewichte über `handleChangeTopics`, Verfügbarkeit über das
+    `applyAvailabilityProposal` aus #87. Ohne KI-Anbieter: Hinweis auf
+    die Einstellungen.
+
+- **chore (im 0.33.0-Bump):** `vitest.config.ts` `pool: 'forks'` statt des
+  Standard-`threads`-Pools — die seltene (~10 %) flakige Runde aus
+  v0.31.0/v0.32.0 im **vollen** Parallel-Lauf ließ sich auf native Addons
+  (`better-sqlite3` in `tests/data/*` + `tests/ingest/anki`, sql.js-WASM)
+  in Worker-Threads zurückführen. Mit Prozess-Isolation **12/12 volle
+  Läufe grün** (vorher 2 Fehlschläge in ~14). Einzeln liefen die
+  betroffenen Dateien immer durch.
+
+**Version 0.32.0 → 0.33.0**, signierter Release. 594 Tests, tsc, vite
+build grün.
+
+---
+
+### „Sven" — Chat-Feinschliff + Upload (v0.34.0, 08.09.2026)
+
+Weitere Nutzerwünsche am Sven-Chat, drei kleine PRs + ein größerer.
+
+- **PR #89 — Verlauf / Enter / Warte-Spruch.**
+  - Chatverlauf (Turns + welche Vorschläge übernommen wurden) in
+    `localStorage` (`lernplaner.svenChat`), letzte 60 Beiträge, stabile
+    Turn-`id`. „Verlauf löschen"-Button.
+  - **Enter** sendet, **Umschalt+Enter** = neue Zeile (vorher
+    ⌘/Strg+Enter).
+  - Warte-Anzeige während `onSend`: CSS-Spinner + zufälliger Spruch aus
+    einer kleinen Liste („ist kurz Milch holen" …), wechselt alle 2,5 s.
+- **PR #90 — Dokumente/Ordner im Chat hochladen.**
+  - `App.tsx`: die Import-Funktionen nehmen jetzt eine **explizite
+    `courseId`** statt `selectedCourseId` (`importSummaryPdf`/
+    `importRegularDocument` als 1. Argument; `importDocuments(courseId,
+    files, docType|null)` und `importFolder(courseId)` geben zusätzlich
+    eine Bilanz zurück). `docType null` → je Datei aus dem Namen ableiten.
+    Der Material-Reiter ruft unverändert mit `selectedCourseId`.
+  - `AssistantChat`: Block „Unterlagen hinzufügen" — Fach-Auswahl +
+    Datei-Mehrfachauswahl + „ganzen Ordner wählen". Ergebnis als lokale
+    Sven-Nachricht (kein KI-Aufruf), landet im persistierten Verlauf.
+
+**Version 0.33.0 → 0.34.0**, signierter Release. 603 Tests, tsc, vite
+build grün.
+
+---
+
+### .txt/.csv-Import, Sven-Anhänge, Karteikarten-Bereich (v0.35.0, 08.09.2026)
+
+Rückfragen des Nutzers zum Import („warum wird manches übersprungen?") und
+zum Karteikarten-Bereich („wo ist der?") — beantwortet + umgesetzt.
+
+- **PR #91 — `.txt`/`.csv`-Import.** `SUPPORTED_EXTENSIONS` += `.txt`
+  (läuft durch den Markdown-Weg), `.csv` (`ingest/csv.ts` neu: ganze
+  Datei = ein Thema aus dem Dateinamen, Trennzeichen `,`/`;`/Tab
+  geraten, `"…"`/`""` behandelt). `chapterNameFromFilename` schneidet
+  jetzt auch `xlsx`/`txt`/`csv` ab. CONTEXT.md §9 präzisiert: außen
+  bleiben OCR-lose/gescannte Formate, Altformate `.doc`/`.ppt`/`.xls`
+  (anderes Binärformat), HTML/RTF/`.pages`/`.key` (kein Parser).
+- **PR #93 — Sven: Dateien im Eingabefeld anhängen (wie Claude).** Der
+  eigenständige Upload-Block aus PR #90 ist weg. Stattdessen im Composer
+  „📎 Dateien anhängen" / „📁 Ordner anhängen" → Chips; die Namen wandern
+  beim Senden als `[Angehängte Dateien: …]` in den Nachrichtentext
+  (Bytes bleiben in `attachedRef`, nicht in `localStorage`). Sven
+  antwortet mit einem ```` ```import ````-Block (`courseId` + Dateinamen);
+  „Übernehmen" importiert die gehaltenen Bytes. `assistantContext`
+  nennt Fächer jetzt mit „Fach #<id>".
+- **PR #94 — Karteikarten-Bereich.** Sidebar „Wiederholen" →
+  „Karteikarten". Drei Reiter: **Üben** (Review + Fehlerhistorie + neuer
+  Fach-Filter; Leer-Ansicht erklärt, wie man Karten anlegt), **Neu**
+  (`ui/ManualCardForm.tsx` — Fach → Thema → Vorder-/Rückseite von Hand),
+  **Alle Karten (n)** (`ui/CardList.tsx` — nach Fach → Thema gruppiert,
+  Kartenzahl je Gruppe, Bearbeiten inline, Löschen mit Zeilen-Rückfrage).
+  `data/cardsRepo.ts` `updateCardRow` neu.
+
+**Version 0.34.0 → 0.35.0**, signierter Release. 622 Tests, tsc, vite
+build grün.
+
+---
+
+### Sven-Chat rendert Markdown (v0.36.0, 08.09.2026)
+
+Letzter offener Folgeschritt. **PR #96:** `ui/renderMarkdown.ts` (neu) —
+winziger Markdown→HTML-Renderer (fett/kursiv, Inline-Code, Aufzählungen,
+`#`→fett, Absätze/Umbrüche, Links→Linktext). Kein DOM; Quelltext wird
+erst HTML-escaped, das Ergebnis durch `sanitizeCardHtml` (aus einer
+KI-Antwort kommt nur das enge sichere Tag-Set — `<script>`/`<img onerror>`
+→ escaped). `AssistantChat`: Sven-Blasen per `dangerouslySetInnerHTML`,
+Nutzer-Blasen bleiben reiner Text. +9 Tests. **Version 0.35.0 → 0.36.0**,
+signierter Release, 631 Tests grün.
+
+---
+
+### Anki: neues Medienformat (.anki21b) lesen (v0.37.0, 08.09.2026)
+
+Der letzte offene Punkt. Ab Anki 2.1.50 ist die `media`-Datei kein JSON
+mehr, sondern ein (evtl. Zstd-komprimiertes) Protobuf `MediaEntries`; die
+nummerierten Mediendateien sind dann ebenfalls Zstd-komprimiert. **PR
+#97:** `ingest/ankiMediaManifest.ts` (neu) — handgeschriebener
+Mini-Wire-Format-Parser (kein Protobuf-Runtime) + `isZstd`. `anki.ts`
+`readMedia`: erst JSON, sonst Protobuf; `media` und jede Mediendatei bei
+Bedarf per `fzstd` entpacken. Bilder aus neuen Decks werden damit echt
+eingebettet statt `[Bild: …]`. +11 Tests. **Version 0.36.0 → 0.37.0**,
+signierter Release, 638 Tests grün.
+
+**Offen:** derzeit nichts aus der Folgeschritt-Liste — nur die
+dauerhaften Einschränkungen unten (kein OCR, kein Backup usw.).
+
+---
+
 ## 9. Bekannte Einschränkungen
 
 - **Kein Backup** — Gerätedefekt bedeutet Totalverlust (bewusst)
@@ -3473,12 +3760,34 @@ Auf Rückfrage als **v0.30.0** gemergt + released.
 - **Kein OCR** — gescannte Dokumente werden nicht unterstützt. Am echten
   Material bestätigt (22.07.2026): `Data & Information Management/Mock
   Exam.pdf` liefert 0 Zeichen auf allen Seiten
-- **Nur PDF, kein Word/Excel/PowerPoint** — bewusste, bestätigte
-  Einschränkung (Abschnitt 3), am echten Material konkret sichtbar
-  geworden (`.docx`/`.xlsx`/`.pptx` in `4. Semester Kopie/`, siehe
-  „Nachtsitzung"-Abschnitt, Ideen-Liste Punkt 1). Ordner-Import meldet
-  seit v0.20.0 wenigstens sichtbar, welche Dateien deswegen übersprungen
-  wurden, statt es stillschweigend zu tun
+- ~~**Nur PDF, kein Word/Excel/PowerPoint**~~ — **aufgehoben seit v0.21.0**
+  (ADR-018, PR #54): `.docx`/`.pptx`/`.xlsx`/`.md`/`.txt`/`.csv` werden
+  deterministisch ohne KI extrahiert (`ingest/documentImport.ts`
+  `extractAnyDocument` → `ingest/docx.ts`/`pptx.ts`/`xlsx.ts`/`markdown.ts`/
+  `csv.ts`; `.txt` läuft durch den Markdown-Weg). `.txt`/`.csv` seit
+  v0.35.0 (Nutzerwunsch 08.09.). Am echten Material aus `4. Semester
+  Kopie/` gegengeprüft: Word-Paper, PowerPoint-Case, Excel-Gruppenliste
+  liefern sinnvolle Themen/Folien. Bleibt außen vor: gescannte/
+  bildbasierte Formate (kein OCR), alte Office-Formate `.doc`/`.ppt`/
+  `.xls` (anderes Binärformat), HTML/RTF/`.pages`/`.key` (kein Parser)
+- **Anki-Import: Heuristik statt vollständigem Template-Renderer** — seit
+  v0.31.0 (`ingest/anki.ts`) liest der Lernplaner `.apkg`/`.colpkg`
+  (SQLite via sql.js, Zstd via fzstd) und legt je Deck ein Thema, je
+  Karte eine Karteikarte an. **Bilder werden gerendert** (seit v0.32.0,
+  PR #84): `inlineImages` bettet sie als `data:`-URIs direkt in die
+  Karten-HTML ein (Obergrenzen `MAX_IMAGE_BYTES` 1,5 MB /
+  `MAX_TOTAL_IMAGE_BYTES` 6 MB — nur was darüber liegt, bleibt als
+  `[Bild: name]` stehen), Anzeige über `ui/CardContent.tsx` in
+  `FlashcardReview`/`ReviewSession` (`ErrorHistory` zeigt bewusst nur
+  Klartext-Vorschauen). `renderTemplate` deckt die gängigen
+  Mustache-Bausteine ab (`{{Feld}}`, `{{FrontSide}}`,
+  `{{#Feld}}`/`{{^Feld}}`, `{{hint:}}`), Lückentext je Ordinal; volle
+  Fidelity beliebiger Custom-Templates ist weiterhin nicht das Ziel. Das
+  neue Anki-Medienformat (Protobuf `MediaEntries` + Zstd-komprimierte
+  Mediendateien, Anki ≥ 2.1.50) wird seit v0.37.0 gelesen (PR #97,
+  `ingest/ankiMediaManifest.ts`). Der aus Anki übernommene
+  FSRS-Startzustand bleibt eine grobe Schätzung aus `ivl`/`ease`, kein
+  exakter Übertrag
 
 ---
 

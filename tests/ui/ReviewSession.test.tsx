@@ -36,8 +36,17 @@ function card(overrides: Partial<Card> & { id: number }): Card {
 }
 
 describe('ReviewSession', () => {
-  it('zeigt einen Hinweis ohne fällige Karten', () => {
+  it('zeigt „keine Karten in dieser Auswahl", wenn gar keine Karten da sind', () => {
     render(<ReviewSession cards={[]} reviews={[]} topics={[]} now={() => NOW} onReview={vi.fn()} />)
+    expect(screen.getByText(/keine karten in dieser auswahl/i)).toBeInTheDocument()
+  })
+
+  it('zeigt „keine fällige Karte", wenn Karten da, aber keine fällig ist', () => {
+    const notDue = [card({ id: 1 })]
+    const reviews = [
+      { id: 1, card_id: 1, reviewed_at: NOW, rating: 3, stability: 5, difficulty: 5, due_at: '2999-01-01T00:00:00.000Z' },
+    ]
+    render(<ReviewSession cards={notDue} reviews={reviews} topics={[]} now={() => NOW} onReview={vi.fn()} />)
     expect(screen.getByText(/keine fällige karte/i)).toBeInTheDocument()
   })
 

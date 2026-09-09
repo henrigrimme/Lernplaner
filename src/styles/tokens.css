@@ -9,9 +9,14 @@
 :root {
   color-scheme: light dark;
 
-  /* Primär: warmes Terrakotta/Ton — der einzige durchgehende Akzent */
-  --color-primary: oklch(0.64 0.13 45);
-  --color-primary-hover: oklch(0.58 0.14 45);
+  /* Primär: warmes Terrakotta/Ton — der einzige durchgehende Akzent.
+     Hell-Modus auf L 0.56 abgedunkelt (war 0.64): heller Button-Text
+     (`--color-primary-ink`) darauf erreicht damit 4.76:1 statt 3.43:1,
+     also WCAG AA für Text (siehe DESIGN.md, Kontrast-Verifikation). Hover
+     entsprechend auf 0.51 (5.9:1). Der Dunkel-Modus lag mit 5.34:1 schon
+     über AA und bleibt unverändert. */
+  --color-primary: oklch(0.56 0.13 45);
+  --color-primary-hover: oklch(0.51 0.14 45);
   --color-primary-ink: oklch(0.99 0.006 75);
 
   /* Sekundär: gedämpftes Petrol, für Links/Info/sekundäre Aktionen —
@@ -171,8 +176,8 @@
    Wiederholung der `:root`-Grundwerte oben, aber mit Attribut-Selektor,
    damit sie die `@media (prefers-color-scheme: dark)`-Regel schlägt. */
 :root[data-theme='light'] {
-  --color-primary: oklch(0.64 0.13 45);
-  --color-primary-hover: oklch(0.58 0.14 45);
+  --color-primary: oklch(0.56 0.13 45);
+  --color-primary-hover: oklch(0.51 0.14 45);
   --color-primary-ink: oklch(0.99 0.006 75);
 
   --color-accent: oklch(0.55 0.08 200);
