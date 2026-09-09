@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Quell-Icon fuer `npm run tauri icon` (erzeugt src-tauri/icons/).
+       Farben aus der App-Palette (src/styles/tokens.css):
+       Rahmen und linke Kachel = color-primary, Grund = color-bg,
+       rechte Kachel = color-ink, Buchstabe "L" = color-bg. -->
+  <rect x="16" y="16" width="992" height="992" rx="176" ry="176"
+        fill="#f6eee4" stroke="#b1582b" stroke-width="24" />
+  <rect x="268" y="344" width="240" height="336" rx="34" ry="34" fill="#b1582b" />
+  <rect x="516" y="344" width="240" height="336" rx="34" ry="34" fill="#392a20" />
+  <path d="M604,410 L646,410 L646,544 L710,544 L710,586 L604,586 Z"
+        fill="#f6eee4" stroke="#f6eee4" stroke-width="26"
+        stroke-linejoin="round" stroke-linecap="round" />
+</svg>
