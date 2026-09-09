@@ -34,6 +34,10 @@ Version in 4 Dateien hochziehen + signierten Release bauen; reine
 Doku/Interna brauchen keinen Release.
 
 Jüngster Stand ganz am Ende von Abschnitt 8:
+- Fix (von Theodor, PRs #92/#100, kein Release): Anthropic-API gab im
+  Tauri-Fenster 401 zurück, bis der Header
+  `anthropic-dangerous-direct-browser-access` mitgeschickt wurde —
+  „Sven"-Chat und Verfügbarkeit-per-Freitext gehen jetzt echt.
 - Doku: CONTEXT.md §9 (Anki-Einschränkung) auf v0.32.0/v0.37.0-Stand
   gebracht (PR #98, reine Doku, kein Release) — Bilder/Templates/neues
   Medienformat werden längst unterstützt; verbliebene Grenze ist nur
@@ -3757,6 +3761,22 @@ signierter Release, 638 Tests grün.
 
 **Offen:** derzeit nichts aus der Folgeschritt-Liste — nur die
 dauerhaften Einschränkungen unten (kein OCR, kein Backup usw.).
+
+---
+
+### Fix: Anthropic-API 401 im Tauri-Fenster (PRs #92 / #100, 09.09.2026)
+
+Von Theodor gemergt (co-authored Claude), **kein Release, Version bleibt
+v0.37.0.** `@tauri-apps/plugin-http`s `fetch()` baut intern `new
+Request(...)` und setzt dabei Header, an denen Anthropics API einen
+Browser-Zugriff erkennt → 401, obwohl der Aufruf über Rust läuft. Fix:
+Header `anthropic-dangerous-direct-browser-access: true` mitschicken
+(Key bleibt in der Keychain, kein öffentliches Frontend — hier
+unbedenklich). PR #100 zog denselben Header für die in PR #87 ergänzte
+`chat()`-Methode nach und bündelte den Header-Aufbau in
+`anthropicHeaders()`, damit er nicht ein drittes Mal auseinanderläuft.
+Damit funktionieren „Sven"-Chat und Verfügbarkeit-per-Freitext im
+echten Fenster.
 
 ---
 
