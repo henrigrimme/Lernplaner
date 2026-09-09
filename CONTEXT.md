@@ -24,16 +24,21 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.37.0.**
-**Arbeitsstand: nichts offen.** Working Tree sauber auf `main`, 638 Tests
-grün (`npx vitest run`), `tsc --noEmit` + `vite build` grün. Kein
-angefangener Branch, keine halbe Änderung. Ein neuer Chat kann direkt eine
-neue Aufgabe beginnen — Ablauf in [CONTRIBUTING.md](CONTRIBUTING.md)
-(„Releases"): Feature-Branch → PR → Squash-Merge → bei sichtbarer Änderung
-Version in 4 Dateien hochziehen + signierten Release bauen; reine
-Doku/Interna brauchen keinen Release.
+**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.38.0.**
+**Arbeitsstand:** „Übungsblatt-Zerlegung" (v0.38.0) fertig und veröffentlicht;
+danach „Chat mit den Unterlagen" begonnen. Details am Ende von Abschnitt 8.
+Ablauf in [CONTRIBUTING.md](CONTRIBUTING.md) („Releases"): Feature-Branch →
+PR → Squash-Merge → bei sichtbarer Änderung Version in 4 Dateien hochziehen
++ signierten Release bauen; reine Doku/Interna brauchen keinen Release.
 
 Jüngster Stand ganz am Ende von Abschnitt 8:
+- „Übungsblatt-Zerlegung in Einzelaufgaben" (v0.38.0, Nutzerwunsch
+  09.09.2026): `ingest/exerciseSplit.ts` (rein deterministisch, kein KI)
+  erkennt „1."/„1)"-nummerierte Aufgaben inkl. a./b.-Teilen; im
+  „Material"-Reiter eines Übungsblatts lassen sich ausgewählte Aufgaben
+  als Karteikarten übernehmen (Vorderseite = Aufgabe, Rückseite leer,
+  Quelle verlinkt). An allen vier echten „Problem Set"/„Online
+  Questions"-PDFs geprüft (10/10, 16/16, 4/4, 10/10).
 - Fix (von Theodor, PRs #92/#100, kein Release): Anthropic-API gab im
   Tauri-Fenster 401 zurück, bis der Header
   `anthropic-dangerous-direct-browser-access` mitgeschickt wurde —
@@ -3794,9 +3799,61 @@ Verbliebene echte Grenzen: keine volle Fidelity beliebiger
 Custom-Templates, grober `ivl`/`ease`→FSRS-Seed. §10 („Offene Fragen")
 unverändert gültig (E-Mail-Benachrichtigungen, Oktober-Termine).
 
-**Handoff:** Ab hier ist nichts angefangen. Der nächste Chat wählt eine
-neue Aufgabe (z. B. weiteres „Nachschärfen aus dem Alltag", ROADMAP.md
-Phase 4) und arbeitet sie nach CONTRIBUTING.md „Releases" ab.
+---
+
+### Übungsblatt-Zerlegung in Einzelaufgaben (v0.38.0, 09.09.2026)
+
+Nutzerwunsch aus der Session: „Übungsblatt-Zerlegung" (ROADMAP.md
+„Später/offen") **und** „Chat mit den Unterlagen" — beide, nacheinander.
+Dieser Abschnitt betrifft den ersten.
+
+- **`src/ingest/exerciseSplit.ts` (neu) — `splitExercises(pages)`, rein
+  deterministisch, kein KI-Aufruf** (dieselbe Begründung wie
+  `ingest/docType.ts`: die „1."/„1)"-Nummerierung ist an echtem Material
+  ein verlässliches Signal). Erkennt top-level Aufgaben über
+  `^(\d{1,3})[.)]\s` **nur**, wenn die Nummer die lückenlose Fortsetzung
+  ist (`1, 2, 3, …`) — so wird „3 percent has risen." (kein `.`/`)`,
+  fällt schon am Regex) und ein zufälliges „2)" mitten im Text von
+  Aufgabe 5 nicht als neue Aufgabe missverstanden. Erste Aufgabe darf mit
+  beliebiger Nummer beginnen. Teilaufgaben a./b. bleiben im Elterntext.
+  Kurztitel („Leverage", „Bond Pricing") wird aus der Markerzeile
+  gezogen, wenn sie kurz und ohne Satzzeichen endet. Wiederkehrende
+  Titel-Kopfzeilen (Dokumenttitel auf jeder Seite) und reine
+  Seitenzahl-Fußzeilen werden entfernt — `page.bodyLines` aus `readPages`
+  ist auf Vorlesungsfolien zugeschnitten und bei reinen Textdokumenten
+  leer, taugt hier nicht; deshalb `page.lines` + eigene Kopfzeilen-Erkennung.
+- **`looksLikeExerciseSheet`-Heuristik** gegen Fehlalarm auf Agenda-Folien
+  („1. Überblick  2. …  3. …"): `true` nur bei ≥ 3 Aufgaben mit im Median
+  ≥ 60 Zeichen Text. `App.tsx` bietet die Zerlegung ohnehin nur bei
+  Dokumenttyp „Übungsblatt"/„Musterlösung" an — das ist die zweite
+  Absicherung.
+- **`src/ui/ExerciseSplitPanel.tsx` (neu)** im „Material"-Reiter: Dokument
+  wählen → „In Einzelaufgaben zerlegen" → Liste mit Häkchen → Zielthema
+  wählen → „Als Karteikarten übernehmen (n)". Je Aufgabe eine Karte:
+  Vorderseite `Aufgabe N — Titel` + Aufgabentext, **Rückseite leer** (zum
+  Selberlösen), `source_quote` = Aufgabentext, `document_id`/`page`
+  gesetzt. Kein Schema-Eingriff — `cards.document_id`/`page` sind längst
+  nullbar. Neue `App.tsx`-Handler `handleSplitExercises` (PDF über
+  `readPages`, andere Formate über `extractAnyDocument`) und
+  `handleCreateCards` (Batch-Insert).
+- **Tests:** `tests/ingest/exerciseSplit.test.ts` (9, Zeilenformen aus
+  echtem Material), `tests/ui/ExerciseSplitPanel.test.tsx` (4). **651
+  gesamt**, `tsc --noEmit` + `vite build` grün.
+- **Plausibilitätscheck an echtem Material:** `splitExercises` gegen alle
+  vier „Problem Set"/„Online Questions"-PDFs (Money & Banking) laufen
+  lassen — 10/10, 16/16, 4/4, 10/10 Aufgaben, Kurztitel und
+  Seitenbereiche korrekt (inkl. mehrseitiger Aufgabe 7 in „Problem Set 1
+  Solutions", S. 4–5). Gegenprobe auf zwei Vorlesungs-Foliensätzen:
+  `looksLikeExerciseSheet = false` (Agenda-Stichpunkte zu kurz).
+  Browser-Smoke gegen `npm run dev`: App startet ohne Konsolenfehler; der
+  volle Zerlegen→Karten-Fluss braucht die Tauri-SQLite-Laufzeit (Dev-
+  Server hat keine — bekannte Einschränkung, deshalb Skript-Plausi wie bei
+  den übrigen DB-gebundenen Ansichten).
+
+**Als Nächstes:** „Chat mit den Unterlagen" (zweiter Teil des
+Nutzerwunsches) — persistenter Volltext-Index je Dokument (neue Migration
+0008), damit Sven im Chat mit Seitenverweis aus den echten Unterlagen
+antworten kann.
 
 ---
 

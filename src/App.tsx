@@ -23,6 +23,8 @@ import { QuizSetup, type GenerateQuizInput } from './ui/QuizSetup'
 import { QuizSession } from './ui/QuizSession'
 import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
 import { DocumentList } from './ui/DocumentList'
+import { ExerciseSplitPanel } from './ui/ExerciseSplitPanel'
+import type { ExerciseSplitResult } from './ingest/exerciseSplit'
 import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
 import { extractAnyDocument, isSupportedDocument, SUPPORTED_EXTENSIONS } from './ingest/documentImport'
 import { DOCUMENT_TYPE_OPTIONS, inferDocType } from './ingest/docType'
@@ -635,6 +637,40 @@ export function App() {
       setCards((prev) => [...prev, card])
     } catch (error) {
       reportDbError('Karteikarte konnte nicht gespeichert werden', error)
+    }
+  }
+
+  // Übungsblatt-Zerlegung (ROADMAP.md „Später/offen", Nutzerwunsch
+  // 09.09.2026): das Dokument wird aus den bereits geladenen Bytes gelesen
+  // und deterministisch in Einzelaufgaben zerlegt (`ingest/exerciseSplit.ts`,
+  // kein KI-Aufruf). PDF über `readPages`, andere Formate über ihre eigene
+  // Extraktion — beide liefern dieselbe Zeilenform.
+  const handleSplitExercises = async (documentId: number): Promise<ExerciseSplitResult> => {
+    const doc = documents.find((d) => d.id === documentId)
+    const bytes = documentBytes[documentId]
+    if (!doc || !bytes) throw new Error('Das Dokument ist nicht (mehr) geladen — Import ggf. wiederholen.')
+    const { splitExercises } = await import('./ingest/exerciseSplit')
+    if (doc.filename.toLowerCase().endsWith('.pdf')) {
+      const { readPages } = await import('./ingest/pdf')
+      const pages = await readPages(bytes)
+      return splitExercises(pages.map((p) => ({ pageNumber: p.number, lines: p.lines.map((l) => l.text) })))
+    }
+    const extracted = await extractAnyDocument(bytes, doc.filename)
+    return splitExercises(
+      extracted.slides.map((s) => ({ pageNumber: s.pageNumbers[0] ?? 1, lines: s.bodyLines.map((l) => l.text) })),
+    )
+  }
+
+  const handleCreateCards = async (inputs: NewCardInput[]) => {
+    try {
+      const db = await getDb()
+      const now = new Date().toISOString()
+      const created: Card[] = []
+      for (const input of inputs) created.push(await insertCard(db, input, now))
+      setCards((prev) => [...prev, ...created])
+    } catch (error) {
+      reportDbError('Karteikarten konnten nicht angelegt werden', error)
+      throw error
     }
   }
 
@@ -1715,6 +1751,15 @@ export function App() {
                     </section>
 
                     <DocumentList course={selectedCourse} documents={documents} onChangeType={handleChangeDocumentType} />
+
+                    <ExerciseSplitPanel
+                      course={selectedCourse}
+                      topics={topics.filter((t) => t.course_id === selectedCourse.id)}
+                      documents={documents}
+                      documentBytes={documentBytes}
+                      onSplit={handleSplitExercises}
+                      onCreateCards={handleCreateCards}
+                    />
 
                     <AltklausurAnalysis
                       course={selectedCourse}
