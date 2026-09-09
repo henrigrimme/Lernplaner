@@ -24,14 +24,26 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.38.0.**
-**Arbeitsstand:** „Übungsblatt-Zerlegung" (v0.38.0) fertig und veröffentlicht;
-danach „Chat mit den Unterlagen" begonnen. Details am Ende von Abschnitt 8.
+**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.39.0.**
+**Arbeitsstand: nichts offen.** Working Tree sauber auf `main`, 664 Tests
+grün, `tsc --noEmit` + `vite build` + `cargo check --locked` grün. Der
+Doppel-Wunsch dieser Session („Übungsblatt-Zerlegung" + „Chat mit den
+Unterlagen") ist abgearbeitet und in zwei Releases veröffentlicht.
 Ablauf in [CONTRIBUTING.md](CONTRIBUTING.md) („Releases"): Feature-Branch →
 PR → Squash-Merge → bei sichtbarer Änderung Version in 4 Dateien hochziehen
 + signierten Release bauen; reine Doku/Interna brauchen keinen Release.
 
 Jüngster Stand ganz am Ende von Abschnitt 8:
+- „Chat mit den Unterlagen" (v0.39.0, Nutzerwunsch 09.09.2026):
+  persistenter Volltext-Index je Dokumentseite (Migration 0008,
+  `document_pages`), einmalig aus den geladenen Bytes befüllt (auch
+  rückwirkend für vorhandene Dokumente). Im Sven-Chat neuer Schalter
+  „Unterlagen einbeziehen" — zur letzten Frage werden die relevantesten
+  Seiten per TF-IDF (`domain/documentChat.ts`, rein, keine
+  Embeddings/Bibliothek) ausgewählt und als zitierbarer Auszug an den
+  Kontext gehängt. Grenze: rein wortbasiert, also kein sprachübergreifendes
+  Retrieval (deutsche Frage findet englische Folien nur bei gemeinsamen
+  Fachbegriffen).
 - „Übungsblatt-Zerlegung in Einzelaufgaben" (v0.38.0, Nutzerwunsch
   09.09.2026): `ingest/exerciseSplit.ts` (rein deterministisch, kein KI)
   erkennt „1."/„1)"-nummerierte Aufgaben inkl. a./b.-Teilen; im
@@ -39,6 +51,9 @@ Jüngster Stand ganz am Ende von Abschnitt 8:
   als Karteikarten übernehmen (Vorderseite = Aufgabe, Rückseite leer,
   Quelle verlinkt). An allen vier echten „Problem Set"/„Online
   Questions"-PDFs geprüft (10/10, 16/16, 4/4, 10/10).
+- Aufräumen (PR #104, kein Release): PR #103 hatte per `git add -A` fünf
+  lokale Dateien aus `App/` und `Beispiel pdfs/` mitgenommen — wieder aus
+  dem Index entfernt, beide Ordner komplett in `.gitignore`.
 - Fix (von Theodor, PRs #92/#100, kein Release): Anthropic-API gab im
   Tauri-Fenster 401 zurück, bis der Header
   `anthropic-dangerous-direct-browser-access` mitgeschickt wurde —
@@ -3850,10 +3865,65 @@ Dieser Abschnitt betrifft den ersten.
   Server hat keine — bekannte Einschränkung, deshalb Skript-Plausi wie bei
   den übrigen DB-gebundenen Ansichten).
 
-**Als Nächstes:** „Chat mit den Unterlagen" (zweiter Teil des
-Nutzerwunsches) — persistenter Volltext-Index je Dokument (neue Migration
-0008), damit Sven im Chat mit Seitenverweis aus den echten Unterlagen
-antworten kann.
+---
+
+### Chat mit den Unterlagen (v0.39.0, 09.09.2026)
+
+Zweiter Teil des Session-Wunsches. Der Nutzer hat sich ausdrücklich für den
+**persistenten Volltext-Index** entschieden (statt eines rein transienten
+Retrieval).
+
+- **Migration 0008 (`document_pages`)** — eine Zeile je (Dokument, Seite)
+  mit dem reinen Seitentext, `PRIMARY KEY (document_id, page)`,
+  `ON DELETE CASCADE`. Bei Formaten ohne echte Seiten (Word/Markdown/CSV)
+  ist `page` der 1-basierte Abschnitts-/Folienindex. In `lib.rs` als
+  Version 8 registriert, in `tests/data/testConnection.ts` +
+  `schema.test.ts` nachgezogen.
+- **Befüllung im Frontend, nicht in der Migration** (`App.tsx`-Effekt):
+  eine reine SQL-Migration käme nicht an den PDF-Text. Der Effekt
+  indexiert jedes Dokument, für das Bytes geladen sind, aber noch keine
+  `document_pages`-Zeilen existieren — deckt damit auch die **vor** der
+  Migration importierten Dokumente ab. Danach nur noch gelesen. Läuft je
+  Dokument höchstens einmal (`indexingRef`). Text kommt aus derselben
+  Extraktion wie sonst (`readPages` für PDF, `extractAnyDocument` sonst),
+  Repo `data/documentPagesRepo.ts` (`replaceDocumentPages` löscht+schreibt
+  je Dokument, überspringt leere Seiten; `loadDocumentPages`).
+- **`domain/documentChat.ts`** (rein) — `rankPassages(query, passages,
+  opts)`: TF-IDF über Wort-Token (`tokenize`: klein, an Nichtbuchstaben
+  trennen, DE/EN-Stoppwörter + Kurztoken raus), langpassagen leicht
+  gedämpft, `maxPerDocument` (Default 2) verhindert, dass ein langes
+  Dokument alles verdrängt, optionaler `courseIds`-Filter. Passagen ohne
+  einen Frage-Begriff fallen raus. `formatExcerptsForPrompt` baut den
+  zitierbaren Block („[1] Fach … — „Datei", S. X: …"). **Bewusst keine
+  Embeddings/Vektor-DB und keine neue Bibliothek** — gleiche Abwägung wie
+  `domain/search.ts`.
+- **`ai/prompts.ts`** — `buildChatSystemPrompt` erklärt Sven den Abschnitt
+  „AUSZÜGE AUS DEN UNTERLAGEN": nutzen wenn passend, Quelle als
+  `(Dateiname, S. X)` zitieren, bei Lücken das offen sagen statt raten.
+  **Keine Änderung an `AIProvider.chat`** — die Auszüge werden in `App.tsx`
+  `handleSvenChat` an den `context`-String gehängt (2. Argument `{
+  useDocuments }`).
+- **`ui/AssistantChat.tsx`** — Schalter „Unterlagen einbeziehen" (Default
+  an, in `localStorage` wie der Verlauf). Aus → Retrieval wird
+  übersprungen, Sven antwortet wie bisher.
+- **Tests:** `tests/domain/documentChat.test.ts` (10),
+  `tests/data/documentPagesRepo.test.ts` (3), `AssistantChat`-Tests an die
+  neue `onSend`-Signatur angepasst. **664 gesamt**, `tsc` + `vite build` +
+  `cargo check --locked` grün.
+- **Plausibilitätscheck an echtem Material:** `rankPassages` gegen ~190
+  echte Folien-Seiten aus vier Money-&-Banking-Foliensätzen. **Englische**
+  Fragen treffen sehr gut („How is a bond price related to its yield to
+  maturity?" → „Inverse Relationship Between Yield to Maturity and Bond
+  Price", S. 22, Score 6,8; „asymmetric information adverse selection" →
+  die beiden richtigen Folien). **Deutsche** Fragen auf englisches Material
+  treffen nur über gemeinsame Fachbegriffe — dokumentierte Grenze (siehe
+  §9). Dev-Server-Smoke: App startet ohne neue Konsolenfehler; der Index
+  selbst braucht die Tauri-SQLite-Laufzeit.
+
+**Handoff:** Der Doppel-Wunsch dieser Session ist fertig und in v0.38.0 +
+v0.39.0 veröffentlicht. Ab hier ist nichts angefangen. Der nächste Chat
+wählt eine neue Aufgabe (z. B. weiteres „Nachschärfen aus dem Alltag",
+ROADMAP.md Phase 4) und arbeitet sie nach CONTRIBUTING.md „Releases" ab.
 
 ---
 
@@ -3897,6 +3967,17 @@ antworten kann.
   `ingest/ankiMediaManifest.ts`). Der aus Anki übernommene
   FSRS-Startzustand bleibt eine grobe Schätzung aus `ivl`/`ease`, kein
   exakter Übertrag
+
+- **„Chat mit den Unterlagen" ist wortbasiert, nicht semantisch** — seit
+  v0.39.0 (`domain/documentChat.ts`, Migration 0008) sucht Sven die
+  passenden Dokumentseiten per TF-IDF über Wort-Token. Das trifft gut,
+  wenn Frage und Material dieselben Begriffe nutzen (an echtem englischem
+  Folienmaterial bestätigt), aber **nicht sprachübergreifend**: eine
+  deutsch gestellte Frage findet englische Folien nur über gemeinsame
+  Fachbegriffe („yield curve", „duration"). Kein Embedding-/Vektor-Ansatz
+  — bewusst, gleiche Abwägung wie bei `domain/search.ts` (keine neue
+  Bibliothek für die Materialmenge zweier Studierender). Deckt der Index
+  eine Frage nicht ab, sagt Sven das offen, statt zu raten.
 
 ---
 

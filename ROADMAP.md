@@ -4,10 +4,10 @@
 Prüfungen im Oktober.
 
 **Aktueller Stand (09.09.2026):** Phasen 1–3 abgeschlossen, seit 01.09 im
-Echtbetrieb. Version v0.38.0. Phase 4 läuft (additive Verbesserungen aus der
-echten Nutzung). Zuletzt: Übungsblatt-Zerlegung (v0.38.0). In Arbeit: Chat
-mit den Unterlagen. Details und exakter nächster Schritt in
-[CONTEXT.md](CONTEXT.md) Abschnitt 8.
+Echtbetrieb. Version v0.39.0. Phase 4 läuft (additive Verbesserungen aus der
+echten Nutzung). Zuletzt: Übungsblatt-Zerlegung (v0.38.0) + Chat mit den
+Unterlagen (v0.39.0). Nichts angefangen — Details und exakter nächster
+Schritt in [CONTEXT.md](CONTEXT.md) Abschnitt 8.
 
 ---
 
@@ -79,7 +79,7 @@ Nach Dringlichkeit aus echter Nutzung, grobe Reihenfolge:
 ## Später / offen
 
 - E-Mail-Benachrichtigungen (Weg noch offen, siehe CONTEXT.md)
-- ~~Chat mit den Unterlagen~~ — in Arbeit (persistenter Volltext-Index, v0.39.0)
+- ~~Chat mit den Unterlagen~~ — erledigt (persistenter Volltext-Index, v0.39.0)
 - ~~Übungsblatt-Zerlegung in Einzelaufgaben~~ — erledigt (v0.38.0)
 - OCR, Handschrift
 - iOS-Version zum Wiederholen unterwegs

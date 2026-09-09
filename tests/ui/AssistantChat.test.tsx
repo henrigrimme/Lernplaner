@@ -41,7 +41,7 @@ describe('AssistantChat', () => {
     await user.type(screen.getByLabelText('Nachricht an Sven'), 'Wie plane ich Montag?')
     await user.click(screen.getByRole('button', { name: 'Senden' }))
 
-    expect(onSend).toHaveBeenCalledWith([{ role: 'user', content: 'Wie plane ich Montag?' }])
+    expect(onSend).toHaveBeenCalledWith([{ role: 'user', content: 'Wie plane ich Montag?' }], { useDocuments: true })
     expect(await screen.findByText('Mach 90 Minuten am Montag.')).toBeInTheDocument()
     expect(screen.getByText('Wie plane ich Montag?')).toBeInTheDocument()
   })
@@ -143,9 +143,10 @@ describe('AssistantChat', () => {
     await user.click(screen.getByRole('button', { name: 'Senden' }))
 
     // Dateinamen wandern in den an die KI geschickten Nachrichtentext
-    expect(onSend).toHaveBeenCalledWith([
-      { role: 'user', content: 'Die gehören zu Money & Banking\n\n[Angehängte Dateien: a.pdf, b.pdf]' },
-    ])
+    expect(onSend).toHaveBeenCalledWith(
+      [{ role: 'user', content: 'Die gehören zu Money & Banking\n\n[Angehängte Dateien: a.pdf, b.pdf]' }],
+      { useDocuments: true },
+    )
     expect(onUploadDocuments).not.toHaveBeenCalled()
 
     const card = (await screen.findByText(/Vorschlag: Dokumente hinzufügen/)).closest('.chat-proposal') as HTMLElement
@@ -233,7 +234,7 @@ describe('AssistantChat', () => {
     expect(input).toHaveValue('Zeile eins\nZeile zwei')
 
     await user.type(input, '{Enter}')
-    expect(onSend).toHaveBeenCalledWith([{ role: 'user', content: 'Zeile eins\nZeile zwei' }])
+    expect(onSend).toHaveBeenCalledWith([{ role: 'user', content: 'Zeile eins\nZeile zwei' }], { useDocuments: true })
   })
 
   it('behält den Verlauf über einen Neuaufbau (localStorage)', async () => {

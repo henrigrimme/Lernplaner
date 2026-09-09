@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AppSidebar, DEFAULT_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from './ui/AppSidebar'
 import { TopicTree } from './ui/TopicTree'
 import { CourseSetup } from './ui/CourseSetup'
@@ -25,6 +25,8 @@ import { AltklausurAnalysis } from './ui/AltklausurAnalysis'
 import { DocumentList } from './ui/DocumentList'
 import { ExerciseSplitPanel } from './ui/ExerciseSplitPanel'
 import type { ExerciseSplitResult } from './ingest/exerciseSplit'
+import { loadDocumentPages, replaceDocumentPages } from './data/documentPagesRepo'
+import { formatExcerptsForPrompt, rankPassages, type IndexedPassage } from './domain/documentChat'
 import { checkForUpdate, installUpdateAndRestart } from './platform/updater'
 import { extractAnyDocument, isSupportedDocument, SUPPORTED_EXTENSIONS } from './ingest/documentImport'
 import { DOCUMENT_TYPE_OPTIONS, inferDocType } from './ingest/docType'
@@ -105,6 +107,7 @@ import type {
   Course,
   CourseGroup,
   Document,
+  DocumentPage,
   DocumentType,
   PaperStep,
   PlanVersion,
@@ -219,6 +222,9 @@ export function App() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
   const [documentBytes, setDocumentBytes] = useState<Record<number, Uint8Array>>({})
+  const [documentPages, setDocumentPages] = useState<DocumentPage[]>([])
+  /** Dokumente, deren Volltext-Index gerade (oder schon) geschrieben wird — verhindert Doppelläufe des Backfill-Effekts. */
+  const indexingRef = useRef<Set<number>>(new Set())
   const [notificationLog, setNotificationLog] = useState<Partial<Record<NotificationKind, string>>>({})
   const [dueNotifications, setDueNotifications] = useState<NotificationContent[]>([])
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null)
@@ -598,12 +604,13 @@ export function App() {
   useEffect(() => {
     let cancelled = false
     getDb()
-      .then((db) => Promise.all([loadQuizzes(db), loadQuestions(db), loadAnswers(db)]))
-      .then(([quizRows, questionRows, answerRows]) => {
+      .then((db) => Promise.all([loadQuizzes(db), loadQuestions(db), loadAnswers(db), loadDocumentPages(db)]))
+      .then(([quizRows, questionRows, answerRows, documentPageRows]) => {
         if (!cancelled) {
           setQuizzes(quizRows)
           setQuestions(questionRows)
           setAnswers(answerRows)
+          setDocumentPages(documentPageRows)
         }
       })
       .catch(() => {
@@ -613,6 +620,47 @@ export function App() {
       cancelled = true
     }
   }, [])
+
+  // Volltext-Index für „Chat mit den Unterlagen" (Migration 0008) einmalig
+  // aus den geladenen Dokument-Bytes befüllen — auch für die vor der
+  // Migration bereits importierten Dokumente (eine reine SQL-Migration
+  // käme nicht an den PDF-Text). Danach nur noch gelesen. Läuft je
+  // Dokument höchstens einmal (`indexingRef`), nach dem Laden der Bytes.
+  useEffect(() => {
+    let cancelled = false
+    const indexed = new Set(documentPages.map((p) => p.document_id))
+    const pending = documents.filter(
+      (d) => documentBytes[d.id] !== undefined && !indexed.has(d.id) && !indexingRef.current.has(d.id),
+    )
+    if (pending.length === 0) return
+
+    void (async () => {
+      let db: Awaited<ReturnType<typeof getDb>>
+      try {
+        db = await getDb()
+      } catch {
+        return // Kein echtes Tauri-Fenster — kein Index, Chat läuft dann ohne Unterlagen-Auszüge.
+      }
+      for (const doc of pending) {
+        if (cancelled) return
+        indexingRef.current.add(doc.id)
+        try {
+          const pageText = await extractDocumentPageText(doc.filename, documentBytes[doc.id]!)
+          await replaceDocumentPages(db, doc.id, pageText)
+          const rows: DocumentPage[] = pageText
+            .filter((p) => p.text.trim().length > 0)
+            .map((p) => ({ document_id: doc.id, page: p.page, text: p.text.trim() }))
+          if (!cancelled) setDocumentPages((prev) => [...prev.filter((r) => r.document_id !== doc.id), ...rows])
+        } catch (error) {
+          console.error(`Volltext-Index für „${doc.filename}" fehlgeschlagen`, error)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [documents, documentBytes, documentPages])
 
   const handleReview = async (cardId: number, grade: Grade) => {
     try {
@@ -659,6 +707,26 @@ export function App() {
     return splitExercises(
       extracted.slides.map((s) => ({ pageNumber: s.pageNumbers[0] ?? 1, lines: s.bodyLines.map((l) => l.text) })),
     )
+  }
+
+  // Seitentext eines Dokuments für den Volltext-Index (Migration 0008,
+  // „Chat mit den Unterlagen"). PDF über `readPages` (echte Seiten), andere
+  // Formate über ihre eigene Extraktion (`page` = Folien-/Abschnittsindex,
+  // Titelzeile mit aufgenommen).
+  const extractDocumentPageText = async (
+    filename: string,
+    bytes: Uint8Array,
+  ): Promise<{ page: number; text: string }[]> => {
+    if (filename.toLowerCase().endsWith('.pdf')) {
+      const { readPages } = await import('./ingest/pdf')
+      const pages = await readPages(bytes)
+      return pages.map((p) => ({ page: p.number, text: p.lines.map((l) => l.text).join('\n') }))
+    }
+    const extracted = await extractAnyDocument(bytes, filename)
+    return extracted.slides.map((s, i) => ({
+      page: s.pageNumbers[0] ?? i + 1,
+      text: [s.title, ...s.bodyLines.map((l) => l.text)].filter((line) => line && line.trim().length > 0).join('\n'),
+    }))
   }
 
   const handleCreateCards = async (inputs: NewCardInput[]) => {
@@ -1160,10 +1228,16 @@ export function App() {
   // Kontext zur aktuellen Lage. Svens Vorschläge werden erst per Klick
   // angewandt — Verfügbarkeit über `applyAvailabilityProposal` (oben),
   // Themen-Gewichte über den bestehenden `handleChangeTopics`-Weg.
-  const handleSvenChat = async (history: ChatMessage[]) => {
+  //
+  // `useDocuments` (Nutzerwunsch 09.09.2026, „Chat mit den Unterlagen"):
+  // ist der Schalter im Chat an, werden zur letzten Frage die relevantesten
+  // Seiten aus dem Volltext-Index (`document_pages`, Migration 0008)
+  // ausgewählt (`domain/documentChat.ts`, rein) und als zitierbarer Auszug
+  // an den Kontext gehängt.
+  const handleSvenChat = async (history: ChatMessage[], opts: { useDocuments: boolean }) => {
     const provider = await getConfiguredAIProvider(logAiUsage)
     if (!provider) throw new Error('Kein KI-Anbieter konfiguriert — in den Einstellungen einen API-Schlüssel hinterlegen.')
-    const context = buildAssistantContext({
+    let context = buildAssistantContext({
       courses,
       topics,
       assessments,
@@ -1173,6 +1247,31 @@ export function App() {
       recurringBlockers,
       today,
     })
+
+    if (opts.useDocuments && documentPages.length > 0) {
+      const lastUser = [...history].reverse().find((m) => m.role === 'user')
+      // Der beim Senden angehängte „[Angehängte Dateien: …]"-Zusatz ist
+      // kein Suchbegriff — vor dem Retrieval entfernen.
+      const query = (lastUser?.content ?? '').replace(/\n*\[Angehängte Dateien:[^\]]*\]\s*$/u, '').trim()
+      const docById = new Map(documents.map((d) => [d.id, d]))
+      const courseById = new Map(courses.map((c) => [c.id, c]))
+      const passages: IndexedPassage[] = documentPages.flatMap((row) => {
+        const doc = docById.get(row.document_id)
+        const course = doc ? courseById.get(doc.course_id) : undefined
+        if (!doc || !course || course.archived === 1) return []
+        return [{
+          documentId: doc.id,
+          courseId: course.id,
+          courseName: course.name,
+          filename: doc.filename,
+          page: row.page,
+          text: row.text,
+        }]
+      })
+      const excerpts = formatExcerptsForPrompt(rankPassages(query, passages))
+      if (excerpts) context = `${context}\n\n${excerpts}`
+    }
+
     return provider.chat(history, context)
   }
 

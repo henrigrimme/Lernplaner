@@ -54,7 +54,7 @@ export interface SvenUploadResult {
 }
 
 export interface AssistantChatProps {
-  onSend: (history: ChatMessage[]) => Promise<ChatReply>
+  onSend: (history: ChatMessage[], opts: { useDocuments: boolean }) => Promise<ChatReply>
   onApplyAvailability: (proposal: AvailabilityProposal) => void
   onApplyTopicWeights: (changes: { topicId: number; weight: 1 | 2 | 3 | 4 | 5 }[]) => void
   /** Für die Anzeige „Thema X → Gewicht 5" statt nur der id. */
@@ -78,6 +78,8 @@ interface Turn {
 interface StoredChat {
   turns: Turn[]
   applied: string[]
+  /** Schalter „Unterlagen einbeziehen" — Default an. */
+  useDocuments: boolean
 }
 
 let turnCounter = 0
@@ -94,7 +96,7 @@ function fileKey(name: string): string {
 function loadStored(): StoredChat {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { turns: [], applied: [] }
+    if (!raw) return { turns: [], applied: [], useDocuments: true }
     const parsed = JSON.parse(raw) as unknown
     const obj = (parsed ?? {}) as Record<string, unknown>
     const turns = Array.isArray(obj.turns)
@@ -107,9 +109,9 @@ function loadStored(): StoredChat {
         )
       : []
     const applied = Array.isArray(obj.applied) ? obj.applied.filter((k): k is string => typeof k === 'string') : []
-    return { turns, applied }
+    return { turns, applied, useDocuments: obj.useDocuments !== false }
   } catch {
-    return { turns: [], applied: [] }
+    return { turns: [], applied: [], useDocuments: true }
   }
 }
 
@@ -128,6 +130,7 @@ export function AssistantChat({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [appliedKeys, setAppliedKeys] = useState<Set<string>>(new Set(initial.applied))
+  const [useDocuments, setUseDocuments] = useState<boolean>(initial.useDocuments)
   const [thinkingPhrase, setThinkingPhrase] = useState<string>(THINKING_PHRASES[0])
   const [attached, setAttached] = useState<string[]>([])
   const [pickingFolder, setPickingFolder] = useState(false)
@@ -146,12 +149,12 @@ export function AssistantChat({
 
   useEffect(() => {
     try {
-      const toStore: StoredChat = { turns: turns.slice(-MAX_STORED_TURNS), applied: [...appliedKeys] }
+      const toStore: StoredChat = { turns: turns.slice(-MAX_STORED_TURNS), applied: [...appliedKeys], useDocuments }
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore))
     } catch {
       /* privater Modus / Kontingent voll — Verlauf gilt dann nur für die Sitzung */
     }
-  }, [turns, appliedKeys])
+  }, [turns, appliedKeys, useDocuments])
 
   const scrollToEnd = () => {
     requestAnimationFrame(() => {
@@ -215,7 +218,7 @@ export function AssistantChat({
         role: t.role,
         content: i === nextTurns.length - 1 ? contentForModel : t.content,
       }))
-      const reply = await onSend(history)
+      const reply = await onSend(history, { useDocuments })
       setTurns([
         ...nextTurns,
         { id: newTurnId(), role: 'assistant', content: reply.message || '(keine Antwort)', proposals: reply.proposals },
@@ -395,6 +398,10 @@ export function AssistantChat({
             ))}
           </div>
         )}
+        <label className="chat-use-documents">
+          <input type="checkbox" checked={useDocuments} onChange={(e) => setUseDocuments(e.target.checked)} />
+          Unterlagen einbeziehen — Sven zieht passende Seiten aus deinen importierten Dokumenten heran und zitiert sie
+        </label>
         <label>
           Nachricht an Sven
           <textarea

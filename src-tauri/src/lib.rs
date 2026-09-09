@@ -89,6 +89,12 @@ pub fn run() {
       sql: include_str!("../../src/data/migrations/0007_course_instructions.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 8,
+      description: "document_text",
+      sql: include_str!("../../src/data/migrations/0008_document_text.sql"),
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()
