@@ -24,17 +24,23 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.40.0.**
+**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.41.0.**
 **Arbeitsstand:** autonome Verbesserungs-Serie (Nutzerwunsch „mach alles
 nacheinander"): **A** Übungsblatt+Musterlösung koppeln (v0.40.0) ✓ · **B**
-Doc-Chat-Sprachlücke entschärfen · **C** Impeccable-Politur einer Ansicht ·
-**D** ein selbst identifiziertes Alltags-Nachschärfen. Je Punkt
-Feature-Branch → PR → Squash → Release. Ablauf in
-[CONTRIBUTING.md](CONTRIBUTING.md) („Releases"): bei sichtbarer Änderung
-Version in 4 Dateien hochziehen + signierten Release; reine Doku braucht
-keinen Release.
+Doc-Chat-Sprachlücke via DE↔EN-Fachglossar (v0.41.0) ✓ · **C**
+Impeccable-Politur einer Ansicht · **D** ein selbst identifiziertes
+Alltags-Nachschärfen. Je Punkt Feature-Branch → PR → Squash → Release.
+Ablauf in [CONTRIBUTING.md](CONTRIBUTING.md) („Releases"): bei sichtbarer
+Änderung Version in 4 Dateien hochziehen + signierten Release; reine Doku
+braucht keinen Release.
 
 Jüngster Stand ganz am Ende von Abschnitt 8:
+- **B — Doc-Chat-Sprachlücke** (v0.41.0): `expandQueryTokens` in
+  `domain/documentChat.ts` erweitert die Frage-Token um ihre DE↔EN-
+  Fachbegriffe aus einem handgepflegten Glossar (~55 Einträge Money &
+  Banking / Mikro / Statistik). „Was sagt eine inverse Zinsstrukturkurve
+  aus?" findet damit die englische „Term Structure of Interest Rates"-
+  Folie. Kein Übersetzungsdienst/Embedding.
 - **A — Übungsblatt + Musterlösung koppeln** (v0.40.0): `matchSolutions`
   in `ingest/exerciseSplit.ts` (rein) ordnet Aufgaben ihrer Musterlösung
   über die Aufgabennummer zu; im `ExerciseSplitPanel` optionales
@@ -3956,9 +3962,36 @@ nacheinander … autonom"). Baut direkt auf der Übungsblatt-Zerlegung
   Antwort; die Rückseite enthält dadurch Frage + Lösung — bewusst so
   gelassen, das ist die vollständige Musterlösung.)
 
-**Als Nächstes in der Serie:** B — Doc-Chat-Sprachlücke (leeres Retrieval
-zusätzlich gegen Themennamen matchen), C — Impeccable-Politur, D — ein
-selbst identifiziertes Alltags-Nachschärfen.
+---
+
+### B — Doc-Chat-Sprachlücke via DE↔EN-Fachglossar (v0.41.0, 09.09.2026)
+
+Zweiter Punkt der Serie. Schließt die in §9 dokumentierte Grenze des
+„Chat mit den Unterlagen" (v0.39.0) teilweise: deutsche Frage → englisches
+Folienmaterial.
+
+- **`domain/documentChat.ts`**: neues, handgepflegtes `GLOSSARY`
+  (~55 Einträge, DE→EN, für Money & Banking, Mikroökonomie, etwas
+  Statistik — die tatsächlich genutzten Fächer). Beim Modul-Load wird
+  daraus `SYNONYMS` in **beide** Richtungen aufgebaut. `expandQueryTokens`
+  ergänzt jedes Frage-Token um seine gleichbedeutenden Token der anderen
+  Sprache; `rankPassages` nutzt die erweiterte Menge als `queryTerms`
+  (df/idf/tf unverändert — nicht vorkommende Synonyme tragen einfach 0
+  bei). **Kein Übersetzungsdienst, kein Embedding** — eine feste Liste
+  reicht für zwei Studierende und bleibt nachvollziehbar/testbar.
+- **Tests:** 3 für `expandQueryTokens` + 1 Cross-Lingual-Rank-Test in
+  `documentChat.test.ts`. **672 gesamt**, `tsc` + `vite build` grün.
+- **Plausibilitätscheck an echtem Material:** dieselben ~190 Folien-Seiten
+  wie bei v0.39.0, jetzt mit **deutschen** Fragen: „inverse
+  Zinsstrukturkurve" → „The Term Structure of Interest Rates /
+  Expectations Hypothesis" (S. 58, Score 4,8; vorher nur ein schwacher
+  „inverse"-Treffer); „Anleihekurs und Rendite" → „Yield Curves … inverted
+  … flat" + „Yield to Maturity (YTM)"; „asymmetrische Information / adverse
+  Selektion" → direkt die Asymmetric-Information-Folien. §9-Eintrag
+  entsprechend präzisiert.
+
+**Als Nächstes in der Serie:** C — Impeccable-Politur einer Ansicht,
+D — ein selbst identifiziertes Alltags-Nachschärfen.
 
 ---
 
@@ -4005,14 +4038,16 @@ selbst identifiziertes Alltags-Nachschärfen.
 
 - **„Chat mit den Unterlagen" ist wortbasiert, nicht semantisch** — seit
   v0.39.0 (`domain/documentChat.ts`, Migration 0008) sucht Sven die
-  passenden Dokumentseiten per TF-IDF über Wort-Token. Das trifft gut,
-  wenn Frage und Material dieselben Begriffe nutzen (an echtem englischem
-  Folienmaterial bestätigt), aber **nicht sprachübergreifend**: eine
-  deutsch gestellte Frage findet englische Folien nur über gemeinsame
-  Fachbegriffe („yield curve", „duration"). Kein Embedding-/Vektor-Ansatz
-  — bewusst, gleiche Abwägung wie bei `domain/search.ts` (keine neue
-  Bibliothek für die Materialmenge zweier Studierender). Deckt der Index
-  eine Frage nicht ab, sagt Sven das offen, statt zu raten.
+  passenden Dokumentseiten per TF-IDF über Wort-Token. Seit v0.41.0
+  überbrückt ein handgepflegtes DE↔EN-Fachglossar (`GLOSSARY` /
+  `expandQueryTokens`, ~55 Begriffe der genutzten Fächer) den häufigsten
+  Fall „deutsche Frage → englisches Folienmaterial" — an echtem Material
+  bestätigt. Verbleibende Grenze: Begriffe **außerhalb** des Glossars und
+  echte Synonymie/Umschreibung ohne gemeinsames Stichwort. Kein
+  Embedding-/Vektor-Ansatz — bewusst, gleiche Abwägung wie bei
+  `domain/search.ts` (keine neue Bibliothek für die Materialmenge zweier
+  Studierender). Deckt der Index eine Frage nicht ab, sagt Sven das offen,
+  statt zu raten.
 
 ---
 

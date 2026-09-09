@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { formatExcerptsForPrompt, rankPassages, tokenize, type IndexedPassage } from '../../src/domain/documentChat'
+import {
+  expandQueryTokens,
+  formatExcerptsForPrompt,
+  rankPassages,
+  tokenize,
+  type IndexedPassage,
+} from '../../src/domain/documentChat'
 
 function passage(o: Partial<IndexedPassage> & { documentId: number; page: number; text: string }): IndexedPassage {
   return { courseId: 1, courseName: 'Money & Banking', filename: `Doc ${o.documentId}.pdf`, ...o }
@@ -18,7 +24,33 @@ describe('tokenize', () => {
   })
 })
 
+describe('expandQueryTokens', () => {
+  it('ergänzt englische Fachbegriffe zu deutschen Frage-Token', () => {
+    const expanded = expandQueryTokens(['zinsstrukturkurve'])
+    expect(expanded).toContain('zinsstrukturkurve')
+    expect(expanded).toEqual(expect.arrayContaining(['yield', 'curve']))
+  })
+
+  it('funktioniert auch andersherum (englisch → deutsch)', () => {
+    expect(expandQueryTokens(['equilibrium'])).toContain('gleichgewicht')
+  })
+
+  it('lässt unbekannte Token unverändert und dedupliziert', () => {
+    expect(expandQueryTokens(['bafög', 'bafög'])).toEqual(['bafög'])
+  })
+})
+
 describe('rankPassages', () => {
+  it('überbrückt DE-Frage → EN-Material über das Fachglossar', () => {
+    const english: IndexedPassage[] = [
+      passage({ documentId: 1, page: 5, text: 'The yield curve plots interest rates against the maturity of bonds.' }),
+      passage({ documentId: 2, page: 2, text: 'Marginal utility decreases as consumption increases (diminishing marginal utility).' }),
+    ]
+    const ranked = rankPassages('Was sagt die Zinsstrukturkurve über Anleihen aus?', english)
+    expect(ranked[0]).toMatchObject({ documentId: 1, page: 5 })
+  })
+
+
   it('findet die thematisch passenden Seiten und ordnet sie nach Relevanz', () => {
     const ranked = rankPassages('Was sagt eine inverse Zinsstrukturkurve aus?', CORPUS)
     expect(ranked[0]).toMatchObject({ documentId: 1, page: 4 })

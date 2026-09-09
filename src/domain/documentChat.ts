@@ -57,6 +57,122 @@ export function tokenize(text: string): string[] {
 }
 
 /**
+ * Kleines, handgepflegtes DE↔EN-Fachglossar für die beiden tatsächlich
+ * genutzten Fächer (Money & Banking, Mikroökonomie, etwas Statistik). Das
+ * meiste Vorlesungsmaterial ist englisch, der Sven-Chat läuft auf Deutsch
+ * — ohne diese Brücke findet eine deutsch gestellte Frage die englischen
+ * Folien nicht (dokumentierte Grenze §9). Bewusst **kein**
+ * Übersetzungsdienst/Embedding: eine feste Liste der wiederkehrenden
+ * Begriffe reicht für zwei Studierende und bleibt nachvollziehbar.
+ *
+ * Schlüssel sind bereits `tokenize`-normalisiert (klein). Werte sind die
+ * Entsprechungen in der jeweils anderen Sprache; mehrteilige Begriffe
+ * werden beim Erweitern selbst wieder tokenisiert. Die Zuordnung wird beim
+ * Modul-Load in beide Richtungen aufgebaut (`SYNONYMS`).
+ */
+const GLOSSARY: Record<string, string[]> = {
+  // Money & Banking
+  zinsstrukturkurve: ['yield curve', 'term structure'],
+  zinskurve: ['yield curve'],
+  rendite: ['yield', 'return'],
+  'endfälligkeitsrendite': ['yield to maturity'],
+  anleihe: ['bond'],
+  anleihen: ['bonds'],
+  kupon: ['coupon'],
+  laufzeit: ['maturity', 'term'],
+  duration: ['duration'],
+  zentralbank: ['central bank'],
+  geldpolitik: ['monetary policy'],
+  leitzins: ['policy rate', 'key interest rate'],
+  geldmenge: ['money supply', 'monetary aggregate'],
+  mindestreserve: ['reserve requirement'],
+  inflation: ['inflation'],
+  wechselkurs: ['exchange rate'],
+  zinssatz: ['interest rate'],
+  zins: ['interest'],
+  risikoprämie: ['risk premium', 'risk spread'],
+  liquidität: ['liquidity'],
+  bankenregulierung: ['bank regulation', 'financial regulation'],
+  bankrun: ['bank run', 'bank panic'],
+  eigenkapital: ['equity', 'capital'],
+  bilanz: ['balance sheet'],
+  hebel: ['leverage'],
+  arbitrage: ['arbitrage'],
+  'asymmetrische information': ['asymmetric information'],
+  adverseselektion: ['adverse selection'],
+  moralhazard: ['moral hazard'],
+  finanzintermediär: ['financial intermediary', 'financial intermediation'],
+  // Mikroökonomie
+  angebot: ['supply'],
+  nachfrage: ['demand'],
+  gleichgewicht: ['equilibrium'],
+  budgetgerade: ['budget line', 'budget constraint'],
+  nutzen: ['utility'],
+  nutzenfunktion: ['utility function'],
+  indifferenzkurve: ['indifference curve'],
+  grenznutzen: ['marginal utility'],
+  grenzkosten: ['marginal cost'],
+  grenzrate: ['marginal rate'],
+  haushalt: ['household', 'consumer'],
+  haushaltstheorie: ['consumer theory'],
+  produzententheorie: ['producer theory', 'theory of the firm'],
+  monopol: ['monopoly'],
+  oligopol: ['oligopoly'],
+  wettbewerb: ['competition'],
+  elastizität: ['elasticity'],
+  spieltheorie: ['game theory'],
+  gefangenendilemma: ['prisoner', 'prisoners dilemma'],
+  nashgleichgewicht: ['nash equilibrium'],
+  wohlfahrt: ['welfare', 'surplus'],
+  externalität: ['externality'],
+  // Statistik / Methoden
+  erwartungswert: ['expected value', 'mean'],
+  standardabweichung: ['standard deviation'],
+  varianz: ['variance'],
+  wahrscheinlichkeit: ['probability'],
+  korrelation: ['correlation'],
+  regression: ['regression'],
+  risiko: ['risk'],
+  streuung: ['dispersion', 'volatility'],
+}
+
+/** Beidseitige Synonym-Zuordnung, einmalig beim Load aufgebaut: token → Menge gleichbedeutender token. */
+const SYNONYMS: Map<string, Set<string>> = (() => {
+  const map = new Map<string, Set<string>>()
+  const link = (a: string, b: string) => {
+    if (a === b) return
+    if (!map.has(a)) map.set(a, new Set())
+    map.get(a)!.add(b)
+  }
+  for (const [term, equivalents] of Object.entries(GLOSSARY)) {
+    const left = tokenize(term)
+    for (const phrase of equivalents) {
+      const right = tokenize(phrase)
+      for (const l of left) for (const r of right) {
+        link(l, r)
+        link(r, l)
+      }
+    }
+  }
+  return map
+})()
+
+/**
+ * Erweitert die Frage-Token um ihre Glossar-Entsprechungen in der jeweils
+ * anderen Sprache (siehe `GLOSSARY`). Damit findet „Was ist die
+ * Zinsstrukturkurve?" auch die englische „yield curve"-Folie. Reine
+ * Funktion, deterministisch.
+ */
+export function expandQueryTokens(tokens: string[]): string[] {
+  const out = new Set(tokens)
+  for (const token of tokens) {
+    const synonyms = SYNONYMS.get(token)
+    if (synonyms) for (const s of synonyms) out.add(s)
+  }
+  return [...out]
+}
+
+/**
  * Rangfolge der Passagen zur `query`. TF-IDF: seltene Begriffe der Frage,
  * die in einer Passage (mehrfach) vorkommen, zählen am stärksten; lange
  * Passagen werden leicht gedämpft, damit sie nicht allein durch Masse
@@ -67,7 +183,9 @@ export function rankPassages(query: string, passages: IndexedPassage[], options:
   const maxPerDocument = options.maxPerDocument ?? DEFAULTS.maxPerDocument
   const courseFilter = options.courseIds && options.courseIds.length > 0 ? new Set(options.courseIds) : null
 
-  const queryTerms = [...new Set(tokenize(query))]
+  // Frage-Token um DE↔EN-Fachbegriffe erweitern — sonst findet eine
+  // deutsch gestellte Frage das (meist englische) Folienmaterial nicht.
+  const queryTerms = expandQueryTokens([...new Set(tokenize(query))])
   if (queryTerms.length === 0) return []
 
   const pool = courseFilter ? passages.filter((p) => courseFilter.has(p.courseId)) : passages
