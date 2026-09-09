@@ -24,8 +24,20 @@ wo die Arbeit steht und was der nächste Schritt ist.
 > gesquasht, damit die Hauptlinie sauber bleibt. Details in
 > [CONTRIBUTING.md](CONTRIBUTING.md) → „Commits".
 
-**Letzte Aktualisierung:** 8. September 2026, **aktuelle Version: v0.37.0.**
+**Letzte Aktualisierung:** 9. September 2026, **aktuelle Version: v0.37.0.**
+**Arbeitsstand: nichts offen.** Working Tree sauber auf `main`, 638 Tests
+grün (`npx vitest run`), `tsc --noEmit` + `vite build` grün. Kein
+angefangener Branch, keine halbe Änderung. Ein neuer Chat kann direkt eine
+neue Aufgabe beginnen — Ablauf in [CONTRIBUTING.md](CONTRIBUTING.md)
+(„Releases"): Feature-Branch → PR → Squash-Merge → bei sichtbarer Änderung
+Version in 4 Dateien hochziehen + signierten Release bauen; reine
+Doku/Interna brauchen keinen Release.
+
 Jüngster Stand ganz am Ende von Abschnitt 8:
+- Doku: CONTEXT.md §9 (Anki-Einschränkung) auf v0.32.0/v0.37.0-Stand
+  gebracht (PR #98, reine Doku, kein Release) — Bilder/Templates/neues
+  Medienformat werden längst unterstützt; verbliebene Grenze ist nur
+  volle Custom-Template-Fidelity + der grobe `ivl`/`ease`→FSRS-Seed.
 - „Anki: neues Medienformat (.anki21b) lesen" (v0.37.0, PR #97):
   Protobuf-`MediaEntries` + Zstd-Mediendateien; Bilder aus neuen Anki-
   Decks werden echt eingebettet. Damit ist die Folgeschritt-Liste leer.
@@ -3745,6 +3757,26 @@ signierter Release, 638 Tests grün.
 
 **Offen:** derzeit nichts aus der Folgeschritt-Liste — nur die
 dauerhaften Einschränkungen unten (kein OCR, kein Backup usw.).
+
+---
+
+### Doku: §9 Anki-Einschränkung aktualisiert (PR #98, 09.09.2026)
+
+Reine Doku, **kein Release, keine Versionsänderung.** §9 („Bekannte
+Einschränkungen") behauptete beim Anki-Import noch „keine Bilder/
+Templates" und „`[Bild: name]`-Platzhalter". Gegen den Code geprüft und
+neu formuliert: Bilder werden seit v0.32.0 (PR #84) als `data:`-URIs
+eingebettet (`inlineImages`, Caps 1,5 MB / 6 MB) und über `CardContent`
+in `FlashcardReview`/`ReviewSession` gerendert; `renderTemplate` deckt
+`{{Feld}}`/`{{FrontSide}}`/`{{#Feld}}`/`{{^Feld}}`/`{{hint:}}` ab; das
+neue Protobuf-Medienformat wird seit v0.37.0 (PR #97) gelesen.
+Verbliebene echte Grenzen: keine volle Fidelity beliebiger
+Custom-Templates, grober `ivl`/`ease`→FSRS-Seed. §10 („Offene Fragen")
+unverändert gültig (E-Mail-Benachrichtigungen, Oktober-Termine).
+
+**Handoff:** Ab hier ist nichts angefangen. Der nächste Chat wählt eine
+neue Aufgabe (z. B. weiteres „Nachschärfen aus dem Alltag", ROADMAP.md
+Phase 4) und arbeitet sie nach CONTRIBUTING.md „Releases" ab.
 
 ---
 

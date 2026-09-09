@@ -12,22 +12,31 @@ Prüfungstermine, verfügbare Zeit und den tatsächlichen Fortschritt anpasst.
 
 | | |
 |---|---|
-| Phase | 1 von 4 — Fundament |
-| Zieltermin | **1. September 2026** nutzbar |
+| Phase | 4 von 4 — Echtbetrieb, additive Verbesserungen aus dem Alltag |
+| Version | **v0.37.0** (signierte Releases, Auto-Update) |
+| Im Einsatz seit | 1. September 2026 |
 | Prüfungsphase | Oktober 2026 |
 
-Siehe [ROADMAP.md](ROADMAP.md) für den Stand im Detail.
+Genauer Arbeitsstand und nächster Schritt: **[CONTEXT.md](CONTEXT.md)
+Abschnitt 8 „Stand"** (wird nach jedem Schritt nachgeführt).
+Phasenüberblick: [ROADMAP.md](ROADMAP.md).
 
 ---
 
 ## Was die App macht
 
-1. **Importieren** — PDFs per Drag & Drop, Text und Struktur werden extrahiert
+1. **Importieren** — PDF/`.docx`/`.pptx`/`.xlsx`/`.md`/`.txt`/`.csv` sowie
+   Anki-Decks (`.apkg`/`.colpkg`); Text und Struktur werden ohne KI extrahiert
 2. **Verstehen** — Themenbaum pro Fach, mit Seitenreferenzen, manuell korrigierbar
-3. **Planen** — Aufwand schätzen, Kapazität prüfen, in Tagesblöcke terminieren
-4. **Begleiten** — Tagesansicht, Zeiterfassung, Neuberechnung bei Verzug
+3. **Planen** — Aufwand schätzen, Kapazität prüfen, in Tagesblöcke terminieren;
+   Verfügbarkeit per Regel/Zeitraum oder im Freitext an „Sven" (KI-Assistent)
+4. **Begleiten** — Tagesansicht, Zeiterfassung, Neuberechnung bei Verzug,
+   Fortschritt pro Fach
 
-Später: Karteikarten, Spaced Repetition, Quiz und Probeklausuren.
+Umgesetzt: Karteikarten mit Spaced Repetition (FSRS), Quiz, Probeklausur,
+Fehlerhistorie, Altklausur-Gewichtung, Kalender-Export, PDF-Viewer,
+Kurs-Export/Import, KI-Assistent „Sven". Offen: siehe [ROADMAP.md](ROADMAP.md)
+„Später / offen".
 
 ---
 

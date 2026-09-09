@@ -3,6 +3,11 @@
 **Zieltermin: 1. September 2026** — ab dann wird die App im Echtbetrieb genutzt.
 Prüfungen im Oktober.
 
+**Aktueller Stand (09.09.2026):** Phasen 1–3 abgeschlossen, seit 01.09 im
+Echtbetrieb. Version v0.37.0. Phase 4 läuft (additive Verbesserungen aus der
+echten Nutzung). Nichts angefangen — Details und exakter nächster Schritt in
+[CONTEXT.md](CONTEXT.md) Abschnitt 8.
+
 ---
 
 ## Phase 1 — Fundament · 20.07 – 02.08
