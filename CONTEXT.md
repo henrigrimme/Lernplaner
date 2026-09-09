@@ -4034,6 +4034,14 @@ Redesign** — warme Terrakotta-/Native-macOS-Identität unverändert.
   vorbestehenden Zeilen (Glas-Highlight, Dialog-Backdrop, 2–3px
   Icon-Radien). `tsc` + `vite build` + 30 betroffene UI-Tests grün.
 
+**Parallel dazu gemergt** (eigene Sitzung, aus dem Task-Chip dieser
+Session): **#106** `fix(ci)` — `release.yml` baut die universelle `.dmg`
+jetzt über eine committete Override-Config (`src-tauri/tauri.ci.conf.json`)
+statt fragilem inline-`--config`-JSON; **#110** `ui` — neue Bildmarke als
+App-Icon (`src-tauri/icons/*`, `app-icon.svg`) und als In-App-Logo
+(`src/ui/Logo.tsx`, in der Sidebar). Beide ohne eigenen Release; die
+neuen Icons gehen mit dem nächsten Release (v0.42.0) mit raus.
+
 **Als Nächstes in der Serie:** D — ein selbst identifiziertes
 Alltags-Nachschärfen.
 
