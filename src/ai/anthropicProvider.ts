@@ -68,21 +68,27 @@ interface AnthropicMessageResponse {
   usage: { input_tokens: number; output_tokens: number }
 }
 
+/**
+ * Ohne den `anthropic-dangerous-direct-browser-access`-Header lehnt die Anthropic-API
+ * den Request mit 401 ab, sobald `@tauri-apps/plugin-http`s interne `new Request(...)`-
+ * Nutzung (siehe fetch() in dessen dist-js/index.js) Header setzt, die die API als
+ * Browser-Zugriff erkennt — obwohl der eigentliche Aufwand über Rust läuft. Unbedenklich
+ * hier: der Key bleibt in der macOS-Keychain des jeweiligen Nutzers, es gibt kein
+ * öffentliches Web-Frontend, das ihn Dritten exponieren könnte.
+ */
+function anthropicHeaders(apiKey: string): Record<string, string> {
+  return {
+    'content-type': 'application/json',
+    'x-api-key': apiKey,
+    'anthropic-version': ANTHROPIC_VERSION,
+    'anthropic-dangerous-direct-browser-access': 'true',
+  }
+}
+
 async function callClaude(apiKey: string, prompt: string): Promise<{ text: string; usage: AnthropicMessageResponse['usage'] }> {
   const response = await fetch(ANTHROPIC_API_URL, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': ANTHROPIC_VERSION,
-      // Ohne diesen Header lehnt die Anthropic-API den Request mit 401 ab, sobald
-      // `@tauri-apps/plugin-http`s interne `new Request(...)`-Nutzung (siehe fetch()
-      // in dessen dist-js/index.js) Header setzt, die die API als Browser-Zugriff
-      // erkennt — obwohl der eigentliche Aufwand über Rust läuft. Unbedenklich hier:
-      // der Key bleibt in der macOS-Keychain des jeweiligen Nutzers, es gibt kein
-      // öffentliches Web-Frontend, das ihn Dritten exponieren könnte.
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
+    headers: anthropicHeaders(apiKey),
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 8192,
@@ -257,11 +263,7 @@ export class AnthropicProvider implements AIProvider {
   async chat(history: ChatMessage[], context: string): Promise<ChatReply> {
     const response = await fetch(ANTHROPIC_API_URL, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': this.apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
-      },
+      headers: anthropicHeaders(this.apiKey),
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 2048,
